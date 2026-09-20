@@ -9,6 +9,7 @@
     <!-- MediaPipe Hands CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <style>
         body {
             margin: 0;
@@ -34,10 +35,10 @@
 <body class="flex flex-col h-screen justify-between items-center select-none">
 
     <!-- 상단 상태 바 -->
-    <header class="w-full max-w-md bg-slate-900/80 backdrop-blur-md p-4 flex flex-col items-center z-20 border-b border-slate-700 shadow-lg">
-        <h1 class="text-lg font-bold text-cyan-400">✋ 머리 위 O / X 제스처 인식</h1>
-        <p id="instruction" class="text-xs text-slate-300 mt-1 text-center">
-            한 손 머리 위(1초) ➔ <span class="text-green-400 font-bold">O</span> | 두 손 머리 위(1초) ➔ <span class="text-rose-400 font-bold">X</span>
+    <header class="w-full max-w-md bg-slate-900/85 backdrop-blur-md p-3 flex flex-col items-center z-20 border-b border-slate-700 shadow-lg">
+        <h1 class="text-base font-bold text-cyan-400">✋ 머리 위 O / X 제스처 인식</h1>
+        <p id="instruction" class="text-xs text-slate-300 mt-0.5 text-center">
+            한 손 머리 위 (1초) ➔ <span class="text-green-400 font-bold">O</span> | 두 손 머리 위 (1초) ➔ <span class="text-rose-400 font-bold">X</span>
         </p>
     </header>
 
@@ -49,14 +50,14 @@
         <!-- 미디어파이프 스켈레톤 드로잉 캔버스 -->
         <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover mirror"></canvas>
 
-        <!-- 1초 타이머 진행 바 (화면 하단 부근 오버레이) -->
+        <!-- 1초 타이머 진행 바 -->
         <div id="timer-container" class="absolute bottom-20 w-48 h-3 bg-slate-700/70 rounded-full overflow-hidden border border-slate-500 hidden z-20">
             <div id="timer-bar" class="h-full bg-cyan-400 w-0 transition-all duration-75"></div>
         </div>
         <div id="timer-text" class="absolute bottom-24 text-xs font-semibold text-cyan-300 hidden z-20">인식 유지 중...</div>
 
         <!-- 대형 O / X 결과 표시 오버레이 -->
-        <div id="result-overlay" class="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-xs z-30 pointer-events-none opacity-0 transition-opacity duration-300">
+        <div id="result-overlay" class="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-xs z-30 pointer-events-none opacity-0 transition-opacity duration-300">
             <span id="result-char" class="text-[14rem] font-black tracking-tighter drop-shadow-[0_10px_25px_rgba(0,0,0,0.8)]"></span>
         </div>
     </main>
@@ -87,8 +88,9 @@
         const timerText = document.getElementById('timer-text');
 
         let holdStartTime = null;
-        let currentDetectedType = null; // 'O', 'X', 또는 null
+        let currentDetectedType = null; // 'O' 또는 'X'
         let activeEffectTimer = null;
+        let coolTimeEnd = 0; // 연속 인식 방지용 쿨타임
 
         function addLog(message) {
             const timeStr = new Date().toLocaleTimeString();
@@ -96,7 +98,6 @@
         }
 
         function onResults(results) {
-            // 캔버스 크기 일치화
             if (canvasElement.width !== videoElement.videoWidth || canvasElement.height !== videoElement.videoHeight) {
                 canvasElement.width = videoElement.videoWidth;
                 canvasElement.height = videoElement.videoHeight;
@@ -110,12 +111,12 @@
 
             if (results.multiHandLandmarks) {
                 for (const landmarks of results.multiHandLandmarks) {
-                    // 미디어파이프 스켈레톤 그리기
+                    // 손 스켈레톤 그리기
                     drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#06b6d4', lineWidth: 3});
                     drawLandmarks(canvasCtx, landmarks, {color: '#f43f5e', lineWidth: 1, radius: 3});
 
-                    // 손목(0번) 또는 손바닥 주요 부위의 y 좌표 확인 (값이 작을수록 화면 위쪽)
-                    // 보통 머리는 화면 상단 40% (y < 0.4) 영역에 위치한다고 가정
+                    // 손목(0번) Y 좌표 판정 (0에 가까울수록 화면 상단 = 머리 위)
+                    // 화면 상단 42% 이내에 손목이 위치하면 머리 위로 판정
                     const wristY = landmarks[0].y;
                     if (wristY < 0.42) {
                         handsAboveHeadCount++;
@@ -123,7 +124,7 @@
                 }
             }
 
-            // 제스처 조건 판정 (1손머리위 = O, 2손머리위 = X)
+            // 조건 판정: 한 손 머리 위 = O, 두 손 머리 위 = X
             let detectedState = null;
             if (handsAboveHeadCount === 1) {
                 detectedState = 'O';
@@ -133,32 +134,35 @@
 
             const now = Date.now();
 
+            // 쿨타임 중이면 타이머 진행 무시
+            if (now < coolTimeEnd) {
+                canvasCtx.restore();
+                return;
+            }
+
             if (detectedState !== null) {
-                statusBadge.innerText = `${detectedState} 감지 중...`;
+                statusBadge.innerText = `${detectedState} 감지 유지 중...`;
                 statusBadge.className = "px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold animate-pulse";
                 
                 timerContainer.classList.remove('hidden');
                 timerText.classList.remove('hidden');
 
                 if (currentDetectedType !== detectedState) {
-                    // 상태가 바뀌었거나 새로 시작된 경우 타이머 리셋
                     currentDetectedType = detectedState;
                     holdStartTime = now;
                 } else {
-                    // 동일한 동작 유지 시간 계산 (1000ms = 1초)
                     const elapsed = now - holdStartTime;
-                    const progress = Math.min((elapsed / 1000) * 100, 100);
+                    const progress = Math.min((elapsed / 1000) * 100, 100); // 1초 기준
                     timerBar.style.width = `${progress}%`;
 
-                    if (elapsed >= 1000) {
-                        // 1초 이상 달성! 대형 표시 트리거
+                    if (elapsed >= 1000) { // 1초 이상 유지 완료
                         triggerBigDisplay(detectedState);
-                        // 연속 발동 방지를 위해 타이머 초기화 지연 혹은 재설정
-                        holdStartTime = now + 2000; // 2초간 쿨타임
+                        coolTimeEnd = now + 2000; // 2초간 쿨타임 부여
+                        currentDetectedType = null;
+                        holdStartTime = null;
                     }
                 }
             } else {
-                // 조건에 맞지 않으면 초기화
                 currentDetectedType = null;
                 holdStartTime = null;
                 timerContainer.classList.add('hidden');
@@ -183,14 +187,14 @@
                 addLog("✨ [성공] 두 손 머리 위 1초 유지 -> 대형 X 표시!");
             }
 
-            // 스마트폰 진동 피드백 (지원 기기만 작동)
+            // 진동 피드백 (모바일 지원 시)
             if (navigator.vibrate) {
                 navigator.vibrate([100, 50, 100]);
             }
 
             resultOverlay.classList.remove('opacity-0');
 
-            // 1.5초 동안 대형 표시 유지 후 페이드 아웃
+            // 1.5초 후 결과 화면 숨기기
             activeEffectTimer = setTimeout(() => {
                 resultOverlay.classList.add('opacity-0');
             }, 1500);
@@ -210,7 +214,7 @@
 
         hands.onResults(onResults);
 
-        // 카메라 연결 설정
+        // 카메라 연결
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({ image: videoElement });
