@@ -1,482 +1,1372 @@
 <!DOCTYPE html>
-<html lang="ko" class="h-full bg-slate-950">
+<html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>머리 위 손 동작 O/X 인식기 (카메라 숨김)</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <!-- MediaPipe Hands & Camera Utils -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <style>
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            touch-action: manipulation;
-            user-select: none;
-            -webkit-user-select: none;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Tennis Scoreboard with Camera Detection</title>
+  <!-- MediaPipe Pose & Camera Utils CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg-color: #08120c;
+      --card-bg: #102017;
+      --team-a-color: #0b4182;
+      --team-b-color: #6b1158;
+      --line-color: #ffffff;
+      --accent-yellow: #ccff00;
+      --text-main: #ffffff;
+    }
 
-        @keyframes pop-bounce {
-            0% { transform: scale(0.3); opacity: 0; }
-            50% { transform: scale(1.15); opacity: 1; }
-            70% { transform: scale(0.95); }
-            100% { transform: scale(1); opacity: 1; }
-        }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
 
-        @keyframes glow-pulse-green {
-            0%, 100% { filter: drop-shadow(0 0 25px rgba(74, 222, 128, 0.8)); transform: scale(1); }
-            50% { filter: drop-shadow(0 0 60px rgba(74, 222, 128, 1)); transform: scale(1.05); }
-        }
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      touch-action: none;
+      flex-direction: row;
+    }
 
-        @keyframes glow-pulse-red {
-            0%, 100% { filter: drop-shadow(0 0 25px rgba(244, 63, 94, 0.8)); transform: scale(1); }
-            50% { filter: drop-shadow(0 0 60px rgba(244, 63, 94, 1)); transform: scale(1.05); }
-        }
+    @media (orientation: portrait) {
+      body {
+        flex-direction: column;
+      }
+    }
 
-        .animate-pop {
-            animation: pop-bounce 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-        }
+    #unauthorized-access {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-color); color: #ff4d4d; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 9999; padding: 20px; text-align: center;
+    }
 
-        .animate-glow-o {
-            animation: glow-pulse-green 1.5s infinite ease-in-out;
-        }
+    #fs-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--bg-color); display: flex; flex-direction: column;
+      justify-content: center; align-items: center; z-index: 100; padding: 20px; text-align: center;
+    }
 
-        .animate-glow-x {
-            animation: glow-pulse-red 1.5s infinite ease-in-out;
-        }
+    #fs-overlay h2 { color: var(--accent-yellow); font-size: 1.8rem; margin-bottom: 25px; }
 
-        /* Hide scrollbars for clean app feel */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
+    .btn-fullscreen-start {
+      padding: 15px 35px; font-size: 1.1rem; font-weight: bold;
+      background-color: var(--accent-yellow); border: none; border-radius: 8px;
+      color: #000; cursor: pointer;
+    }
+
+    .main-app {
+      flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative;
+    }
+
+    .scoreboard { display: flex; padding: 8px 10px 0 10px; gap: 10px; height: 70%; }
+
+    .team-card {
+      flex: 1; border-radius: 12px; padding: 12px 14px; display: flex;
+      flex-direction: column; justify-content: space-between; position: relative;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6); overflow: hidden; border: 1px solid rgba(255,255,255,0.15);
+    }
+
+    .team-card.team-a { background: linear-gradient(135deg, var(--team-a-color), #051a36); }
+    .team-card.team-b { background: linear-gradient(135deg, var(--team-b-color), #2d0725); }
+
+    .team-header { display: flex; justify-content: space-between; align-items: center; z-index: 2; }
+    .team-info { display: flex; align-items: center; gap: 8px; }
+    .team-title-row { display: flex; align-items: center; gap: 6px; }
+    .team-name { font-size: 1.1rem; font-weight: 800; }
+    .player-names { font-size: 0.8rem; opacity: 0.85; margin-top: 2px; }
+
+    .court-arrow {
+      font-size: 0.85rem; font-weight: 900; color: var(--accent-yellow);
+      background: rgba(0, 0, 0, 0.4); padding: 2px 6px; border-radius: 4px;
+      border: 1px solid rgba(204, 255, 0, 0.4);
+    }
+
+    .sets-won {
+      font-size: 1.1rem; font-weight: 700; background: rgba(0,0,0,0.3);
+      padding: 4px 10px; border-radius: 6px;
+    }
+
+    .score-body {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex; justify-content: center; align-items: center;
+      z-index: 1; pointer-events: none;
+    }
+
+    .games-score {
+      font-size: 0.9rem; font-weight: 700; opacity: 0.95; position: absolute; left: 14px; bottom: 12px;
+      background: rgba(0,0,0,0.4); padding: 3px 8px; border-radius: 4px; z-index: 4;
+    }
+
+    .point-score {
+      font-size: min(35vw, 38vh);
+      font-weight: 900;
+      text-shadow: 4px 4px 16px rgba(0,0,0,0.9);
+      line-height: 0.8;
+      text-align: center;
+      display: flex; align-items: center; justify-content: center;
+      letter-spacing: -2px; margin: 0; padding: 0;
+      transform: translateY(-2%);
+    }
+
+    .serve-ball {
+      display: inline-block; width: 12px; height: 12px;
+      background-color: var(--accent-yellow); border-radius: 50%;
+      box-shadow: 0 0 10px var(--accent-yellow); visibility: hidden;
+    }
+    .serve-ball.active { visibility: visible; }
+
+    .btn-score-up {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      opacity: 0; cursor: pointer; z-index: 3;
+    }
+
+    /* 사이드바/하단 메뉴 컨트롤 레이아웃 */
+    .sidebar-controls {
+      display: flex; width: 120px; background-color: var(--card-bg);
+      border-left: 1px solid #234733; padding: 10px 8px; flex-direction: column; gap: 8px;
+      justify-content: space-between; z-index: 10;
+    }
+
+    .menu-group-main, .menu-group-bottom {
+      display: flex; flex-direction: column; gap: 8px; width: 100%;
+    }
+
+    /* 화면이 세로 방향(Portrait)일 때 메뉴 컨트롤을 하단 패널로 변환 */
+    @media (orientation: portrait) {
+      .sidebar-controls {
+        width: 100%;
+        height: auto;
+        border-left: none;
+        border-top: 1px solid #234733;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-around;
+        padding: 6px;
+      }
+
+      .menu-group-main, .menu-group-bottom {
+        flex-direction: row;
+        width: auto;
+        flex: 1;
+        gap: 4px;
+      }
+
+      .sidebar-title {
+        display: none;
+      }
+
+      .sidebar-controls .btn-action, .sidebar-controls .btn-icon {
+        flex: 1;
+        padding: 10px 2px;
+        font-size: 0.7rem;
+      }
+    }
+
+    .sidebar-title { font-size: 0.75rem; font-weight: 800; color: var(--accent-yellow); text-align: center; margin-bottom: 2px; }
+
+    /* 메인 경기 제어 버튼 강조 스타일 */
+    .btn-action-large {
+      background-color: #1c3829; color: white; border: 1px solid #2e5941;
+      padding: 12px 4px; border-radius: 8px; font-size: 0.8rem; font-weight: bold;
+      cursor: pointer; text-align: center; line-height: 1.2;
+    }
+
+    .btn-action-large.highlight { 
+      border-color: var(--accent-yellow); 
+      color: var(--accent-yellow); 
+      background-color: #132b1e;
+    }
+
+    .btn-action-large.active-camera {
+      border-color: #00ff66;
+      color: #00ff66;
+      background-color: #083819;
+      box-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
+    }
+
+    .btn-icon {
+      background: #14261c; border: 1px solid #2e5941; color: #a0a0a0;
+      padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; cursor: pointer;
+      text-align: center;
+    }
+    
+    .btn-icon.danger {
+      color: #ff6b6b;
+      border-color: #592e2e;
+    }
+
+    .court-section {
+      display: flex; justify-content: center; align-items: center;
+      padding: 2px; position: relative; height: 30%;
+    }
+
+    .court-container {
+      width: 95%; height: 90%; max-width: 800px; position: relative;
+      display: flex; justify-content: center; align-items: center;
+      perspective: 400px;
+    }
+
+    .court-inner {
+      width: 100%; height: 100%; border: 3px solid var(--line-color);
+      position: relative; display: flex; overflow: visible;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.8); transition: transform 0.5s ease;
+      transform: rotateX(20deg); transform-style: preserve-3d; border-radius: 4px;
+    }
+
+    .court-side { position: absolute; top: 0; bottom: 0; width: 50%; transition: background-color 0.3s ease; }
+    .court-side.left { left: 0; }
+    .court-side.right { right: 0; }
+
+    .bg-team-a { background-color: var(--team-a-color) !important; }
+    .bg-team-b { background-color: var(--team-b-color) !important; }
+
+    .net-line {
+      position: absolute; left: 50%; top: -4%; bottom: -4%; width: 4px;
+      background-color: var(--line-color); transform: translateX(-50%); z-index: 3;
+      box-shadow: 0 0 6px rgba(255,255,255,0.8);
+    }
+
+    .singles-line-top { position: absolute; top: 15%; left: 0; right: 0; height: 2px; background-color: var(--line-color); z-index: 2; }
+    .singles-line-bottom { position: absolute; bottom: 15%; left: 0; right: 0; height: 2px; background-color: var(--line-color); z-index: 2; }
+    .service-line-left { position: absolute; left: 25%; top: 15%; bottom: 15%; width: 2px; background-color: var(--line-color); z-index: 2; }
+    .service-line-right { position: absolute; right: 25%; top: 15%; bottom: 15%; width: 2px; background-color: var(--line-color); z-index: 2; }
+    .center-service-line { position: absolute; top: 50%; left: 25%; right: 25%; height: 2px; background-color: var(--line-color); transform: translateY(-50%); z-index: 2; }
+    .hash-left { position: absolute; left: 0; top: 50%; width: 6px; height: 2px; background-color: var(--line-color); transform: translateY(-50%); z-index: 2; }
+    .hash-right { position: absolute; right: 0; top: 50%; width: 6px; height: 2px; background-color: var(--line-color); transform: translateY(-50%); z-index: 2; }
+
+    .side-label { position: absolute; font-size: 0.65rem; font-weight: bold; color: rgba(255,255,255,0.8); pointer-events: none; z-index: 4; }
+    .side-label.left { left: 4px; top: 1px; }
+    .side-label.right { right: 4px; top: 1px; }
+
+    .target-service-box {
+      position: absolute; width: 25%; height: 35%;
+      background: rgba(204, 255, 0, 0.35); border: 2px dashed var(--accent-yellow);
+      z-index: 4; pointer-events: none; transition: all 0.3s ease; box-sizing: border-box;
+    }
+
+    .player-marker {
+      position: absolute; padding: 2px 5px; border-radius: 4px; font-size: 0.55rem; font-weight: bold;
+      color: #fff; box-shadow: 0 3px 6px rgba(0,0,0,0.6); transition: all 0.3s ease; z-index: 5;
+      transform: translate(-50%, -50%); white-space: nowrap; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; max-width: 80px;
+    }
+
+    .player-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; width: 100%; }
+
+    .role-badge {
+      font-size: 0.4rem; padding: 1px 2px; border-radius: 2px; background: rgba(0,0,0,0.6);
+      color: #fff; margin-top: 1px; font-weight: 800; display: none;
+    }
+    .role-badge.visible { display: inline-block; }
+
+    .player-marker.server {
+      background-color: var(--accent-yellow) !important; color: #000 !important;
+      border: 2px solid #000; transform: translate(-50%, -50%) scale(1.1); z-index: 10;
+      box-shadow: 0 0 10px var(--accent-yellow);
+    }
+    .player-marker.server .role-badge { background: #000; color: var(--accent-yellow); }
+
+    .player-marker.receiver {
+      border: 2px solid var(--accent-yellow); transform: translate(-50%, -50%) scale(1.05);
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+    }
+    .player-marker.receiver .role-badge { background: var(--accent-yellow); color: #000; }
+
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 200; padding: 15px; overflow-y: auto; }
+    .modal-content { background: var(--card-bg); border-radius: 12px; padding: 16px; max-width: 400px; margin: 10px auto; border: 1px solid #2e5941; position: relative; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .modal-header h2 { color: var(--accent-yellow); font-size: 1.05rem; margin: 0; }
+    .btn-close-modal { background: transparent; border: none; color: #8b949e; font-size: 1.4rem; font-weight: bold; cursor: pointer; line-height: 1; }
+    .modal h3 { color: var(--accent-yellow); font-size: 0.85rem; margin: 12px 0 6px 0; border-top: 1px dashed #2e5941; padding-top: 8px; }
+
+    .setting-group { margin-bottom: 10px; }
+    .setting-group label { display: block; font-size: 0.75rem; color: #8b949e; margin-bottom: 3px; }
+    .setting-group select, .setting-group input { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #2e5941; background: #0c1911; color: white; font-size: 0.8rem; }
+    .input-row { display: flex; gap: 6px; margin-top: 4px; }
+    .swipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+    .btn-save { width: 100%; padding: 10px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 12px; font-size: 0.85rem; }
+
+    .confirm-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); z-index: 250; justify-content: center; align-items: center; padding: 20px; }
+    .confirm-box { background: var(--card-bg); border: 1px solid #2e5941; border-radius: 12px; padding: 20px; width: 100%; max-width: 300px; text-align: center; }
+    .confirm-box p { font-size: 0.9rem; line-height: 1.4; color: #fff; margin-bottom: 16px; }
+    .confirm-btns { display: flex; gap: 8px; }
+    .confirm-btns button { flex: 1; padding: 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; border: none; cursor: pointer; }
+
+    .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
+    .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid #2e5941 !important; }
+
+    /* 카메라 오버레이 및 상태 피드백 */
+    #cam-preview-container {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      width: 140px;
+      height: 105px;
+      border: 2px solid var(--accent-yellow);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 90;
+      background: #000;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    #cam-video, #cam-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* 셀피 미러링 */
+    }
+
+    #cam-status-indicator {
+      position: absolute;
+      top: 4px; left: 4px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.65rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      z-index: 2;
+    }
+
+    .gesture-progress-bar {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 4px;
+      background: #00ff66;
+      width: 0%;
+      transition: width 0.1s linear;
+      z-index: 3;
+    }
+  </style>
 </head>
-<body class="h-full text-slate-100 flex flex-col justify-between overflow-hidden bg-slate-950">
+<body>
 
-    <!-- Header -->
-    <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-5 py-4 flex items-center justify-between shrink-0 z-20 shadow-md">
-        <div class="flex items-center space-x-3">
-            <div id="status-dot" class="w-3 h-3 bg-amber-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+  <div id="unauthorized-access">
+    <h2>Access Denied</h2>
+    <p>잘못된 접근입니다.</p>
+  </div>
+
+  <div id="fs-overlay">
+    <h2>WP TENNIS SCOREBOARD</h2>
+    <button class="btn-fullscreen-start" onclick="startFullscreenApp()">전체화면으로 시작하기</button>
+  </div>
+
+  <div class="main-app">
+    <div class="scoreboard" id="scoreboard-container">
+      <div class="team-card team-a" id="card-team-a" style="order: 1;">
+        <div class="team-header">
+          <div class="team-info">
+            <span class="serve-ball" id="serve-a"></span>
             <div>
-                <h1 class="text-base font-extrabold tracking-tight text-white flex items-center gap-1.5">
-                    <span>🙌 O / X 제스처 인식</span>
-                </h1>
-                <p class="text-[11px] text-slate-400">카메라 화면 미표시 모드</p>
+              <div class="team-title-row">
+                <span class="team-name">Team A</span>
+                <span class="court-arrow" id="arrow-a">◀</span>
+              </div>
+              <div class="player-names" id="disp-players-a">A. P1 / A. P2</div>
             </div>
+          </div>
+          <span class="sets-won" id="sets-a">Set: 0</span>
         </div>
-        <div id="status-badge" class="px-3 py-1 text-xs font-semibold rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30">
-            카메라 대기
+        <div class="score-body">
+          <div class="point-score" id="points-a">0</div>
         </div>
-    </header>
+        <div class="games-score" id="games-a">Game: 0</div>
+        <button class="btn-score-up" onclick="addPoint('A')"></button>
+      </div>
 
-    <!-- Main Interactive Display Zone -->
-    <main class="flex-1 relative flex flex-col items-center justify-center p-6 overflow-hidden">
-
-        <!-- Background Ambient Glow -->
-        <div id="bg-glow" class="absolute w-96 h-96 rounded-full bg-cyan-600/10 blur-3xl pointer-events-none transition-all duration-700"></div>
-
-        <!-- Center Dynamic Card Status -->
-        <div id="main-status-card" class="relative z-10 w-full max-w-sm bg-slate-900/60 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 text-center shadow-2xl flex flex-col items-center justify-center space-y-6 transition-all duration-300">
-            
-            <div class="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-3xl shadow-inner text-slate-300">
-                <span id="center-icon">👋</span>
+      <div class="team-card team-b" id="card-team-b" style="order: 2;">
+        <div class="team-header">
+          <div class="team-info">
+            <span class="serve-ball" id="serve-b"></span>
+            <div>
+              <div class="team-title-row">
+                <span class="team-name">Team B</span>
+                <span class="court-arrow" id="arrow-b">▶</span>
+              </div>
+              <div class="player-names" id="disp-players-b">B. P1 / B. P2</div>
             </div>
-
-            <div class="space-y-1">
-                <h2 id="center-title" class="text-xl font-extrabold text-white">동작을 대기 중입니다</h2>
-                <p id="center-desc" class="text-xs text-slate-400 leading-relaxed max-w-xs">
-                    한 손 또는 두 손을 머리 위로 들고<br><strong class="text-cyan-400 font-semibold">1초간 유지</strong>해보세요!
-                </p>
-            </div>
-
-            <!-- Holding Progress Bar & Ring -->
-            <div id="progress-container" class="w-full space-y-2 pt-2 opacity-30 transition-opacity duration-300">
-                <div class="flex justify-between items-center text-xs font-mono">
-                    <span id="progress-state-text" class="text-slate-400 font-sans font-semibold">동작 유지</span>
-                    <span id="progress-time-text" class="text-cyan-400 font-bold">0.0s / 1.0s</span>
-                </div>
-                <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700/80 p-0.5">
-                    <div id="progress-bar" class="h-full bg-cyan-500 rounded-full w-0 transition-all duration-75 shadow-[0_0_12px_rgba(6,182,212,0.8)]"></div>
-                </div>
-            </div>
-
-            <!-- Pose Guide Grid -->
-            <div class="grid grid-cols-2 gap-3 w-full pt-2">
-                <div id="card-guide-o" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-left transition-all duration-300">
-                    <div class="text-xl mb-1">🙆‍♂️</div>
-                    <div class="text-xs font-bold text-slate-200">한 손 머리 위</div>
-                    <div class="text-[10px] text-emerald-400 font-semibold mt-0.5">➔ 대형 O (1초)</div>
-                </div>
-                <div id="card-guide-x" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-left transition-all duration-300">
-                    <div class="text-xl mb-1">🙌</div>
-                    <div class="text-xs font-bold text-slate-200">두 손 머리 위</div>
-                    <div class="text-[10px] text-rose-400 font-semibold mt-0.5">➔ 대형 X (1초)</div>
-                </div>
-            </div>
-
+          </div>
+          <span class="sets-won" id="sets-b">Set: 0</span>
         </div>
-
-        <!-- GIANT OVERLAY DISPLAY FOR O / X (FULL SCREEN TRIGGER) -->
-        <div id="giant-result-overlay" class="absolute inset-0 z-40 bg-slate-950/80 backdrop-blur-lg flex flex-col items-center justify-center opacity-0 pointer-events-none transition-opacity duration-300">
-            <div id="giant-char" class="text-[180px] sm:text-[240px] font-black leading-none tracking-tighter select-none">
-                O
-            </div>
-            <div id="giant-label" class="mt-4 px-6 py-2 rounded-full text-base font-extrabold tracking-wider uppercase border shadow-2xl">
-                한 손 감지 완료!
-            </div>
+        <div class="score-body">
+          <div class="point-score" id="points-b">0</div>
         </div>
+        <div class="games-score" id="games-b">Game: 0</div>
+        <button class="btn-score-up" onclick="addPoint('B')"></button>
+      </div>
+    </div>
 
-        <!-- Initial Permission Modal -->
-        <div id="start-modal" class="absolute inset-0 z-50 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center">
-            <div class="w-20 h-20 rounded-3xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-4xl text-cyan-400 mb-6 shadow-[0_0_30px_rgba(6,182,212,0.2)]">
-                📷
-            </div>
-            <h2 class="text-2xl font-black text-white mb-2 tracking-tight">제스처 인식 시작하기</h2>
-            <p class="text-xs sm:text-sm text-slate-400 max-w-xs mb-8 leading-relaxed">
-                카메라 화면은 <strong class="text-white">화면에 전혀 표시되지 않으며</strong> 백그라운드에서 안전하게 손 모양만 감지합니다.
-            </p>
-            <button id="start-btn" class="w-full max-w-xs bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-bold py-4 px-8 rounded-2xl shadow-lg shadow-cyan-600/30 transition-all text-sm tracking-wide">
-                카메라 켜고 시작하기
-            </button>
+    <div class="court-section">
+      <div class="court-container">
+        <div class="court-inner">
+          <div class="court-side left" id="side-left-bg"></div>
+          <div class="court-side right" id="side-right-bg"></div>
+
+          <div class="net-line"></div>
+          <div class="singles-line-top"></div>
+          <div class="singles-line-bottom"></div>
+          <div class="service-line-left"></div>
+          <div class="service-line-right"></div>
+          <div class="center-service-line"></div>
+          <div class="hash-left"></div>
+          <div class="hash-right"></div>
+
+          <span class="side-label left" id="label-left">TEAM A</span>
+          <span class="side-label right" id="label-right">TEAM B</span>
+
+          <div class="target-service-box" id="target-box"></div>
+
+          <div class="player-marker" id="pm-a1"></div>
+          <div class="player-marker" id="pm-a2"></div>
+          <div class="player-marker" id="pm-b1"></div>
+          <div class="player-marker" id="pm-b2"></div>
         </div>
+      </div>
+    </div>
+  </div>
 
-    </main>
+  <!-- 사이드바 컨트롤 영역 (상단 메인 기능 / 하단 설정을 분리) -->
+  <div class="sidebar-controls">
+    <div class="menu-group-main">
+      <div class="sidebar-title">MENU</div>
+      <button class="btn-action-large highlight" id="btn-toggle-serve-s" onclick="toggleServeTeam()">SERVE: TEAM A</button>
+      <button class="btn-action-large" onclick="manualCourtChange()">CHANGE COURT</button>
+      <button class="btn-action-large" onclick="undo()">CORRECTION</button>
+    </div>
 
-    <!-- Footer Event Log Section -->
-    <footer class="bg-slate-900/90 border-t border-slate-800 p-4 shrink-0 z-20 shadow-lg">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                <span class="w-2 h-2 rounded-full bg-cyan-500"></span>
-                <span>실시간 감지 로그</span>
-            </span>
-            <button id="clear-log-btn" class="text-[11px] text-slate-500 hover:text-slate-300 underline transition-colors">로그 지우기</button>
+    <div class="menu-group-bottom">
+      <button class="btn-icon danger" onclick="confirmResetMatch()">RESET</button>
+      <button class="btn-icon" onclick="toggleFullscreen()">Full Screen</button>
+      <button class="btn-icon" id="btn-settings-sidebar">Settings</button>
+    </div>
+  </div>
+
+  <!-- 카메라 미리보기 엘리먼트 -->
+  <div id="cam-preview-container">
+    <span id="cam-status-indicator">CAM: Off</span>
+    <video id="cam-video" playsinline muted></video>
+    <canvas id="cam-canvas"></canvas>
+    <div class="gesture-progress-bar" id="gesture-progress"></div>
+  </div>
+
+  <div class="modal" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Match Settings</h2>
+        <button class="btn-close-modal" id="btn-close-settings">&times;</button>
+      </div>
+
+      <!-- 카메라인식 메뉴 추가 -->
+      <div class="setting-group">
+        <label>Camera Gesture Control (카메라인식)</label>
+        <select id="set-camera-mode" onchange="toggleCameraFromSettings()">
+          <option value="off" selected>Off (사용 안 함)</option>
+          <option value="on">On (사용함)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Match Type</label>
+        <select id="set-type" onchange="togglePlayerInputs()">
+          <option value="doubles" selected>Doubles</option>
+          <option value="singles">Singles</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Voice Language / Accent</label>
+        <select id="set-voice-lang">
+          <option value="en-GB" selected>영국 영어 (UK English)</option>
+          <option value="en-US">미국 영어 (US English)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>First Serve Team</label>
+        <select id="set-first-serve">
+          <option value="A" selected>Team A</option>
+          <option value="B">Team B</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Sets to Win</label>
+        <select id="set-sets">
+          <option value="1">1 Set</option>
+          <option value="2">Best of 3 (2 Sets)</option>
+          <option value="3" selected>Best of 5 (3 Sets)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Games per Set</label>
+        <select id="set-games">
+          <option value="3">3 Games</option>
+          <option value="5">5 Games</option>
+          <option value="6" selected>6 Games</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Deuce Rule</label>
+        <select id="set-deuce">
+          <option value="no-ad">No-Ad (Sudden Death)</option>
+          <option value="ad" selected>Advantage (Standard)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Court Change</label>
+        <select id="set-court">
+          <option value="manual" selected>Manual</option>
+          <option value="auto">Auto (Odd Games)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Doubles Server Order Voice Call</label>
+        <select id="set-announce-server">
+          <option value="3000" selected>3초 후 Call</option>
+          <option value="5000">5초 후 Call</option>
+          <option value="off">사용 안 함 (Off)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Team A Players</label>
+        <div class="input-row">
+          <input type="text" id="p-a1" value="A. P1" placeholder="Player 1" />
+          <input type="text" id="p-a2" value="A. P2" placeholder="Player 2" />
         </div>
-        <div id="log-container" class="bg-slate-950 border border-slate-800/80 rounded-xl p-3 h-20 overflow-y-auto no-scrollbar font-mono text-[11px] text-slate-400 space-y-1">
-            <div class="text-slate-500">[안내] 시작하기 버튼을 눌러 동작 인식을 실행하세요.</div>
+      </div>
+
+      <div class="setting-group">
+        <label>Team B Players</label>
+        <div class="input-row">
+          <input type="text" id="p-b1" value="B. P1" placeholder="Player 1" />
+          <input type="text" id="p-b2" value="B. P2" placeholder="Player 2" />
         </div>
-    </footer>
+      </div>
 
-    <!-- HIDDEN CAMERA & CANVAS (COMPLETELY INVISIBLE FROM UI) -->
-    <video id="hidden-webcam" class="hidden" playsinline style="display: none; visibility: hidden; width: 0; height: 0;"></video>
-    <canvas id="hidden-canvas" class="hidden" style="display: none; visibility: hidden; width: 0; height: 0;"></canvas>
+      <h3>Swipe Gesture Settings</h3>
+      <div class="swipe-grid">
+        <div class="setting-group"><label>Swipe Up</label><select id="swipe-up"><option value="right_score">우측팀 득점</option><option value="left_score">좌측팀 득점</option><option value="court_change">코트 체인지</option><option value="undo">Correction</option></select></div>
+        <div class="setting-group"><label>Swipe Down</label><select id="swipe-down"><option value="left_score">좌측팀 득점</option><option value="right_score">우측팀 득점</option><option value="court_change">코트 체인지</option><option value="undo">Correction</option></select></div>
+        <div class="setting-group"><label>Swipe Left</label><select id="swipe-left"><option value="court_change" selected>코트 체인지</option><option value="left_score">좌측팀 득점</option></select></div>
+        <div class="setting-group"><label>Swipe Right</label><select id="swipe-right"><option value="undo" selected>Correction</option><option value="right_score">우측팀 득점</option></select></div>
+      </div>
 
-    <!-- Application Logic Script -->
-    <script>
-        // DOM References
-        const webcamElement = document.getElementById('hidden-webcam');
-        const startModal = document.getElementById('start-modal');
-        const startBtn = document.getElementById('start-btn');
-        const statusBadge = document.getElementById('status-badge');
-        const statusDot = document.getElementById('status-dot');
-        
-        const centerIcon = document.getElementById('center-icon');
-        const centerTitle = document.getElementById('center-title');
-        const centerDesc = document.getElementById('center-desc');
-        const bgGlow = document.getElementById('bg-glow');
+      <button class="btn-save" id="btn-save-settings">Apply & Update Settings</button>
+    </div>
+  </div>
 
-        const progressContainer = document.getElementById('progress-container');
-        const progressStateText = document.getElementById('progress-state-text');
-        const progressTimeText = document.getElementById('progress-time-text');
-        const progressBar = document.getElementById('progress-bar');
+  <div class="confirm-modal" id="custom-confirm-modal">
+    <div class="confirm-box">
+      <p id="confirm-message">안내문구</p>
+      <div class="confirm-btns">
+        <button class="btn-confirm-yes" id="btn-confirm-yes">확인</button>
+        <button class="btn-confirm-no" id="btn-confirm-no">취소</button>
+      </div>
+    </div>
+  </div>
 
-        const cardGuideO = document.getElementById('card-guide-o');
-        const cardGuideX = document.getElementById('card-guide-x');
+  <script>
+    function checkDomainAuth() {
+      const allowedHost = "weonpyo.github.io";
+      if (window.location.hostname !== allowedHost && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+        const authDiv = document.getElementById('unauthorized-access');
+        if (authDiv) authDiv.style.display = 'flex';
+        return false;
+      }
+      return true;
+    }
 
-        const giantResultOverlay = document.getElementById('giant-result-overlay');
-        const giantChar = document.getElementById('giant-char');
-        const giantLabel = document.getElementById('giant-label');
+    let config = {
+      cameraMode: 'off',
+      type: 'doubles',
+      voiceLang: 'en-GB',
+      firstServeTeam: 'A',
+      setsToWin: 3,
+      gamesPerSet: 6,
+      deuceRule: 'ad',
+      courtChange: 'manual',
+      announceServer: '3000',
+      playersA: ['A. P1', 'A. P2'],
+      playersB: ['B. P1', 'B. P2'],
+      swipes: { up: 'right_score', down: 'left_score', left: 'court_change', right: 'undo' }
+    };
 
-        const logContainer = document.getElementById('log-container');
-        const clearLogBtn = document.getElementById('clear-log-btn');
+    let state = {
+      ptsA: 0, ptsB: 0,
+      gamesA: 0, gamesB: 0,
+      setsA: 0, setsB: 0,
+      isTiebreak: false,
+      tiebreakFirstServer: null,
+      currentServerTeam: 'A',
+      courtLeftTeam: 'A'
+    };
 
-        // State Variables
-        let cameraInstance = null;
-        let holdStartTime = null;
-        let currentDetectedGesture = null; // 'ONE_HAND' or 'TWO_HANDS'
-        let cooldownUntil = 0; // Timestamp for 2-second cooldown
-        const REQUIRED_HOLD_DURATION_MS = 1000; // 1 Second hold requirement
-        let hideOverlayTimeout = null;
+    let historyStack = [];
+    const MAX_HISTORY = 10;
+    const pointTerms = ["Love", "Fifteen", "Thirty", "Forty"];
 
-        // Sound Synthesis (Web Audio API for trigger sounds)
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let wakeLock = null;
+    let serverAnnounceTimer = null;
+    let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
-        function playSound(type) {
-            try {
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
+    /* MediaPipe & Camera 변수 */
+    let cameraInstance = null;
+    let poseInstance = null;
+    let gestureStartTime = null;
+    let currentDetectedGesture = 'NONE'; // 'ONE_HAND', 'TWO_HANDS', 'NONE'
+    let gestureCooldown = false;
 
-                const now = audioCtx.currentTime;
+    /* 현재 경기 합산 진행 상태에 대응하는 활성 서버 번호 (0: P1, 1: P2) 계산 */
+    function getActiveServerIndices() {
+      const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
+      const cycle = Math.floor(totalGames / 2);
+      return {
+        serverIdxA: cycle % 2,
+        serverIdxB: cycle % 2
+      };
+    }
 
-                if (type === 'O') {
-                    // High cheerful chime sound for O
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(523.25, now); // C5
-                    osc.frequency.exponentialRampToValueAtTime(1046.50, now + 0.3); // C6
-                    gain.gain.setValueAtTime(0.3, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
-                    osc.start(now);
-                    osc.stop(now + 0.35);
-                } else if (type === 'X') {
-                    // Dual tone buzz/saw sound for X
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(220, now); // A3
-                    osc.frequency.setValueAtTime(164.81, now + 0.15); // E3
-                    gain.gain.setValueAtTime(0.25, now);
-                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
-                    osc.start(now);
-                    osc.stop(now + 0.4);
-                }
-            } catch (e) {
-                console.warn('Audio playback not permitted yet:', e);
-            }
+    function cancelServerAnnouncement() {
+      if (serverAnnounceTimer) {
+        clearTimeout(serverAnnounceTimer);
+        serverAnnounceTimer = null;
+      }
+    }
+
+    function scheduleServerAnnouncement(customDelayMs = null) {
+      cancelServerAnnouncement();
+      if (config.type !== 'doubles' || config.announceServer === 'off') return;
+      const delayMs = customDelayMs !== null ? customDelayMs : parseInt(config.announceServer || '3000', 10);
+
+      serverAnnounceTimer = setTimeout(() => {
+        if (config.type !== 'doubles') return;
+        const serverTeam = state.currentServerTeam;
+        const indices = getActiveServerIndices();
+        const activeServerIdx = (serverTeam === 'A') ? indices.serverIdxA : indices.serverIdxB;
+        const callText = (activeServerIdx === 0) ? "First server." : "Second server.";
+        speak(callText);
+        serverAnnounceTimer = null;
+      }, delayMs);
+    }
+
+    async function requestWakeLock() {
+      try {
+        if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+      } catch (err) {}
+    }
+
+    function showCustomConfirm(message, onConfirm) {
+      const confirmModal = document.getElementById('custom-confirm-modal');
+      const confirmMsg = document.getElementById('confirm-message');
+      const btnYes = document.getElementById('btn-confirm-yes');
+      const btnNo = document.getElementById('btn-confirm-no');
+
+      confirmMsg.innerText = message;
+      confirmModal.style.display = 'flex';
+
+      const handleYes = () => { cleanup(); confirmModal.style.display = 'none'; onConfirm(); };
+      const handleNo = () => { cleanup(); confirmModal.style.display = 'none'; };
+      const cleanup = () => { btnYes.removeEventListener('click', handleYes); btnNo.removeEventListener('click', handleNo); };
+
+      btnYes.addEventListener('click', handleYes);
+      btnNo.addEventListener('click', handleNo);
+    }
+
+    function loadStorage() {
+      const savedConfig = localStorage.getItem('tennis_config');
+      if (savedConfig) { try { config = { ...config, ...JSON.parse(savedConfig) }; } catch(e) {} }
+      const savedState = localStorage.getItem('tennis_state');
+      if (savedState) { try { state = JSON.parse(savedState); } catch(e) {} }
+    }
+
+    function saveConfigToStorage() { localStorage.setItem('tennis_config', JSON.stringify(config)); }
+    function saveStateToStorage() { localStorage.setItem('tennis_state', JSON.stringify(state)); }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(e => {});
+      else document.exitFullscreen().catch(e => {});
+    }
+
+    async function startFullscreenApp() {
+      toggleFullscreen();
+      await requestWakeLock();
+      document.getElementById('fs-overlay').style.display = 'none';
+      if (config.cameraMode === 'on') {
+        initCameraRecognition();
+      }
+      render();
+    }
+
+    window.onload = async () => {
+      if (!checkDomainAuth()) return;
+      loadStorage();
+      setupEvents();
+      setupSwipeEvents();
+      populateSettingsModal();
+      await requestWakeLock();
+      render();
+    };
+
+    function setupEvents() {
+      const modal = document.getElementById('settings-modal');
+      const openModal = () => { populateSettingsModal(); modal.style.display = 'block'; };
+
+      document.getElementById('btn-settings-sidebar').onclick = openModal;
+      document.getElementById('btn-close-settings').onclick = () => { modal.style.display = 'none'; };
+
+      window.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+
+      document.getElementById('btn-save-settings').onclick = () => {
+        saveSettings();
+        modal.style.display = 'none';
+      };
+    }
+
+    function setupSwipeEvents() {
+      window.addEventListener('touchstart', (e) => {
+        if (e.target.closest('.modal') || e.target.closest('.confirm-modal')) return;
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+      }, { passive: true });
+
+      window.addEventListener('touchend', (e) => {
+        if (e.target.closest('.modal') || e.target.closest('.confirm-modal')) return;
+        touchEndX = e.changedTouches[0].screenX;
+        touchEndY = e.changedTouches[0].screenY;
+        handleSwipeGesture();
+      }, { passive: true });
+    }
+
+    function handleSwipeGesture() {
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+      if (Math.abs(deltaX) < 40 && Math.abs(deltaY) < 40) return;
+
+      let action = 'none';
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        action = deltaX < 0 ? config.swipes.left : config.swipes.right;
+      } else {
+        action = deltaY < 0 ? config.swipes.up : config.swipes.down;
+      }
+      executeControlAction(action);
+    }
+
+    function executeControlAction(action) {
+      const leftTeam = state.courtLeftTeam;
+      const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
+
+      switch (action) {
+        case 'left_score': addPoint(leftTeam); break;
+        case 'right_score': addPoint(rightTeam); break;
+        case 'court_change': manualCourtChange(); break;
+        case 'undo': undo(); break;
+      }
+    }
+
+    function populateSettingsModal() {
+      document.getElementById('set-camera-mode').value = config.cameraMode || 'off';
+      document.getElementById('set-type').value = config.type;
+      document.getElementById('set-voice-lang').value = config.voiceLang || 'en-GB';
+      document.getElementById('set-first-serve').value = config.firstServeTeam;
+      document.getElementById('set-sets').value = config.setsToWin;
+      document.getElementById('set-games').value = config.gamesPerSet;
+      document.getElementById('set-deuce').value = config.deuceRule;
+      document.getElementById('set-court').value = config.courtChange;
+      document.getElementById('set-announce-server').value = config.announceServer || '3000';
+      document.getElementById('p-a1').value = config.playersA[0] || '';
+      document.getElementById('p-a2').value = config.playersA[1] || '';
+      document.getElementById('p-b1').value = config.playersB[0] || '';
+      document.getElementById('p-b2').value = config.playersB[1] || '';
+
+      document.getElementById('swipe-up').value = config.swipes.up || 'right_score';
+      document.getElementById('swipe-down').value = config.swipes.down || 'left_score';
+      document.getElementById('swipe-left').value = config.swipes.left || 'court_change';
+      document.getElementById('swipe-right').value = config.swipes.right || 'undo';
+
+      togglePlayerInputs();
+    }
+
+    function togglePlayerInputs() {
+      const isSingles = document.getElementById('set-type').value === 'singles';
+      document.getElementById('p-a2').style.display = isSingles ? 'none' : 'block';
+      document.getElementById('p-b2').style.display = isSingles ? 'none' : 'block';
+    }
+
+    function saveSettings() {
+      cancelServerAnnouncement();
+
+      const prevCamMode = config.cameraMode;
+      config.cameraMode = document.getElementById('set-camera-mode').value;
+      config.type = document.getElementById('set-type').value;
+      config.voiceLang = document.getElementById('set-voice-lang').value;
+      config.firstServeTeam = document.getElementById('set-first-serve').value;
+      config.setsToWin = parseInt(document.getElementById('set-sets').value, 10);
+      config.gamesPerSet = parseInt(document.getElementById('set-games').value, 10);
+      config.deuceRule = document.getElementById('set-deuce').value;
+      config.courtChange = document.getElementById('set-court').value;
+      config.announceServer = document.getElementById('set-announce-server').value;
+      
+      config.playersA = [document.getElementById('p-a1').value || 'A. P1', document.getElementById('p-a2').value || 'A. P2'];
+      config.playersB = [document.getElementById('p-b1').value || 'B. P1', document.getElementById('p-b2').value || 'B. P2'];
+
+      config.swipes = {
+        up: document.getElementById('swipe-up').value,
+        down: document.getElementById('swipe-down').value,
+        left: document.getElementById('swipe-left').value,
+        right: document.getElementById('swipe-right').value
+      };
+
+      saveConfigToStorage();
+
+      if (prevCamMode !== config.cameraMode) {
+        if (config.cameraMode === 'on') {
+          initCameraRecognition();
+        } else {
+          stopCameraRecognition();
         }
+      }
 
-        function addLog(message, type = 'info') {
-            const timeStr = new Date().toLocaleTimeString();
-            const logItem = document.createElement('div');
-            let colorClass = 'text-slate-400';
+      render();
+    }
 
-            if (type === 'success-o') colorClass = 'text-emerald-400 font-semibold';
-            if (type === 'success-x') colorClass = 'text-rose-400 font-semibold';
-            if (type === 'warn') colorClass = 'text-amber-400';
+    /* 카메라 인식 제어 함수 */
+    function toggleCameraFromSettings() {
+      // settings 내부 change 대응
+    }
 
-            logItem.className = `${colorClass} truncate`;
-            logItem.textContent = `[${timeStr}] ${message}`;
-            logContainer.prepend(logItem);
+    function initCameraRecognition() {
+      const container = document.getElementById('cam-preview-container');
+      const videoElement = document.getElementById('cam-video');
+      const statusText = document.getElementById('cam-status-indicator');
+      container.style.display = 'block';
+      statusText.innerText = "CAM: Loading...";
 
-            if (logContainer.children.length > 25) {
-                logContainer.removeChild(logContainer.lastChild);
-            }
-        }
-
-        clearLogBtn.addEventListener('click', () => {
-            logContainer.innerHTML = '<div class="text-slate-500">[로그가 초기화되었습니다.]</div>';
+      if (!poseInstance) {
+        poseInstance = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
         });
+        poseInstance.setOptions({
+          modelComplexity: 1,
+          smoothLandmarks: true,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.6
+        });
+        poseInstance.onResults(onPoseResults);
+      }
 
-        // MediaPipe Results Handler
-        function onResults(results) {
-            const now = Date.now();
-
-            // Ignore processing if in cooldown period
-            if (now < cooldownUntil) {
-                const remainingCooldown = Math.ceil((cooldownUntil - now) / 1000);
-                statusBadge.textContent = `쿨타임 중 (${remainingCooldown}s)`;
-                statusBadge.className = 'px-3 py-1 text-xs font-semibold rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/30';
-                statusDot.className = 'w-3 h-3 bg-purple-500 rounded-full animate-pulse';
-                
-                // Reset progress UI during cooldown
-                progressBar.style.width = '0%';
-                progressContainer.classList.add('opacity-30');
-                return;
+      if (!cameraInstance) {
+        cameraInstance = new Camera(videoElement, {
+          onFrame: async () => {
+            if (config.cameraMode === 'on' && poseInstance) {
+              await poseInstance.send({ image: videoElement });
             }
+          },
+          width: 320,
+          height: 240
+        });
+        cameraInstance.start().then(() => {
+          statusText.innerText = "CAM: Active";
+        }).catch(err => {
+          statusText.innerText = "CAM: Error";
+          console.error("Camera access error:", err);
+        });
+      }
+    }
 
-            let handsAboveHeadCount = 0;
+    function stopCameraRecognition() {
+      const container = document.getElementById('cam-preview-container');
+      container.style.display = 'none';
+      if (cameraInstance) {
+        cameraInstance.stop();
+        cameraInstance = null;
+      }
+      gestureStartTime = null;
+      currentDetectedGesture = 'NONE';
+      updateGestureProgress(0);
+    }
 
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                for (const landmarks of results.multiHandLandmarks) {
-                    // Wrist landmark (Index 0) - y coordinate < 0.42 means upper region of frame
-                    const wristY = landmarks[0].y;
-                    if (wristY < 0.42) {
-                        handsAboveHeadCount++;
-                    }
-                }
+    function onPoseResults(results) {
+      if (!results.poseLandmarks || gestureCooldown) {
+        updateGestureProgress(0);
+        gestureStartTime = null;
+        currentDetectedGesture = 'NONE';
+        return;
+      }
+
+      const landmarks = results.poseLandmarks;
+      // MediaPipe landmarks: 11: left_shoulder, 12: right_shoulder, 15: left_wrist, 16: right_wrist, 0: nose
+      const leftShoulder = landmarks[11];
+      const rightShoulder = landmarks[12];
+      const leftWrist = landmarks[15];
+      const rightWrist = landmarks[16];
+      const nose = landmarks[0];
+
+      if (!leftShoulder || !rightShoulder || !leftWrist || !rightWrist) return;
+
+      // 손이 어깨(또는 코)보다 높이 들렸는지 확인
+      const thresholdY = Math.min(leftShoulder.y, rightShoulder.y, nose ? nose.y : 1.0);
+      const leftHandUp = leftWrist.y < thresholdY && leftWrist.visibility > 0.5;
+      const rightHandUp = rightWrist.y < thresholdY && rightWrist.visibility > 0.5;
+
+      let detected = 'NONE';
+      if (leftHandUp && rightHandUp) {
+        detected = 'TWO_HANDS';
+      } else if (leftHandUp || rightHandUp) {
+        detected = 'ONE_HAND';
+      }
+
+      const now = performance.now();
+
+      if (detected !== 'NONE') {
+        if (currentDetectedGesture !== detected) {
+          currentDetectedGesture = detected;
+          gestureStartTime = now;
+        } else {
+          const elapsed = now - gestureStartTime;
+          const progress = Math.min(1.0, elapsed / 1000);
+          updateGestureProgress(progress * 100);
+
+          if (elapsed >= 1000) { // 1초 이상 유지
+            triggerGestureAction(detected);
+            gestureCooldown = true;
+            updateGestureProgress(0);
+            setTimeout(() => { gestureCooldown = false; }, 1500); // 연속 입력 방지 쿨다운
+          }
+        }
+      } else {
+        currentDetectedGesture = 'NONE';
+        gestureStartTime = null;
+        updateGestureProgress(0);
+      }
+    }
+
+    function updateGestureProgress(percent) {
+      const progressBar = document.getElementById('gesture-progress');
+      if (progressBar) progressBar.style.width = `${percent}%`;
+    }
+
+    function triggerGestureAction(gesture) {
+      const leftTeam = state.courtLeftTeam;
+      const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
+
+      if (gesture === 'ONE_HAND') {
+        // 한손 1초 이상: 왼쪽 스코어 증가
+        addPoint(leftTeam);
+        speak("Left score point.");
+      } else if (gesture === 'TWO_HANDS') {
+        // 양손 1초 이상: 오른쪽 스코어 증가
+        addPoint(rightTeam);
+        speak("Right score point.");
+      }
+    }
+
+    function saveState() {
+      historyStack.push(JSON.parse(JSON.stringify(state)));
+      if (historyStack.length > MAX_HISTORY) historyStack.shift();
+    }
+
+    function undo() {
+      cancelServerAnnouncement();
+      if (historyStack.length === 0) return;
+      state = historyStack.pop();
+      saveStateToStorage();
+      render();
+      speakCall("Correction, ");
+    }
+
+    function confirmResetMatch() {
+      showCustomConfirm("정말로 경기를 초기화하시겠습니까?", () => { resetMatch(); });
+    }
+
+    function resetMatch() {
+      cancelServerAnnouncement();
+      state = {
+        ptsA: 0, ptsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
+        isTiebreak: false, tiebreakFirstServer: null,
+        currentServerTeam: config.firstServeTeam,
+        courtLeftTeam: 'A'
+      };
+      historyStack = [];
+      saveStateToStorage();
+      render();
+      speak("Reset.");
+    }
+
+    function toggleServeTeam() {
+      cancelServerAnnouncement();
+      saveState();
+      state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A';
+      saveStateToStorage();
+      render();
+      speak(`Service Team ${state.currentServerTeam}.`);
+      scheduleServerAnnouncement();
+    }
+
+    function addPoint(team) {
+      cancelServerAnnouncement();
+      saveState();
+      if (state.isTiebreak) handleTiebreakPoint(team);
+      else handleStandardPoint(team);
+      saveStateToStorage();
+      render();
+    }
+
+    function handleStandardPoint(team) {
+      const isA = (team === 'A');
+      let pWin = isA ? state.ptsA : state.ptsB;
+      let pLose = isA ? state.ptsB : state.ptsA;
+
+      if (config.deuceRule === 'no-ad' && pWin === 3 && pLose === 3) { winGame(team); return; }
+
+      if (pWin >= 3 && pLose >= 3) {
+        if (pWin === pLose) {
+          if (isA) state.ptsA++; else state.ptsB++;
+          speakCall();
+        } else if ((isA && state.ptsA > state.ptsB) || (!isA && state.ptsB > state.ptsA)) {
+          winGame(team);
+        } else {
+          state.ptsA = 3; state.ptsB = 3;
+          speakCall();
+        }
+      } else if (pWin === 3) {
+        winGame(team);
+      } else {
+        if (isA) state.ptsA++; else state.ptsB++;
+        speakCall();
+      }
+    }
+
+    function handleTiebreakPoint(team) {
+      if (team === 'A') state.ptsA++; else state.ptsB++;
+      const totalPts = state.ptsA + state.ptsB;
+
+      if (totalPts % 2 === 1) switchServer();
+      if (config.courtChange === 'auto' && totalPts % 6 === 0) manualCourtChange(true, false);
+
+      if ((state.ptsA >= 7 || state.ptsB >= 7) && Math.abs(state.ptsA - state.ptsB) >= 2) {
+        winGame(state.ptsA > state.ptsB ? 'A' : 'B');
+      } else {
+        speakCall();
+      }
+    }
+
+    function getLastName(fullName) {
+      if (!fullName) return "";
+      const parts = fullName.trim().split(' ');
+      return parts[parts.length - 1];
+    }
+
+    function getTeamDisplayName(team) {
+      return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
+    }
+
+    function winGame(team) {
+      cancelServerAnnouncement();
+      const winnerCall = getTeamDisplayName(team);
+      if (team === 'A') state.gamesA++; else state.gamesB++;
+      state.ptsA = 0; state.ptsB = 0;
+
+      const gWin = team === 'A' ? state.gamesA : state.gamesB;
+      const gLose = team === 'A' ? state.gamesB : state.gamesA;
+      let gameAnnouncement = `Game ${winnerCall}. ${state.gamesA} games to ${state.gamesB}.`;
+
+      const totalGames = state.gamesA + state.gamesB;
+      const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !state.isTiebreak);
+
+      if (isAutoCourtChange) manualCourtChange(true, false);
+
+      if (state.isTiebreak) {
+        winSet(team, true);
+      } else if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
+        winSet(team, false);
+      } else if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
+        state.isTiebreak = true;
+        if (!isAutoCourtChange) speak(`${gameAnnouncement} Tiebreak.`);
+        switchServer();
+        scheduleServerAnnouncement();
+      } else {
+        if (!isAutoCourtChange) speak(gameAnnouncement);
+        switchServer();
+        scheduleServerAnnouncement();
+      }
+    }
+
+    function winSet(team, viaTiebreak = false) {
+      cancelServerAnnouncement();
+      const winnerCall = getTeamDisplayName(team);
+      if (team === 'A') state.setsA++; else state.setsB++;
+
+      const tiebreakFirstServer = state.tiebreakFirstServer;
+      state.gamesA = 0; state.gamesB = 0;
+      state.isTiebreak = false;
+      state.tiebreakFirstServer = null;
+
+      const sWin = team === 'A' ? state.setsA : state.setsB;
+      if (sWin >= config.setsToWin) {
+        speak(`Game, set and match, ${winnerCall}. ${state.setsA} sets to ${state.setsB}.`);
+      } else {
+        speak(`Set, ${winnerCall}. ${state.setsA} sets to ${state.setsB}.`);
+        if (viaTiebreak && tiebreakFirstServer) {
+          state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
+          if (config.courtChange === 'auto') manualCourtChange(true, false);
+        } else {
+          switchServer();
+        }
+        scheduleServerAnnouncement();
+      }
+    }
+
+    function switchServer() {
+      state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A';
+    }
+
+    function manualCourtChange(announce = true, recordHistory = true) {
+      cancelServerAnnouncement();
+      if (recordHistory) saveState();
+      state.courtLeftTeam = (state.courtLeftTeam === 'A') ? 'B' : 'A';
+      saveStateToStorage();
+      render();
+      if (announce) {
+        speak("Change ends.");
+        scheduleServerAnnouncement(2500);
+      }
+    }
+
+    function getSpokenText(text) {
+      return text
+        .replace(/ 15 /g, "Fifteen")
+        .replace(/ 30 /g, "Thirty")
+        .replace(/ 40 /g, "Forty")
+        .replace(/ 0 /g, "Love")
+        .replace(/,\s*,+/g, ".")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        try {
+          window.speechSynthesis.cancel();
+          const spokenText = getSpokenText(text);
+          const utterance = new SpeechSynthesisUtterance(spokenText);
+          const selectedLang = config.voiceLang || 'en-GB';
+          utterance.lang = selectedLang;
+          utterance.rate = 0.92;
+          utterance.pitch = 1.0;
+
+          const voices = window.speechSynthesis.getVoices();
+          if (voices && voices.length > 0) {
+            const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
+                                 voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
+            if (matchedVoice) {
+              utterance.voice = matchedVoice;
             }
+          }
 
-            // Determine detected pose state
-            let detectedPose = null;
-            if (handsAboveHeadCount === 1) {
-                detectedPose = 'ONE_HAND';
-            } else if (handsAboveHeadCount >= 2) {
-                detectedPose = 'TWO_HANDS';
-            }
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {}
+      }
+    }
 
-            if (detectedPose !== null) {
-                // Pose is currently active
-                if (currentDetectedGesture !== detectedPose) {
-                    currentDetectedGesture = detectedPose;
-                    holdStartTime = now;
-                }
+    function speakCall(prefix = "") {
+      let callText = "";
+      if (state.isTiebreak) {
+        if (state.ptsA === state.ptsB) {
+          callText = `${state.ptsA} all.`;
+        } else {
+          callText = `${state.ptsA}, ${state.ptsB}.`;
+        }
+      } else {
+        const pA = state.ptsA;
+        const pB = state.ptsB;
 
-                const elapsed = now - holdStartTime;
-                const progressRatio = Math.min(1, elapsed / REQUIRED_HOLD_DURATION_MS);
-                const secondsText = (Math.min(1000, elapsed) / 1000).toFixed(1);
+        if (pA >= 3 && pB >= 3) {
+          if (pA === pB) callText = "Deuce.";
+          else if (pA > pB) callText = `Advantage, ${getTeamDisplayName('A')}.`;
+          else callText = `Advantage, ${getTeamDisplayName('B')}.`;
+        } else {
+          if (pA === pB) callText = pointTerms[pA] === "Love" ? "Love all." : `${pointTerms[pA]} all.`;
+          else {
+            const sPts = state.currentServerTeam === 'A' ? pA : pB;
+            const rPts = state.currentServerTeam === 'A' ? pB : pA;
+            callText = `${pointTerms[sPts]} ${pointTerms[rPts]}.`;
+          }
+        }
+      }
+      speak(prefix + callText);
+    }
 
-                // Update UI Progress
-                progressContainer.classList.remove('opacity-30');
-                progressBar.style.width = `${progressRatio * 100}%`;
-                progressTimeText.textContent = `${secondsText}s / 1.0s`;
+    function formatScore(pts, oppPts) {
+      if (state.isTiebreak) return pts.toString();
+      if (pts >= 3 && oppPts >= 3) {
+        if (pts === oppPts) return "40";
+        return pts > oppPts ? "AD" : "40";
+      }
+      return pointTerms[pts] ? (pointTerms[pts] === "Love" ? "0" : (pts === 1 ? "15" : pts === 2 ? "30" : "40")) : "0";
+    }
 
-                if (detectedPose === 'ONE_HAND') {
-                    statusBadge.textContent = '한 손 머리 위 유지 중...';
-                    statusBadge.className = 'px-3 py-1 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 animate-pulse';
-                    statusDot.className = 'w-3 h-3 bg-emerald-400 rounded-full animate-ping';
+    function render() {
+      document.getElementById('disp-players-a').innerText = config.type === 'doubles' 
+        ? `${config.playersA[0]} / ${config.playersA[1]}` : config.playersA[0];
+      document.getElementById('disp-players-b').innerText = config.type === 'doubles' 
+        ? `${config.playersB[0]} / ${config.playersB[1]}` : config.playersB[0];
 
-                    progressBar.className = 'h-full bg-emerald-400 rounded-full w-0 transition-all duration-75 shadow-[0_0_12px_rgba(52,211,153,0.8)]';
-                    progressStateText.textContent = '⭕ O 동작 감지 중';
-                    progressStateText.className = 'text-emerald-400 font-sans font-semibold';
+      document.getElementById('sets-a').innerText = `Set: ${state.setsA}`;
+      document.getElementById('sets-b').innerText = `Set: ${state.setsB}`;
+      document.getElementById('games-a').innerText = `Game: ${state.gamesA}`;
+      document.getElementById('games-b').innerText = `Game: ${state.gamesB}`;
 
-                    cardGuideO.className = 'bg-emerald-950/40 border border-emerald-500/50 rounded-2xl p-3 text-left transition-all duration-300 shadow-lg shadow-emerald-500/10';
-                    cardGuideX.className = 'bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-left transition-all duration-300 opacity-40';
+      document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
+      document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
 
-                    centerIcon.textContent = '🙆‍♂️';
-                    centerTitle.textContent = '한 손 감지 중...';
-                    centerDesc.innerHTML = '조금만 더 유지하면 <strong class="text-emerald-400">O</strong>가 완성됩니다!';
-                    bgGlow.className = 'absolute w-96 h-96 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none transition-all duration-500';
+      document.getElementById('serve-a').classList.toggle('active', state.currentServerTeam === 'A');
+      document.getElementById('serve-b').classList.toggle('active', state.currentServerTeam === 'B');
 
-                } else if (detectedPose === 'TWO_HANDS') {
-                    statusBadge.textContent = '두 손 머리 위 유지 중...';
-                    statusBadge.className = 'px-3 py-1 text-xs font-semibold rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse';
-                    statusDot.className = 'w-3 h-3 bg-rose-400 rounded-full animate-ping';
+      const btnServeText = `SERVE: TEAM ${state.currentServerTeam}`;
+      document.getElementById('btn-toggle-serve-s').innerText = btnServeText;
 
-                    progressBar.className = 'h-full bg-rose-500 rounded-full w-0 transition-all duration-75 shadow-[0_0_12px_rgba(244,63,94,0.8)]';
-                    progressStateText.textContent = '❌ X 동작 감지 중';
-                    progressStateText.className = 'text-rose-400 font-sans font-semibold';
+      const leftTeam = state.courtLeftTeam;
+      const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
 
-                    cardGuideX.className = 'bg-rose-950/40 border border-rose-500/50 rounded-2xl p-3 text-left transition-all duration-300 shadow-lg shadow-rose-500/10';
-                    cardGuideO.className = 'bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-left transition-all duration-300 opacity-40';
+      const cardA = document.getElementById('card-team-a');
+      const cardB = document.getElementById('card-team-b');
+      cardA.style.order = (leftTeam === 'A') ? 1 : 2;
+      cardB.style.order = (leftTeam === 'B') ? 1 : 2;
 
-                    centerIcon.textContent = '🙌';
-                    centerTitle.textContent = '두 손 감지 중...';
-                    centerDesc.innerHTML = '조금만 더 유지하면 <strong class="text-rose-400">X</strong>가 완성됩니다!';
-                    bgGlow.className = 'absolute w-96 h-96 rounded-full bg-rose-500/20 blur-3xl pointer-events-none transition-all duration-500';
-                }
+      document.getElementById('arrow-a').innerText = (leftTeam === 'A') ? '◀' : '▶';
+      document.getElementById('arrow-b').innerText = (leftTeam === 'B') ? '◀' : '▶';
 
-                // Trigger Event when hold time >= 1 second
-                if (elapsed >= REQUIRED_HOLD_DURATION_MS) {
-                    triggerGestureResult(detectedPose);
-                }
+      document.getElementById('side-left-bg').className = `court-side left ${leftTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
+      document.getElementById('side-right-bg').className = `court-side right ${rightTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
 
+      document.getElementById('label-left').innerText = `TEAM ${leftTeam}`;
+      document.getElementById('label-right').innerText = `TEAM ${rightTeam}`;
+
+      const totalPts = state.ptsA + state.ptsB;
+      const isDeuceServe = (totalPts % 2 === 0);
+      const isDoubles = (config.type === 'doubles');
+
+      const serverTeam = state.currentServerTeam;
+      const indices = getActiveServerIndices();
+      const activeServerIdx = isDoubles ? (serverTeam === 'A' ? indices.serverIdxA : indices.serverIdxB) : 0;
+
+      const pmA1 = document.getElementById('pm-a1');
+      const pmA2 = document.getElementById('pm-a2');
+      const pmB1 = document.getElementById('pm-b1');
+      const pmB2 = document.getElementById('pm-b2');
+
+      const updateMarkerContent = (el, name, role) => {
+        let badgeHtml = role ? `<span class="role-badge visible">${role}</span>` : `<span class="role-badge"></span>`;
+        el.innerHTML = `<span class="player-name-text">${name}</span>${badgeHtml}`;
+      };
+
+      const isA1_Server = (serverTeam === 'A' && activeServerIdx === 0);
+      const isA2_Server = (serverTeam === 'A' && activeServerIdx === 1);
+      const isB1_Server = (serverTeam === 'B' && activeServerIdx === 0);
+      const isB2_Server = (serverTeam === 'B' && activeServerIdx === 1);
+
+      const isA1_Receiver = (serverTeam === 'B' && isDeuceServe);
+      const isA2_Receiver = (serverTeam === 'B' && !isDeuceServe);
+      const isB1_Receiver = (serverTeam === 'A' && isDeuceServe);
+      const isB2_Receiver = (serverTeam === 'A' && !isDeuceServe);
+
+      updateMarkerContent(pmA1, config.playersA[0], isA1_Server ? 'SERVE' : (isA1_Receiver ? 'RECEIVER' : ''));
+      updateMarkerContent(pmA2, config.playersA[1], isA2_Server ? 'SERVE' : (isA2_Receiver ? 'RECEIVER' : ''));
+      updateMarkerContent(pmB1, config.playersB[0], isB1_Server ? 'SERVE' : (isB1_Receiver ? 'RECEIVER' : ''));
+      updateMarkerContent(pmB2, config.playersB[1], isB2_Server ? 'SERVE' : (isB2_Receiver ? 'RECEIVER' : ''));
+
+      pmA1.style.background = 'var(--team-a-color)';
+      pmA2.style.background = 'var(--team-a-color)';
+      pmB1.style.background = 'var(--team-b-color)';
+      pmB2.style.background = 'var(--team-b-color)';
+
+      pmA2.style.display = isDoubles ? 'flex' : 'none';
+      pmB2.style.display = isDoubles ? 'flex' : 'none';
+
+      document.querySelectorAll('.player-marker').forEach(m => m.classList.remove('server', 'receiver'));
+
+      if (serverTeam === 'A') {
+        if (activeServerIdx === 0) pmA1.classList.add('server'); else pmA2.classList.add('server');
+        if (isDeuceServe) pmB1.classList.add('receiver'); else pmB2.classList.add('receiver');
+      } else {
+        if (activeServerIdx === 0) pmB1.classList.add('server'); else pmB2.classList.add('server');
+        if (isDeuceServe) pmA1.classList.add('receiver'); else pmA2.classList.add('receiver');
+      }
+
+      const setPos = (el, x, y) => { el.style.left = `${x}%`; el.style.top = `${y}%`; };
+      const targetBox = document.getElementById('target-box');
+
+      const placeTeamPlayers = (team, isLeft) => {
+        const p1 = (team === 'A') ? pmA1 : pmB1;
+        const p2 = (team === 'A') ? pmA2 : pmB2;
+        const isServerTeam = (serverTeam === team);
+
+        if (isLeft) {
+          if (isServerTeam) {
+            if (isDeuceServe) {
+              setPos(activeServerIdx === 0 ? p1 : p2, 3, 70);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 38, 25);
             } else {
-                // Reset Pose State
-                currentDetectedGesture = null;
-                holdStartTime = null;
-
-                progressContainer.classList.add('opacity-30');
-                progressBar.style.width = '0%';
-                progressTimeText.textContent = '0.0s / 1.0s';
-                progressStateText.textContent = '동작 대기';
-                progressStateText.className = 'text-slate-400 font-sans font-semibold';
-
-                statusBadge.textContent = '인식 대기 중';
-                statusBadge.className = 'px-3 py-1 text-xs font-semibold rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30';
-                statusDot.className = 'w-3 h-3 bg-cyan-400 rounded-full animate-pulse';
-
-                cardGuideO.className = 'bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-left transition-all duration-300';
-                cardGuideX.className = 'bg-slate-950/60 border border-slate-800 rounded-2xl p-3 text-left transition-all duration-300';
-
-                centerIcon.textContent = '👋';
-                centerTitle.textContent = '동작을 대기 중입니다';
-                centerDesc.innerHTML = '한 손 또는 두 손을 머리 위로 들고<br><strong class="text-cyan-400 font-semibold">1초간 유지</strong>해보세요!';
-                bgGlow.className = 'absolute w-96 h-96 rounded-full bg-cyan-600/10 blur-3xl pointer-events-none transition-all duration-700';
+              setPos(activeServerIdx === 0 ? p1 : p2, 3, 30);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 38, 75);
             }
+          } else {
+            setPos(p1, 14, 68);
+            if (isDoubles) setPos(p2, 14, 32);
+          }
+        } else {
+          if (isServerTeam) {
+            if (isDeuceServe) {
+              setPos(activeServerIdx === 0 ? p1 : p2, 97, 30);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 62, 75);
+            } else {
+              setPos(activeServerIdx === 0 ? p1 : p2, 97, 70);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 62, 25);
+            }
+          } else {
+            setPos(p1, 86, 32);
+            if (isDoubles) setPos(p2, 86, 68);
+          }
         }
+      };
 
-        // Trigger Giant Overlay Display
-        function triggerGestureResult(type) {
-            cooldownUntil = Date.now() + 2000; // 2-second cooldown
-            currentDetectedGesture = null;
-            holdStartTime = null;
+      placeTeamPlayers(leftTeam, true);
+      placeTeamPlayers(rightTeam, false);
 
-            if (hideOverlayTimeout) clearTimeout(hideOverlayTimeout);
+      const serverOnLeft = (serverTeam === leftTeam);
+      targetBox.style.transform = 'none';
 
-            if (type === 'ONE_HAND') {
-                giantChar.textContent = 'O';
-                giantChar.className = 'text-[180px] sm:text-[240px] font-black leading-none tracking-tighter text-emerald-400 animate-pop animate-glow-o select-none';
-                giantLabel.textContent = '⭕ 한 손 머리 위 (O 판정 완료)';
-                giantLabel.className = 'mt-4 px-6 py-2 rounded-full text-xs sm:text-sm font-extrabold tracking-wider uppercase border border-emerald-500/50 bg-emerald-950/80 text-emerald-300 shadow-2xl';
-
-                playSound('O');
-                addLog('⭕ [성공] 한 손 머리 위 1초 유지 -> 대형 O 표시!', 'success-o');
-
-            } else if (type === 'TWO_HANDS') {
-                giantChar.textContent = 'X';
-                giantChar.className = 'text-[180px] sm:text-[240px] font-black leading-none tracking-tighter text-rose-500 animate-pop animate-glow-x select-none';
-                giantLabel.textContent = '❌ 두 손 머리 위 (X 판정 완료)';
-                giantLabel.className = 'mt-4 px-6 py-2 rounded-full text-xs sm:text-sm font-extrabold tracking-wider uppercase border border-rose-500/50 bg-rose-950/80 text-rose-300 shadow-2xl';
-
-                playSound('X');
-                addLog('❌ [성공] 두 손 머리 위 1초 유지 -> 대형 X 표시!', 'success-x');
-            }
-
-            // Mobile Vibration Feedback
-            if (navigator.vibrate) {
-                if (type === 'ONE_HAND') {
-                    navigator.vibrate([120]);
-                } else {
-                    navigator.vibrate([80, 50, 80]);
-                }
-            }
-
-            // Show Giant Result Overlay
-            giantResultOverlay.classList.remove('opacity-0', 'pointer-events-none');
-
-            // Hide after 1.5 seconds
-            hideOverlayTimeout = setTimeout(() => {
-                giantResultOverlay.classList.add('opacity-0', 'pointer-events-none');
-            }, 1500);
-        }
-
-        // Initialize MediaPipe Hands
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.65,
-            minTrackingConfidence: 0.65
-        });
-
-        hands.onResults(onResults);
-
-        // Start Button Camera Handler
-        startBtn.addEventListener('click', async () => {
-            startBtn.disabled = true;
-            startBtn.textContent = '카메라 연결 중...';
-            addLog('백그라운드 카메라 연결 요청 중...');
-
-            try {
-                cameraInstance = new Camera(webcamElement, {
-                    onFrame: async () => {
-                        await hands.send({ image: webcamElement });
-                    },
-                    width: 640,
-                    height: 480,
-                    facingMode: 'user'
-                });
-
-                await cameraInstance.start();
-
-                // Hide Modal
-                startModal.classList.add('transition-opacity', 'duration-500', 'opacity-0');
-                setTimeout(() => {
-                    startModal.style.display = 'none';
-                }, 500);
-
-                statusBadge.textContent = '인식 대기 중';
-                addLog('카메라 실행 완료. 화면에 비치지 않는 상태로 백그라운드 인식 중입니다.', 'success-o');
-
-            } catch (err) {
-                console.error(err);
-                addLog(`카메라 오류: ${err.message || '카메라 접근 권한이 거부되었습니다.'}`, 'warn');
-                startBtn.disabled = false;
-                startBtn.textContent = '다시 시도하기';
-                statusBadge.textContent = '연결 실패';
-            }
-        });
-    </script>
+      if (serverOnLeft) {
+        targetBox.style.left = '50%';
+        targetBox.style.width = '25%';
+        targetBox.style.height = '35%';
+        targetBox.style.top = isDeuceServe ? '15%' : '50%';
+      } else {
+        targetBox.style.left = '25%';
+        targetBox.style.width = '25%';
+        targetBox.style.height = '35%';
+        targetBox.style.top = isDeuceServe ? '50%' : '15%';
+      }
+    }
+  </script>
 </body>
 </html>
