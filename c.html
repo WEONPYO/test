@@ -30,18 +30,16 @@
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col overflow-hidden">
 
-    <!-- Header Navigation -->
     <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0 z-30">
         <div class="flex items-center space-x-2.5">
             <div id="status-dot" class="w-3 h-3 bg-amber-500 rounded-full animate-pulse"></div>
-            <h1 class="text-sm md:text-base font-bold tracking-tight text-white">머리 위 O/X 제스처 인식</h1>
+            <h1 class="text-sm md:text-base font-bold tracking-tight text-white">머리 위 O / 만세(X) 제스처 인식</h1>
         </div>
         <div id="status-badge" class="px-2.5 py-1 text-xs font-medium rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
             대기 중
         </div>
     </header>
 
-    <!-- Main Content Area -->
     <main class="flex-1 relative flex flex-col overflow-hidden bg-slate-900">
         <!-- Video Feed & Canvas Wrapper -->
         <div class="relative w-full flex-1 overflow-hidden bg-black flex items-center justify-center">
@@ -57,12 +55,26 @@
                 </div>
             </div>
 
+            <!-- Progress Ring / Hold Timer Indicator Overlay -->
+            <div id="progress-indicator" class="absolute inset-x-0 bottom-24 flex flex-col items-center justify-center pointer-events-none z-25 opacity-0 transition-opacity duration-200">
+                <div class="relative w-20 h-20 flex items-center justify-center bg-slate-900/80 backdrop-blur-md rounded-full border border-slate-700 shadow-2xl">
+                    <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                        <path class="text-slate-700" stroke-width="3" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                        <path id="progress-ring-path" class="text-cyan-400 transition-all duration-75" stroke-dasharray="100, 100" stroke-width="3.5" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    </svg>
+                    <div id="progress-text" class="absolute text-xs font-bold font-mono text-white">1.0s</div>
+                </div>
+                <div id="progress-label" class="mt-2 px-3 py-1 bg-slate-900/90 text-xs font-bold text-cyan-300 rounded-full shadow-lg border border-cyan-500/30">
+                    유지 중...
+                </div>
+            </div>
+
             <!-- Top Floating Info & FPS -->
             <div class="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none z-10">
                 <div class="bg-slate-900/80 backdrop-blur-md border border-slate-700/50 px-4 py-2.5 rounded-2xl shadow-xl flex items-center space-x-3">
                     <span id="instruction-emoji" class="text-2xl">💡</span>
                     <div>
-                        <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">현재 가이드 상태</div>
+                        <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">가이드 안내</div>
                         <div id="instruction-text" class="text-xs md:text-sm font-bold text-white">두 손을 머리 위로 올려주세요</div>
                     </div>
                 </div>
@@ -76,13 +88,13 @@
             <!-- Permission / Start Overlay Modal -->
             <div id="permission-hint" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-40 transition-opacity duration-500">
                 <div class="w-16 h-16 bg-cyan-600/20 border border-cyan-500/30 rounded-2xl flex items-center justify-center text-cyan-400 mb-4 text-3xl shadow-lg shadow-cyan-500/10">
-                    🙆‍♀️
+                    🙌
                 </div>
-                <h2 class="text-lg md:text-xl font-bold text-white mb-2">머리 위 O / X 제스처 감지</h2>
+                <h2 class="text-lg md:text-xl font-bold text-white mb-2">머리 위 O / 만세(X) 감지기</h2>
                 <p class="text-xs md:text-sm text-slate-400 max-w-sm mb-6 leading-relaxed">
-                    카메라 화면에 상반신과 두 손이 나오도록 서서,<br>
-                    <strong>머리 위에서 팔을 둥글게 모아 'O'</strong>를 만들거나<br>
-                    <strong>팔을 교차해 'X'</strong>를 만들어보세요!
+                    카메라 앞에 서서 동작을 <strong>1초 이상</strong> 유지해 보세요!<br>
+                    ⭕ <strong>머리 위 O자:</strong> 두 손을 모아 둥글게 원 만들기<br>
+                    ❌ <strong>만세 포즈(X):</strong> 두 손을 높이 수직으로 쭉 뻗기
                 </p>
                 <button id="start-btn" class="w-full max-w-xs bg-cyan-600 hover:bg-cyan-500 active:scale-95 text-white font-semibold py-3.5 px-6 rounded-xl shadow-lg shadow-cyan-600/30 transition-all text-sm">
                     카메라 켜고 시작하기
@@ -90,11 +102,10 @@
             </div>
         </div>
 
-        <!-- Bottom Panel: Status Cards & Logs -->
         <div class="bg-slate-900 border-t border-slate-800 p-4 shrink-0 flex flex-col space-y-3 z-30 max-h-[32%] overflow-hidden">
             <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                    <span>📡 감지 상태 및 이벤트 로그</span>
+                    <span>📡 실시간 감지 상태 및 이벤트 로그</span>
                 </span>
                 <button id="clear-log" class="text-[11px] text-slate-400 hover:text-white underline">로그 초기화</button>
             </div>
@@ -105,14 +116,14 @@
                     <span class="text-2xl">⭕</span>
                     <div class="text-left">
                         <div class="text-xs font-bold text-slate-200">동그라미 (O)</div>
-                        <div id="status-o-sub" class="text-[10px] text-slate-400">머리 위 손 모음 대기</div>
+                        <div id="status-o-sub" class="text-[10px] text-slate-400">1초 유지 시 발동</div>
                     </div>
                 </div>
                 <div id="card-x" class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3">
                     <span class="text-2xl">❌</span>
                     <div class="text-left">
-                        <div class="text-xs font-bold text-slate-200">가위표 (X)</div>
-                        <div id="status-x-sub" class="text-[10px] text-slate-400">머리 위 팔 교차 대기</div>
+                        <div class="text-xs font-bold text-slate-200">만세 포즈 (X)</div>
+                        <div id="status-x-sub" class="text-[10px] text-slate-400">1초 유지 시 발동</div>
                     </div>
                 </div>
             </div>
@@ -138,6 +149,10 @@
         const fpsCounter = document.getElementById('fps-counter');
         const overlayDisplay = document.getElementById('overlay-display');
         const overlayBox = document.getElementById('overlay-box');
+        const progressIndicator = document.getElementById('progress-indicator');
+        const progressRingPath = document.getElementById('progress-ring-path');
+        const progressText = document.getElementById('progress-text');
+        const progressLabel = document.getElementById('progress-label');
         const cardO = document.getElementById('card-o');
         const cardX = document.getElementById('card-x');
         const statusOSub = document.getElementById('status-o-sub');
@@ -148,8 +163,12 @@
         let camera = null;
         let frameCount = 0;
         let lastFpsUpdate = Date.now();
-        let lastDetectedState = 'NONE';
-        let stateHoldTimer = 0;
+        
+        // Timer & Hold state variables (Requirement: 1-second duration)
+        let currentDetectedGesture = 'NONE';
+        let gestureStartTime = null;
+        const HOLD_DURATION_MS = 1000; // 1 second
+        let confirmedGesture = 'NONE';
 
         function addLog(message, type = 'info') {
             const timeStr = new Date().toLocaleTimeString();
@@ -178,58 +197,42 @@
             return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
         }
 
-        // Gesture analysis for Head O / X recognition
-        function analyzeHeadGestures(landmarksList) {
-            // If we don't have exactly 2 hands detected, return NONE
+        // Gesture analysis for Head O shape and Banzai (hands straight up high) for X
+        function analyzeGestures(landmarksList) {
             if (!landmarksList || landmarksList.length < 2) {
                 return 'NONE';
             }
 
-            const hand1 = landmarksList[0]; // Wrist/Fingers
+            const hand1 = landmarksList[0];
             const hand2 = landmarksList[1];
 
-            // Get center / wrist of both hands (landmark 0 is wrist, 9 is middle finger MCP)
-            const h1Center = hand1[0];
-            const h2Center = hand2[0];
+            const h1Wrist = hand1[0];
+            const h2Wrist = hand2[0];
+            const h1IndexTip = hand1[8];
+            const h2IndexTip = hand2[8];
 
-            // Check if hands are positioned "above head" or in the upper portion of the frame (y < 0.45 in normalized coords where 0 is top)
-            const areAboveHead = h1Center.y < 0.45 && h2Center.y < 0.45;
+            // Both hands must be positioned above head level (upper half of screen, y < 0.45)
+            const areAboveHead = h1Wrist.y < 0.45 && h2Wrist.y < 0.45;
             if (!areAboveHead) {
                 return 'NONE';
             }
 
-            // Distance between two hands
-            const handsDist = distance(h1Center, h2Center);
+            const handsDist = distance(h1Wrist, h2Wrist);
+            const yDiff = Math.abs(h1Wrist.y - h2Wrist.y);
 
-            // Check horizontal order for X shape (Left hand on right side of image or vice versa due to mirrored camera)
-            // In mirrored view, hand on left side of screen has higher x or lower x depending on orientation.
-            // Let's check wrist x coordinates relative to each other.
-            const xDiff = h1Center.x - h2Center.x;
-            const yDiff = Math.abs(h1Center.y - h2Center.y);
-
-            // O Shape criteria: Two hands are close together near the top center (forming an arch/circle)
-            // Distance between wrists is moderate to close, and y values are very close (horizontal alignment)
+            // 1. O Shape Criteria: Two hands are close together near the top center (forming a circular arch)
+            // Wrists/hands are moderately close (0.08 to 0.35) and horizontally aligned
             if (handsDist > 0.08 && handsDist < 0.35 && yDiff < 0.15) {
                 return 'O_SHAPE';
             }
 
-            // X Shape criteria: Arms/hands crossed. In mirrored frame, if hand 1 is left and hand 2 is right,
-            // but their wrist/fingers cross over (e.g. thumb tips or index fingertips X intersection).
-            // Let's check if index fingertips (landmark 8) or wrists cross horizontally relative to their sides.
-            const h1IndexTip = hand1[8];
-            const h2IndexTip = hand2[8];
+            // 2. Banzai (Hands raised straight up high) Criteria for X:
+            // Both hands are extended high and widely separated or fingertips pointing right up near top edge (y < 0.20)
+            const areVeryHigh = h1IndexTip.y < 0.25 && h2IndexTip.y < 0.25;
+            const isWideSeparation = handsDist > 0.25;
 
-            // If index fingertips cross (one hand's x is inverted relative to the other compared to wrists, or wrists are close and vertical spread is distinct)
-            // Alternatively, X shape often means wrists or arms cross: e.g., one hand is high-left and other is high-right, but index tips cross over each other.
-            const tipDist = distance(h1IndexTip, h2IndexTip);
-            if (tipDist < 0.20 && (h1Center.x < h2Center.x ? h1IndexTip.x > h2IndexTip.x : h1IndexTip.x < h2IndexTip.x)) {
-                return 'X_SHAPE';
-            }
-
-            // Fallback heuristic for X: Vertical crossing or close proximity with height difference
-            if (handsDist < 0.30 && yDiff >= 0.05 && yDiff < 0.25) {
-                // If hands are close and stacked/crossed
-                return 'X_SHAPE';
+            if (areVeryHigh || (isWideSeparation && yDiff < 0.15 && h1Wrist.y < 0.35 && h2Wrist.y < 0.35)) {
+                return 'BANZAI_X';
             }
 
             return 'NONE';
@@ -254,91 +257,111 @@
                 lastFpsUpdate = now;
             }
 
-            let detectedGesture = 'NONE';
+            let detected = 'NONE';
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                // Draw skeletons for all detected hands
                 for (const landmarks of results.multiHandLandmarks) {
                     drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, { color: '#06b6d4', lineWidth: 3 });
                     drawLandmarks(canvasCtx, landmarks, { color: '#f43f5e', lineWidth: 2, radius: 4 });
                 }
 
-                detectedGesture = analyzeHeadGestures(results.multiHandLandmarks);
+                detected = analyzeGestures(results.multiHandLandmarks);
             }
 
-            // Update UI based on detected gesture state
-            if (detectedGesture === 'O_SHAPE') {
-                stateHoldTimer++;
-                if (stateHoldTimer >= 3) { // Debounce threshold
-                    if (lastDetectedState !== 'O_SHAPE') {
-                        addLog('⭕ 머리 위 O 제스처 감지됨!', 'success-o');
-                        if (navigator.vibrate) navigator.vibrate(80);
-                    }
-                    lastDetectedState = 'O_SHAPE';
-                    
-                    // Show large O overlay
-                    overlayDisplay.style.opacity = '1';
-                    overlayBox.textContent = 'O';
-                    overlayBox.className = 'text-[140px] md:text-[200px] font-black tracking-tighter text-emerald-400 animate-ox drop-shadow-[0_0_35px_rgba(52,211,153,0.8)]';
-
-                    // Update Instruction & Cards
-                    instructionEmoji.textContent = '⭕';
-                    instructionText.textContent = '완벽한 동그라미(O) 감지됨!';
-                    statusBadge.className = 'px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
-                    statusBadge.textContent = 'O 감지 중';
-                    statusDot.className = 'w-3 h-3 bg-emerald-500 rounded-full animate-ping';
-
-                    cardO.className = 'bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 shadow-lg shadow-emerald-500/10';
-                    statusOSub.textContent = '감지 활성화됨!';
-                    statusOSub.className = 'text-[10px] text-emerald-300 font-bold';
-                    cardX.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 opacity-50';
-                    statusXSub.textContent = '머리 위 팔 교차 대기';
-                    statusXSub.className = 'text-[10px] text-slate-400';
+            // Handle 1-second hold timer logic
+            if (detected !== 'NONE') {
+                if (currentDetectedGesture !== detected) {
+                    // Gesture changed or started
+                    currentDetectedGesture = detected;
+                    gestureStartTime = now;
                 }
-            } else if (detectedGesture === 'X_SHAPE') {
-                stateHoldTimer++;
-                if (stateHoldTimer >= 3) {
-                    if (lastDetectedState !== 'X_SHAPE') {
-                        addLog('❌ 머리 위 X 제스처 감지됨!', 'success-x');
-                        if (navigator.vibrate) navigator.vibrate([40, 40, 40]);
+
+                const elapsed = now - gestureStartTime;
+                const progress = Math.min(1, elapsed / HOLD_DURATION_MS);
+                const remainingSec = Math.max(0, ((HOLD_DURATION_MS - elapsed) / 1000)).toFixed(1);
+
+                // Update Progress Ring UI
+                progressIndicator.style.opacity = '1';
+                const dashoffset = 100 - (progress * 100);
+                progressRingPath.style.strokeDasharray = `${100 - dashoffset}, 100`;
+                progressText.textContent = `${remainingSec}s`;
+
+                if (detected === 'O_SHAPE') {
+                    progressRingPath.className = 'text-emerald-400 transition-all duration-75';
+                    progressLabel.textContent = '⭕ O형태 유지 중...';
+                    progressLabel.className = 'mt-2 px-3 py-1 bg-slate-900/90 text-xs font-bold text-emerald-300 rounded-full shadow-lg border border-emerald-500/30';
+                } else {
+                    progressRingPath.className = 'text-rose-400 transition-all duration-75';
+                    progressLabel.textContent = '❌ 만세(X) 유지 중...';
+                    progressLabel.className = 'mt-2 px-3 py-1 bg-slate-900/90 text-xs font-bold text-rose-300 rounded-full shadow-lg border border-rose-500/30';
+                }
+
+                // If held for >= 1 second
+                if (elapsed >= HOLD_DURATION_MS && confirmedGesture !== detected) {
+                    confirmedGesture = detected;
+
+                    if (detected === 'O_SHAPE') {
+                        addLog('⭕ 머리 위 O 1초 유지 성공!', 'success-o');
+                        if (navigator.vibrate) navigator.vibrate(100);
+
+                        overlayDisplay.style.opacity = '1';
+                        overlayBox.textContent = 'O';
+                        overlayBox.className = 'text-[140px] md:text-[200px] font-black tracking-tighter text-emerald-400 animate-ox drop-shadow-[0_0_35px_rgba(52,211,153,0.8)]';
+
+                        instructionEmoji.textContent = '⭕';
+                        instructionText.textContent = '완벽한 동그라미(O) 확정!';
+                        statusBadge.className = 'px-2.5 py-1 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                        statusBadge.textContent = 'O 활성화됨';
+                        statusDot.className = 'w-3 h-3 bg-emerald-500 rounded-full animate-ping';
+
+                        cardO.className = 'bg-emerald-500/20 border border-emerald-500/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 shadow-lg shadow-emerald-500/10';
+                        statusOSub.textContent = '1초 유지 완료!';
+                        statusOSub.className = 'text-[10px] text-emerald-300 font-bold';
+                        cardX.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 opacity-50';
+                        statusXSub.textContent = '만세 포즈 대기';
+                        statusXSub.className = 'text-[10px] text-slate-400';
+                    } else if (detected === 'BANZAI_X') {
+                        addLog('❌ 머리 위 만세(X) 1초 유지 성공!', 'success-x');
+                        if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+
+                        overlayDisplay.style.opacity = '1';
+                        overlayBox.textContent = 'X';
+                        overlayBox.className = 'text-[140px] md:text-[200px] font-black tracking-tighter text-rose-500 animate-ox drop-shadow-[0_0_35px_rgba(244,63,94,0.8)]';
+
+                        instructionEmoji.textContent = '❌';
+                        instructionText.textContent = '만세 포즈(X) 확정!';
+                        statusBadge.className = 'px-2.5 py-1 text-xs font-medium rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30';
+                        statusBadge.textContent = 'X 활성화됨';
+                        statusDot.className = 'w-3 h-3 bg-rose-500 rounded-full animate-ping';
+
+                        cardX.className = 'bg-rose-500/20 border border-rose-500/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 shadow-lg shadow-rose-500/10';
+                        statusXSub.textContent = '1초 유지 완료!';
+                        statusXSub.className = 'text-[10px] text-rose-300 font-bold';
+                        cardO.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 opacity-50';
+                        statusOSub.textContent = '머리 위 손 모음 대기';
+                        statusOSub.className = 'text-[10px] text-slate-400';
                     }
-                    lastDetectedState = 'X_SHAPE';
-
-                    // Show large X overlay
-                    overlayDisplay.style.opacity = '1';
-                    overlayBox.textContent = 'X';
-                    overlayBox.className = 'text-[140px] md:text-[200px] font-black tracking-tighter text-rose-500 animate-ox drop-shadow-[0_0_35px_rgba(244,63,94,0.8)]';
-
-                    // Update Instruction & Cards
-                    instructionEmoji.textContent = '❌';
-                    instructionText.textContent = '가위표(X) 교차 감지됨!';
-                    statusBadge.className = 'px-2.5 py-1 text-xs font-medium rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30';
-                    statusBadge.textContent = 'X 감지 중';
-                    statusDot.className = 'w-3 h-3 bg-rose-500 rounded-full animate-ping';
-
-                    cardX.className = 'bg-rose-500/20 border border-rose-500/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 shadow-lg shadow-rose-500/10';
-                    statusXSub.textContent = '감지 활성화됨!';
-                    statusXSub.className = 'text-[10px] text-rose-300 font-bold';
-                    cardO.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3 opacity-50';
-                    statusOSub.textContent = '머리 위 손 모음 대기';
-                    statusOSub.className = 'text-[10px] text-slate-400';
                 }
             } else {
-                stateHoldTimer = 0;
-                if (lastDetectedState !== 'NONE') {
-                    lastDetectedState = 'NONE';
+                // No valid gesture detected
+                currentDetectedGesture = 'NONE';
+                gestureStartTime = null;
+                progressIndicator.style.opacity = '0';
+
+                if (confirmedGesture !== 'NONE') {
+                    confirmedGesture = 'NONE';
                     overlayDisplay.style.opacity = '0';
                     statusBadge.className = 'px-2.5 py-1 text-xs font-medium rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20';
                     statusBadge.textContent = '대기 중';
                     statusDot.className = 'w-3 h-3 bg-amber-500 rounded-full animate-pulse';
                     instructionEmoji.textContent = '💡';
-                    instructionText.textContent = '두 손을 머리 위로 올려 O 또는 X를 만드세요';
+                    instructionText.textContent = '두 손을 머리 위로 올려 O 또는 만세(X)를 1초간 유지하세요';
 
                     cardO.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3';
-                    statusOSub.textContent = '머리 위 손 모음 대기';
+                    statusOSub.textContent = '1초 유지 시 발동';
                     statusOSub.className = 'text-[10px] text-slate-400';
                     cardX.className = 'bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 text-center transition-all duration-300 flex items-center justify-center space-x-3';
-                    statusXSub.textContent = '머리 위 팔 교차 대기';
+                    statusXSub.textContent = '1초 유지 시 발동';
                     statusXSub.className = 'text-[10px] text-slate-400';
                 }
             }
@@ -385,7 +408,7 @@
 
                 statusBadge.className = 'px-2.5 py-1 text-xs font-medium rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20';
                 statusBadge.textContent = '인식 대기 중';
-                addLog('카메라 연결 완료. 머리 위로 손을 올려주세요.', 'success-o');
+                addLog('카메라 연결 완료. 머리 위로 O 또는 만세 동작을 해주세요.', 'success-o');
             } catch (err) {
                 console.error(err);
                 addLog(`카메라 오류: ${err.message || '권한이 거부되었습니다.'}`, 'warn');
