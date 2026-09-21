@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Tennis Scoreboard with Camera Detection</title>
-  <!-- MediaPipe Pose & Camera Utils CDN -->
+  <title>AI Tennis Scoreboard</title>
+
+  <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
@@ -17,7 +18,7 @@
       --line-color: #ffffff;
       --accent-yellow: #ccff00;
       --text-main: #ffffff;
-      --gauge-active: #00ff66;
+      --panel-border: #234733;
     }
 
     * {
@@ -58,19 +59,22 @@
       justify-content: center; align-items: center; z-index: 100; padding: 20px; text-align: center;
     }
 
-    #fs-overlay h2 { color: var(--accent-yellow); font-size: 1.8rem; margin-bottom: 25px; }
+    #fs-overlay h2 { color: var(--accent-yellow); font-size: 1.8rem; margin-bottom: 25px; letter-spacing: 1px; }
 
     .btn-fullscreen-start {
       padding: 15px 35px; font-size: 1.1rem; font-weight: bold;
       background-color: var(--accent-yellow); border: none; border-radius: 8px;
-      color: #000; cursor: pointer;
+      color: #000; cursor: pointer; box-shadow: 0 4px 15px rgba(204,255,0,0.3);
+      transition: transform 0.2s, background-color 0.2s;
     }
+    .btn-fullscreen-start:active { transform: scale(0.96); }
 
     .main-app {
-      flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative;
+      flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative; overflow: hidden;
     }
 
-    .scoreboard { display: flex; padding: 8px 10px 0 10px; gap: 10px; height: 70%; }
+    /* 점수판 레이아웃 */
+    .scoreboard { display: flex; padding: 8px 10px 0 10px; gap: 10px; height: 68%; }
 
     .team-card {
       flex: 1; border-radius: 12px; padding: 12px 14px; display: flex;
@@ -133,126 +137,74 @@
       opacity: 0; cursor: pointer; z-index: 3;
     }
 
-    /* Side Gauges for Gesture Recognition Status */
-    .side-gauge-container {
-      position: absolute;
-      top: 10px;
-      bottom: 10px;
-      width: 12px;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 6px;
-      overflow: hidden;
-      z-index: 10;
-      display: flex;
-      flex-direction: column;
-      justify-content: flex-end;
-      pointer-events: none;
-    }
-
-    .side-gauge-container.left { left: 4px; }
-    .side-gauge-container.right { right: 4px; }
-
-    .side-gauge-fill {
-      width: 100%;
-      height: 0%;
-      background: linear-gradient(to top, var(--gauge-active), var(--accent-yellow));
-      border-radius: 4px;
-      transition: height 0.08s ease-out;
-      box-shadow: 0 0 10px var(--gauge-active);
-    }
-
-    .side-gauge-label {
-      position: absolute;
-      top: 50%;
-      font-size: 0.65rem;
-      font-weight: bold;
-      color: var(--accent-yellow);
-      writing-mode: vertical-rl;
-      text-orientation: mixed;
-      transform: translateY(-50%);
-      opacity: 0.7;
-      letter-spacing: 1px;
-      pointer-events: none;
-    }
-    .side-gauge-container.left .side-gauge-label { left: 16px; }
-    .side-gauge-container.right .side-gauge-label { right: 16px; }
-
-    /* Control Sidebar Styling */
+    /* 사이드바 및 컨트롤 메뉴 아이콘 디자인 */
     .sidebar-controls {
-      display: flex; width: 120px; background-color: var(--card-bg);
-      border-left: 1px solid #234733; padding: 10px 8px; flex-direction: column; gap: 8px;
-      justify-content: space-between; z-index: 20;
+      display: flex; width: 90px; background-color: var(--card-bg);
+      border-left: 1px solid var(--panel-border); padding: 12px 6px; flex-direction: column; gap: 10px;
+      justify-content: space-between; align-items: center;
     }
 
     .menu-group-main, .menu-group-bottom {
-      display: flex; flex-direction: column; gap: 8px; width: 100%;
+      display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: center;
     }
 
+    /* 아이콘 버튼 스타일 */
+    .btn-icon-menu {
+      width: 100%; height: 56px; background: #14261c; border: 1px solid #2e5941;
+      border-radius: 10px; color: #d0d0d0; display: flex; flex-direction: column;
+      justify-content: center; align-items: center; gap: 3px; cursor: pointer;
+      transition: all 0.2s ease; position: relative;
+    }
+
+    .btn-icon-menu svg { width: 22px; height: 22px; fill: currentColor; }
+    .btn-icon-menu span { font-size: 0.65rem; font-weight: 700; }
+
+    .btn-icon-menu:active { transform: scale(0.95); background: #1c3829; }
+
+    .btn-icon-menu.active-camera {
+      border-color: var(--accent-yellow);
+      color: var(--accent-yellow);
+      background: #183321;
+    }
+
+    .btn-icon-menu.active-camera::after {
+      content: ''; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px;
+      background-color: var(--accent-yellow); border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-yellow);
+      animation: pulse-ring 1.5s infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.4; }
+      100% { transform: scale(0.8); opacity: 1; }
+    }
+
+    .btn-icon-menu.danger {
+      color: #ff6b6b; border-color: #592e2e; background: #261414;
+    }
+
+    /* 화면 세로 모드 대응 레이아웃 */
     @media (orientation: portrait) {
       .sidebar-controls {
-        width: 100%;
-        height: auto;
-        border-left: none;
-        border-top: 1px solid #234733;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-around;
-        padding: 6px;
+        width: 100%; height: 72px; border-left: none; border-top: 1px solid var(--panel-border);
+        flex-direction: row; padding: 6px 12px; gap: 6px;
       }
-
       .menu-group-main, .menu-group-bottom {
-        flex-direction: row;
-        width: auto;
-        flex: 1;
-        gap: 4px;
+        flex-direction: row; width: auto; flex: 1; gap: 6px;
       }
-
-      .sidebar-title {
-        display: none;
-      }
-
-      .sidebar-controls .btn-action-large, .sidebar-controls .btn-icon {
-        flex: 1;
-        padding: 10px 2px;
-        font-size: 0.7rem;
-      }
+      .btn-icon-menu { height: 52px; }
     }
 
-    .sidebar-title { font-size: 0.75rem; font-weight: 800; color: var(--accent-yellow); text-align: center; margin-bottom: 2px; }
-
-    .btn-action-large {
-      background-color: #1c3829; color: white; border: 1px solid #2e5941;
-      padding: 12px 4px; border-radius: 8px; font-size: 0.8rem; font-weight: bold;
-      cursor: pointer; text-align: center; line-height: 1.2;
-    }
-
-    .btn-action-large.highlight { 
-      border-color: var(--accent-yellow); 
-      color: var(--accent-yellow); 
-      background-color: #132b1e;
-    }
-
-    .btn-icon {
-      background: #14261c; border: 1px solid #2e5941; color: #a0a0a0;
-      padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; cursor: pointer;
-      text-align: center;
-    }
-    
-    .btn-icon.danger {
-      color: #ff6b6b;
-      border-color: #592e2e;
-    }
-
+    /* 테니스 코트 영역 */
     .court-section {
       display: flex; justify-content: center; align-items: center;
-      padding: 2px; position: relative; height: 30%;
+      padding: 2px; position: relative; height: 32%;
     }
 
     .court-container {
       width: 95%; height: 90%; max-width: 800px; position: relative;
-      display: flex; justify-content: center; align-items: center;
-      perspective: 400px;
+      display: flex; justify-content: center; align-items: center; perspective: 400px;
     }
 
     .court-inner {
@@ -321,40 +273,64 @@
     }
     .player-marker.receiver .role-badge { background: var(--accent-yellow); color: #000; }
 
+    /* 동작 인식 게이지 오버레이 (화면 양 끝단) */
+    .gesture-gauge-container {
+      position: absolute; top: 0; bottom: 0; width: 24px;
+      background: rgba(0,0,0,0.4); display: flex; flex-direction: column;
+      justify-content: flex-end; z-index: 80; pointer-events: none; opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(255,255,255,0.2); }
+    .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(255,255,255,0.2); }
+
+    .gesture-gauge-container.active { opacity: 1; }
+
+    .gauge-fill {
+      width: 100%; height: 0%; background: linear-gradient(to top, #ccff00, #00ffaa);
+      transition: height 0.05s linear; box-shadow: 0 0 10px var(--accent-yellow);
+    }
+
+    .gauge-status-text {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg);
+      white-space: nowrap; font-size: 0.75rem; font-weight: 900; letter-spacing: 2px;
+      color: var(--accent-yellow); text-shadow: 0 2px 5px rgba(0,0,0,0.9);
+    }
+
+    .gesture-gauge-container.cooldown .gauge-fill {
+      height: 100% !important; background: #ff4d4d !important; opacity: 0.6;
+    }
+    .gesture-gauge-container.cooldown .gauge-status-text {
+      color: #ffffff;
+    }
+
+    /* 설정 및 공통 모달 UI */
     .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 200; padding: 15px; overflow-y: auto; }
-    .modal-content { background: var(--card-bg); border-radius: 12px; padding: 16px; max-width: 420px; margin: 10px auto; border: 1px solid #2e5941; position: relative; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .modal-header h2 { color: var(--accent-yellow); font-size: 1.05rem; margin: 0; }
-    .btn-close-modal { background: transparent; border: none; color: #8b949e; font-size: 1.4rem; font-weight: bold; cursor: pointer; line-height: 1; }
-    .modal h3 { color: var(--accent-yellow); font-size: 0.85rem; margin: 12px 0 6px 0; border-top: 1px dashed #2e5941; padding-top: 8px; }
+    .modal-content { background: var(--card-bg); border-radius: 12px; padding: 18px; max-width: 440px; margin: 10px auto; border: 1px solid var(--panel-border); position: relative; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-header h2 { color: var(--accent-yellow); font-size: 1.1rem; margin: 0; }
+    .btn-close-modal { background: transparent; border: none; color: #8b949e; font-size: 1.5rem; font-weight: bold; cursor: pointer; line-height: 1; }
+    .modal h3 { color: var(--accent-yellow); font-size: 0.85rem; margin: 14px 0 6px 0; border-top: 1px dashed var(--panel-border); padding-top: 8px; }
 
     .setting-group { margin-bottom: 10px; }
-    .setting-group label { display: block; font-size: 0.75rem; color: #8b949e; margin-bottom: 3px; }
-    .setting-group select, .setting-group input { width: 100%; padding: 6px; border-radius: 6px; border: 1px solid #2e5941; background: #0c1911; color: white; font-size: 0.8rem; }
+    .setting-group label { display: block; font-size: 0.75rem; color: #a0a0a0; margin-bottom: 4px; font-weight: 600; }
+    .setting-group select, .setting-group input { width: 100%; padding: 7px; border-radius: 6px; border: 1px solid var(--panel-border); background: #0c1911; color: white; font-size: 0.8rem; }
     .input-row { display: flex; gap: 6px; margin-top: 4px; }
     .swipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 
-    .btn-save { width: 100%; padding: 10px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 12px; font-size: 0.85rem; }
+    .btn-save { width: 100%; padding: 12px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 14px; font-size: 0.9rem; }
 
     .confirm-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); z-index: 250; justify-content: center; align-items: center; padding: 20px; }
-    .confirm-box { background: var(--card-bg); border: 1px solid #2e5941; border-radius: 12px; padding: 20px; width: 100%; max-width: 300px; text-align: center; }
-    .confirm-box p { font-size: 0.9rem; line-height: 1.4; color: #fff; margin-bottom: 16px; }
+    .confirm-box { background: var(--card-bg); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px; width: 100%; max-width: 320px; text-align: center; }
+    .confirm-box p { font-size: 0.95rem; line-height: 1.4; color: #fff; margin-bottom: 18px; }
     .confirm-btns { display: flex; gap: 8px; }
-    .confirm-btns button { flex: 1; padding: 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; border: none; cursor: pointer; }
+    .confirm-btns button { flex: 1; padding: 10px; border-radius: 6px; font-size: 0.85rem; font-weight: bold; border: none; cursor: pointer; }
 
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
-    .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid #2e5941 !important; }
+    .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid var(--panel-border) !important; }
 
-    /* Hidden Camera & Processing Elements (Screen display hidden as requested) */
-    #hidden-cam-container {
-      display: none !important;
-      position: absolute;
-      width: 0;
-      height: 0;
-      overflow: hidden;
-      opacity: 0;
-      pointer-events: none;
-    }
+    /* 숨김 처리용 카메라 비디오 노드 */
+    #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
   </style>
 </head>
 <body>
@@ -365,21 +341,24 @@
   </div>
 
   <div id="fs-overlay">
-    <h2>WP TENNIS SCOREBOARD</h2>
+    <h2>AI TENNIS SCOREBOARD</h2>
     <button class="btn-fullscreen-start" onclick="startFullscreenApp()">전체화면으로 시작하기</button>
   </div>
 
-  <div class="main-app">
-    <!-- Left & Right Recognition Status Side Gauges -->
-    <div class="side-gauge-container left" id="gauge-container-left">
-      <div class="side-gauge-fill" id="gauge-fill-left"></div>
-      <span class="side-gauge-label">LEFT SCORE</span>
-    </div>
-    <div class="side-gauge-container right" id="gauge-container-right">
-      <div class="side-gauge-fill" id="gauge-fill-right"></div>
-      <span class="side-gauge-label">RIGHT SCORE</span>
-    </div>
+  <!-- 비디오 영상은 화면상에 표시하지 않음 -->
+  <video id="hidden-video" playsinline></video>
 
+  <!-- 동작 인식 활성화 시 점수 반영 상태를 보여주는 양측 게이지 -->
+  <div class="gesture-gauge-container left" id="gauge-left">
+    <div class="gauge-fill" id="gauge-fill-left"></div>
+    <div class="gauge-status-text" id="gauge-text-left">1s HOLD</div>
+  </div>
+  <div class="gesture-gauge-container right" id="gauge-right">
+    <div class="gauge-fill" id="gauge-fill-right"></div>
+    <div class="gauge-status-text" id="gauge-text-right">1s HOLD</div>
+  </div>
+
+  <div class="main-app">
     <div class="scoreboard" id="scoreboard-container">
       <div class="team-card team-a" id="card-team-a" style="order: 1;">
         <div class="team-header">
@@ -453,52 +432,71 @@
     </div>
   </div>
 
-  <!-- 사이드바 컨트롤 영역 (초기 구성 및 메뉴 유지) -->
+  <!-- 아이콘 패널 메뉴 레이아웃 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
-      <div class="sidebar-title">MENU</div>
-      <button class="btn-action-large highlight" id="btn-toggle-serve-s" onclick="toggleServeTeam()">SERVE: TEAM A</button>
-      <button class="btn-action-large" onclick="manualCourtChange()">CHANGE COURT</button>
-      <button class="btn-action-large" onclick="undo()">CORRECTION</button>
+      <!-- 카메라 모션 인식 토글 버튼 -->
+      <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Gesture Control">
+        <svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>CAM</span>
+      </button>
+
+      <!-- 서브 팀 전환 버튼 -->
+      <button class="btn-icon-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+        <span>SERVE</span>
+      </button>
+
+      <!-- 코트 체인지 버튼 -->
+      <button class="btn-icon-menu" onclick="manualCourtChange()" title="Change Court Ends">
+        <svg viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>
+        <span>COURT</span>
+      </button>
+
+      <!-- 정정 (CORRECTION) 버튼 -->
+      <button class="btn-icon-menu" onclick="undo()" title="Undo Last Point">
+        <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 6v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
+        <span>CORRECT</span>
+      </button>
     </div>
 
     <div class="menu-group-bottom">
-      <button class="btn-icon danger" onclick="confirmResetMatch()">RESET</button>
-      <button class="btn-icon" onclick="toggleFullscreen()">Full Screen</button>
-      <button class="btn-icon" id="btn-settings-sidebar">Settings</button>
+      <!-- 초기화 (RESET) 버튼 -->
+      <button class="btn-icon-menu danger" onclick="confirmResetMatch()" title="Reset Match">
+        <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        <span>RESET</span>
+      </button>
+
+      <!-- 전체화면 토글 버튼 -->
+      <button class="btn-icon-menu" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        <span>FULL</span>
+      </button>
+
+      <!-- 설정 버튼 -->
+      <button class="btn-icon-menu" id="btn-settings-sidebar" title="Open Settings">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span>SETTING</span>
+      </button>
     </div>
   </div>
 
-  <!-- 화면에서 카메라 영상을 완전히 숨김 처리하는 컨테이너 -->
-  <div id="hidden-cam-container">
-    <video id="cam-video" playsinline muted></video>
-    <canvas id="cam-canvas"></canvas>
-  </div>
-
+  <!-- 설정 모달 -->
   <div class="modal" id="settings-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Match Settings</h2>
+        <h2>Match & Camera Settings</h2>
         <button class="btn-close-modal" id="btn-close-settings">&times;</button>
       </div>
 
-      <!-- 카메라인식 및 해상도 설정 메뉴 -->
+      <!-- 카메라 해상도 설정 옵션 추가 -->
       <div class="setting-group">
-        <label>Camera Gesture Control (카메라인식)</label>
-        <select id="set-camera-mode">
-          <option value="off" selected>Off (사용 안 함)</option>
-          <option value="on">On (사용함)</option>
-        </select>
-      </div>
-
-      <div class="setting-group" id="camera-resolution-group">
-        <label>Camera Resolution (카메라 해상도)</label>
-        <select id="set-camera-resolution">
-          <option value="auto">Auto / Max Supported</option>
-          <option value="3840x2160">4K Ultra HD (3840x2160)</option>
-          <option value="1920x1080">Full HD (1920x1080)</option>
-          <option value="1280x720">HD (1280x720)</option>
-          <option value="640x480">VGA (640x480)</option>
+        <label>카메라 해상도 (Camera Resolution)</label>
+        <select id="set-camera-res">
+          <option value="max" selected>최대 해상도 (Max / Ultra HD)</option>
+          <option value="1080">1080p (Full HD)</option>
+          <option value="720">720p (HD)</option>
+          <option value="480">480p (SD)</option>
         </select>
       </div>
 
@@ -619,8 +617,7 @@
     }
 
     let config = {
-      cameraMode: 'off',
-      cameraResolution: 'auto',
+      cameraRes: 'max',
       type: 'doubles',
       voiceLang: 'en-GB',
       firstServeTeam: 'A',
@@ -652,15 +649,15 @@
     let serverAnnounceTimer = null;
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
-    /* MediaPipe & Camera Variables */
+    /* MediaPipe Pose AI & Gesture Tracking State */
+    let isCameraActive = false;
     let cameraInstance = null;
     let poseInstance = null;
-    let gestureStartTime = null;
-    let currentDetectedGesture = 'NONE'; // 'ONE_HAND', 'TWO_HANDS', 'NONE'
-    let gestureCooldown = false;
-    let availableResolutions = [];
 
-    /* Calculate Active Server Index */
+    let gestureStartTime = null;
+    let detectedTargetSide = null; // 'left' or 'right'
+    let cooldownUntilTime = 0; // 5초간 인식 중지 타임스탬프
+
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
       const cycle = Math.floor(totalGames / 2);
@@ -735,9 +732,6 @@
       toggleFullscreen();
       await requestWakeLock();
       document.getElementById('fs-overlay').style.display = 'none';
-      if (config.cameraMode === 'on') {
-        initCameraRecognition();
-      }
       render();
     }
 
@@ -746,7 +740,6 @@
       loadStorage();
       setupEvents();
       setupSwipeEvents();
-      await detectCameraCapabilities();
       populateSettingsModal();
       await requestWakeLock();
       render();
@@ -754,11 +747,7 @@
 
     function setupEvents() {
       const modal = document.getElementById('settings-modal');
-      const openModal = async () => { 
-        await detectCameraCapabilities();
-        populateSettingsModal(); 
-        modal.style.display = 'block'; 
-      };
+      const openModal = () => { populateSettingsModal(); modal.style.display = 'block'; };
 
       document.getElementById('btn-settings-sidebar').onclick = openModal;
       document.getElementById('btn-close-settings').onclick = () => { modal.style.display = 'none'; };
@@ -769,83 +758,6 @@
         saveSettings();
         modal.style.display = 'none';
       };
-    }
-
-    async function detectCameraCapabilities() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-
-      const testResolutions = [
-        { label: '4K Ultra HD (3840x2160)', width: 3840, height: 2160, key: '3840x2160' },
-        { label: 'Full HD (1920x1080)', width: 1920, height: 1080, key: '1920x1080' },
-        { label: 'HD (1280x720)', width: 1280, height: 720, key: '1280x720' },
-        { label: 'VGA (640x480)', width: 640, height: 480, key: '640x480' }
-      ];
-
-      availableResolutions = [];
-
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter(d => d.kind === 'videoinput');
-        if (videoDevices.length === 0) return;
-
-        for (const res of testResolutions) {
-          try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-              video: {
-                width: { exact: res.width },
-                height: { exact: res.height }
-              }
-            });
-            if (stream) {
-              availableResolutions.push(res);
-              stream.getTracks().forEach(track => track.stop());
-            }
-          } catch (e) {
-            // Resolution not supported by hardware/driver
-          }
-        }
-      } catch (err) {
-        console.warn("Camera resolution probing skipped/failed:", err);
-      }
-
-      updateResolutionSelectOptions();
-    }
-
-    function updateResolutionSelectOptions() {
-      const resSelect = document.getElementById('set-camera-resolution');
-      if (!resSelect) return;
-
-      resSelect.innerHTML = '';
-      
-      const autoOption = document.createElement('option');
-      autoOption.value = 'auto';
-      autoOption.textContent = 'Auto / Max Supported';
-      resSelect.appendChild(autoOption);
-
-      if (availableResolutions.length > 0) {
-        availableResolutions.forEach(res => {
-          const opt = document.createElement('option');
-          opt.value = res.key;
-          opt.textContent = res.label;
-          resSelect.appendChild(opt);
-        });
-      } else {
-        // Fallbacks if probing didn't return explicit exact matches
-        const fallbacks = [
-          { key: '3840x2160', label: '4K Ultra HD (3840x2160)' },
-          { key: '1920x1080', label: 'Full HD (1920x1080)' },
-          { key: '1280x720', label: 'HD (1280x720)' },
-          { key: '640x480', label: 'VGA (640x480)' }
-        ];
-        fallbacks.forEach(res => {
-          const opt = document.createElement('option');
-          opt.value = res.key;
-          opt.textContent = res.label;
-          resSelect.appendChild(opt);
-        });
-      }
-
-      resSelect.value = config.cameraResolution || 'auto';
     }
 
     function setupSwipeEvents() {
@@ -890,8 +802,7 @@
     }
 
     function populateSettingsModal() {
-      document.getElementById('set-camera-mode').value = config.cameraMode || 'off';
-      document.getElementById('set-camera-resolution').value = config.cameraResolution || 'auto';
+      document.getElementById('set-camera-res').value = config.cameraRes || 'max';
       document.getElementById('set-type').value = config.type;
       document.getElementById('set-voice-lang').value = config.voiceLang || 'en-GB';
       document.getElementById('set-first-serve').value = config.firstServeTeam;
@@ -922,11 +833,8 @@
     function saveSettings() {
       cancelServerAnnouncement();
 
-      const prevCamMode = config.cameraMode;
-      const prevCamRes = config.cameraResolution;
-
-      config.cameraMode = document.getElementById('set-camera-mode').value;
-      config.cameraResolution = document.getElementById('set-camera-resolution').value;
+      const prevCameraRes = config.cameraRes;
+      config.cameraRes = document.getElementById('set-camera-res').value;
       config.type = document.getElementById('set-type').value;
       config.voiceLang = document.getElementById('set-voice-lang').value;
       config.firstServeTeam = document.getElementById('set-first-serve').value;
@@ -948,69 +856,75 @@
 
       saveConfigToStorage();
 
-      if (prevCamMode !== config.cameraMode || prevCamRes !== config.cameraResolution) {
-        if (config.cameraMode === 'on') {
-          stopCameraRecognition();
-          initCameraRecognition();
-        } else {
-          stopCameraRecognition();
-        }
+      // 카메라 해상도가 변경되었고 카메라가 켜져있다면 다시 시작
+      if (isCameraActive && prevCameraRes !== config.cameraRes) {
+        stopCameraRecognition();
+        startCameraRecognition();
       }
 
       render();
     }
 
-    function getResolutionDimensions(resKey) {
-      if (resKey === '3840x2160') return { width: 3840, height: 2160 };
-      if (resKey === '1920x1080') return { width: 1920, height: 1080 };
-      if (resKey === '1280x720') return { width: 1280, height: 720 };
-      if (resKey === '640x480') return { width: 640, height: 480 };
-      
-      // Auto: select max available or standard HD fallback
-      if (availableResolutions.length > 0) {
-        return { width: availableResolutions[0].width, height: availableResolutions[0].height };
+    function getCameraResolution(resKey) {
+      switch (resKey) {
+        case '1080': return { width: 1920, height: 1080 };
+        case '720': return { width: 1280, height: 720 };
+        case '480': return { width: 640, height: 480 };
+        case 'max':
+        default: return { width: 3840, height: 2160 }; // 디바이스 최대 지원 해상도 요청
       }
-      return { width: 1920, height: 1080 };
     }
 
-    function initCameraRecognition() {
-      const videoElement = document.getElementById('cam-video');
-
-      if (!poseInstance) {
-        poseInstance = new Pose({
-          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-        });
-        poseInstance.setOptions({
-          modelComplexity: 1,
-          smoothLandmarks: true,
-          minDetectionConfidence: 0.6,
-          minTrackingConfidence: 0.6
-        });
-        poseInstance.onResults(onPoseResults);
+    function toggleCameraRecognition() {
+      if (isCameraActive) {
+        stopCameraRecognition();
+        speak("Camera disabled.");
+      } else {
+        startCameraRecognition();
+        speak("Camera enabled.");
       }
+    }
 
-      const dims = getResolutionDimensions(config.cameraResolution);
+    async function startCameraRecognition() {
+      const videoElement = document.getElementById('hidden-video');
+      const cameraBtn = document.getElementById('btn-camera-toggle');
 
-      if (cameraInstance) {
-        cameraInstance.stop();
-        cameraInstance = null;
+      try {
+        if (!poseInstance) {
+          poseInstance = new Pose({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+          });
+          poseInstance.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            enableSegmentation: false,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+          poseInstance.onResults(onPoseResults);
+        }
+
+        const res = getCameraResolution(config.cameraRes);
+
+        cameraInstance = new Camera(videoElement, {
+          onFrame: async () => {
+            if (isCameraActive && videoElement) {
+              await poseInstance.send({ image: videoElement });
+            }
+          },
+          width: res.width,
+          height: res.height
+        });
+
+        await cameraInstance.start();
+        isCameraActive = true;
+        cameraBtn.classList.add('active-camera');
+      } catch (err) {
+        console.error("Camera activation error:", err);
+        isCameraActive = false;
+        cameraBtn.classList.remove('active-camera');
+        speak("Failed to access camera.");
       }
-
-      cameraInstance = new Camera(videoElement, {
-        onFrame: async () => {
-          if (config.cameraMode === 'on' && poseInstance) {
-            await poseInstance.send({ image: videoElement });
-          }
-        },
-        width: dims.width,
-        height: dims.height
-      });
-
-      cameraInstance.start().then(() => {
-        console.log(`Camera active at resolution: ${dims.width}x${dims.height}`);
-      }).catch(err => {
-        console.error("Camera access error:", err);
-      });
     }
 
     function stopCameraRecognition() {
@@ -1018,96 +932,129 @@
         cameraInstance.stop();
         cameraInstance = null;
       }
-      gestureStartTime = null;
-      currentDetectedGesture = 'NONE';
-      updateSideGauges('NONE', 0);
+      isCameraActive = false;
+      document.getElementById('btn-camera-toggle').classList.remove('active-camera');
+      resetGestureGauge();
     }
 
+    /* 실시간 인체 랜드마크 분석 및 손 동작 규칙 판별 */
     function onPoseResults(results) {
-      if (!results.poseLandmarks || gestureCooldown) {
-        updateSideGauges('NONE', 0);
-        gestureStartTime = null;
-        currentDetectedGesture = 'NONE';
+      if (!isCameraActive || !results.poseLandmarks) {
+        resetGestureGauge();
+        return;
+      }
+
+      const now = Date.now();
+
+      // 5초간 인식 차단 (Cool-down)
+      if (now < cooldownUntilTime) {
+        const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
+        updateCooldownGaugeDisplay(remainingCd);
         return;
       }
 
       const landmarks = results.poseLandmarks;
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
+
+      // 주요 랜드마크 인덱스 (MediaPipe Pose기준)
+      // 0: nose, 2: left_eye, 5: right_eye, 15: left_wrist, 16: right_wrist
+      const nose = landmarks[0];
       const leftWrist = landmarks[15];
       const rightWrist = landmarks[16];
-      const nose = landmarks[0];
 
-      if (!leftShoulder || !rightShoulder || !leftWrist || !rightWrist) return;
-
-      const thresholdY = Math.min(leftShoulder.y, rightShoulder.y, nose ? nose.y : 1.0);
-      const leftHandUp = leftWrist.y < thresholdY && leftWrist.visibility > 0.5;
-      const rightHandUp = rightWrist.y < thresholdY && rightWrist.visibility > 0.5;
-
-      let detected = 'NONE';
-      if (leftHandUp && rightHandUp) {
-        detected = 'TWO_HANDS';
-      } else if (leftHandUp || rightHandUp) {
-        detected = 'ONE_HAND';
+      if (!nose || !leftWrist || !rightWrist) {
+        resetGestureGauge();
+        return;
       }
 
-      const now = performance.now();
+      // 머리 상단 임계 기준 (코 또는 눈 위치)
+      const headThresholdY = nose.y;
 
-      if (detected !== 'NONE') {
-        if (currentDetectedGesture !== detected) {
-          currentDetectedGesture = detected;
+      // 신뢰도 점수 검증
+      const isLeftUp = (leftWrist.y < headThresholdY) && (leftWrist.visibility > 0.4);
+      const isRightUp = (rightWrist.y < headThresholdY) && (rightWrist.visibility > 0.4);
+
+      let currentTarget = null; // 'left' (한 손) or 'right' (양 손)
+
+      if (isLeftUp && isRightUp) {
+        currentTarget = 'right'; // 양 손을 올린 경우 -> 오른쪽 스코어
+      } else if (isLeftUp || isRightUp) {
+        currentTarget = 'left';  // 한 손만 올린 경우 -> 왼쪽 스코어
+      }
+
+      if (currentTarget) {
+        if (detectedTargetSide !== currentTarget) {
+          detectedTargetSide = currentTarget;
           gestureStartTime = now;
-          updateSideGauges(detected, 0);
-        } else {
-          const elapsed = now - gestureStartTime;
-          const progress = Math.min(1.0, elapsed / 1000); // 1-second hold threshold
-          updateSideGauges(detected, progress * 100);
+        }
 
-          if (elapsed >= 1000) {
-            triggerGestureAction(detected);
-            gestureCooldown = true;
-            updateSideGauges('NONE', 0);
-            setTimeout(() => { gestureCooldown = false; }, 1500);
-          }
+        const elapsed = now - gestureStartTime;
+        const progressRatio = Math.min(elapsed / 1000, 1.0); // 1초 달성 시 100%
+
+        updateGestureGaugeDisplay(currentTarget, progressRatio);
+
+        if (elapsed >= 1000) { // 1초 이상 머무를 시 점수 추가
+          const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+          
+          addPoint(targetTeam);
+
+          // 5초간 쿨다운 트리거
+          cooldownUntilTime = Date.now() + 5000;
+          gestureStartTime = null;
+          detectedTargetSide = null;
         }
       } else {
-        currentDetectedGesture = 'NONE';
-        gestureStartTime = null;
-        updateSideGauges('NONE', 0);
+        resetGestureGauge();
       }
     }
 
-    function updateSideGauges(gestureTarget, percent) {
-      const leftGauge = document.getElementById('gauge-fill-left');
-      const rightGauge = document.getElementById('gauge-fill-right');
+    function updateGestureGaugeDisplay(side, ratio) {
+      const leftGauge = document.getElementById('gauge-left');
+      const rightGauge = document.getElementById('gauge-right');
+      const fillLeft = document.getElementById('gauge-fill-left');
+      const fillRight = document.getElementById('gauge-fill-right');
 
-      if (!leftGauge || !rightGauge) return;
+      leftGauge.classList.remove('cooldown');
+      rightGauge.classList.remove('cooldown');
 
-      if (gestureTarget === 'ONE_HAND') {
-        // One Hand -> Left score gauge fills up
-        leftGauge.style.height = `${percent}%`;
-        rightGauge.style.height = '0%';
-      } else if (gestureTarget === 'TWO_HANDS') {
-        // Two Hands -> Right score gauge fills up
-        leftGauge.style.height = '0%';
-        rightGauge.style.height = `${percent}%`;
+      if (side === 'left') {
+        leftGauge.classList.add('active');
+        rightGauge.classList.remove('active');
+        fillLeft.style.height = `${ratio * 100}%`;
+        document.getElementById('gauge-text-left').innerText = "1s HOLD";
       } else {
-        leftGauge.style.height = '0%';
-        rightGauge.style.height = '0%';
+        rightGauge.classList.add('active');
+        leftGauge.classList.remove('active');
+        fillRight.style.height = `${ratio * 100}%`;
+        document.getElementById('gauge-text-right').innerText = "1s HOLD";
       }
     }
 
-    function triggerGestureAction(gesture) {
-      const leftTeam = state.courtLeftTeam;
-      const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
+    function updateCooldownGaugeDisplay(remainingSec) {
+      const leftGauge = document.getElementById('gauge-left');
+      const rightGauge = document.getElementById('gauge-right');
 
-      if (gesture === 'ONE_HAND') {
-        addPoint(leftTeam);
-        speak("Left score point.");
-      } else if (gesture === 'TWO_HANDS') {
-        addPoint(rightTeam);
-        speak("Right score point.");
-      }
+      leftGauge.classList.add('active', 'cooldown');
+      rightGauge.classList.add('active', 'cooldown');
+
+      document.getElementById('gauge-fill-left').style.height = '100%';
+      document.getElementById('gauge-fill-right').style.height = '100%';
+
+      document.getElementById('gauge-text-left').innerText = `COOL ${remainingSec}s`;
+      document.getElementById('gauge-text-right').innerText = `COOL ${remainingSec}s`;
+    }
+
+    function resetGestureGauge() {
+      gestureStartTime = null;
+      detectedTargetSide = null;
+
+      const leftGauge = document.getElementById('gauge-left');
+      const rightGauge = document.getElementById('gauge-right');
+
+      leftGauge.classList.remove('active', 'cooldown');
+      rightGauge.classList.remove('active', 'cooldown');
+
+      document.getElementById('gauge-fill-left').style.height = '0%';
+      document.getElementById('gauge-fill-right').style.height = '0%';
     }
 
     function saveState() {
@@ -1372,9 +1319,6 @@
       document.getElementById('serve-a').classList.toggle('active', state.currentServerTeam === 'A');
       document.getElementById('serve-b').classList.toggle('active', state.currentServerTeam === 'B');
 
-      const btnServeText = `SERVE: TEAM ${state.currentServerTeam}`;
-      document.getElementById('btn-toggle-serve-s').innerText = btnServeText;
-
       const leftTeam = state.courtLeftTeam;
       const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
 
@@ -1384,7 +1328,7 @@
       cardB.style.order = (leftTeam === 'B') ? 1 : 2;
 
       document.getElementById('arrow-a').innerText = (leftTeam === 'A') ? '◀' : '▶';
-      document.getElementById('arrow-b').innerText = (leftTeam === 'B') ? '◀' : '▶';
+      document.getElementById('arrow-b').innerText = (leftTeam === 'A') ? '◀' : '▶';
 
       document.getElementById('side-left-bg').className = `court-side left ${leftTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
       document.getElementById('side-right-bg').className = `court-side right ${rightTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
