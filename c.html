@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>AI Tennis Scoreboard</title>
 
-  <!-- MediaPipe Pose JS Libraries via CDN -->
+  <!-- MediaPipe Pose & Gesture Vision Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm/vision_bundle.js" crossorigin="anonymous"></script>
 
   <style>
     :root {
@@ -273,17 +274,20 @@
     }
     .player-marker.receiver .role-badge { background: var(--accent-yellow); color: #000; }
 
-    /* 동작 인식 게이지 오버레이 (좌/우 모션) */
+    /* 동작 인식 게이지 오버레이 (좌/우 및 중앙) */
     .gesture-gauge-container {
-      position: absolute; top: 0; bottom: 0; width: 28px;
+      position: absolute; top: 0; bottom: 0; width: 34px;
       background: rgba(0,0,0,0.5); display: flex; flex-direction: column;
       justify-content: flex-end; z-index: 150; pointer-events: none; opacity: 0;
       transition: opacity 0.2s ease;
     }
 
-    /* 좌/우 게이지 위치 최적화 및 Z-INDEX 보장 */
     .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(204,255,0,0.4); }
     .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(204,255,0,0.4); }
+    .gesture-gauge-container.center { 
+      left: 50%; transform: translateX(-50%); width: 44px;
+      border-left: 2px solid rgba(204,255,0,0.4); border-right: 2px solid rgba(204,255,0,0.4);
+    }
 
     .gesture-gauge-container.active { opacity: 1; }
 
@@ -305,19 +309,31 @@
       color: #ffffff;
     }
 
-    /* 설정 및 공통 모달 UI - 컴팩트 디자인 */
+    /* 설정 모달 UI */
     .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 200; padding: 10px; overflow-y: auto; }
-    .modal-content { background: var(--card-bg); border-radius: 10px; padding: 14px; max-width: 420px; margin: 5px auto; border: 1px solid var(--panel-border); position: relative; }
+    .modal-content { background: var(--card-bg); border-radius: 10px; padding: 14px; max-width: 440px; margin: 5px auto; border: 1px solid var(--panel-border); position: relative; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .modal-header h2 { color: var(--accent-yellow); font-size: 1rem; margin: 0; }
     .btn-close-modal { background: transparent; border: none; color: #8b949e; font-size: 1.3rem; font-weight: bold; cursor: pointer; line-height: 1; }
-    .modal h3 { color: var(--accent-yellow); font-size: 0.8rem; margin: 10px 0 4px 0; border-top: 1px dashed var(--panel-border); padding-top: 6px; }
+    .modal h3 { color: var(--accent-yellow); font-size: 0.8rem; margin: 12px 0 6px 0; border-top: 1px dashed var(--panel-border); padding-top: 6px; }
 
     .setting-group { margin-bottom: 8px; }
     .setting-group label { display: block; font-size: 0.7rem; color: #a0a0a0; margin-bottom: 2px; font-weight: 600; }
     .setting-group select, .setting-group input { width: 100%; padding: 5px 7px; border-radius: 5px; border: 1px solid var(--panel-border); background: #0c1911; color: white; font-size: 0.75rem; }
     .input-row { display: flex; gap: 6px; margin-top: 2px; }
     .swipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+
+    /* 제스처 가이드 안내 테이블 스타일 */
+    .gesture-guide-list {
+      display: flex; flex-direction: column; gap: 6px; margin-top: 4px;
+    }
+    .gesture-guide-item {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #14261c; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--panel-border);
+    }
+    .gesture-icon-title { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 700; color: #ffffff; }
+    .gesture-icon-title span.emoji { font-size: 1.1rem; }
+    .gesture-action-desc { font-size: 0.7rem; color: var(--accent-yellow); font-weight: 800; }
 
     .btn-save { width: 100%; padding: 10px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 10px; font-size: 0.85rem; }
 
@@ -330,7 +346,7 @@
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
     .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid var(--panel-border) !important; }
 
-    /* 숨김 처리용 카메라 비디오 및 캔버스 노드 */
+    /* 숨김 처리용 카메라 비디오 및 캔버스 */
     #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
     #keep-awake-canvas { display: none; width: 1px; height: 1px; position: absolute; pointer-events: none; }
   </style>
@@ -351,10 +367,15 @@
   <video id="hidden-video" playsinline></video>
   <canvas id="keep-awake-canvas"></canvas>
 
-  <!-- 동작 인식 활성화 시 상태/점수 반영을 보여주는 게이지 (좌측, 우측) -->
+  <!-- 동작 인식 활성화 시 상태/점수 반영을 보여주는 게이지 (좌측, 우측, 중앙) -->
   <div class="gesture-gauge-container left" id="gauge-left">
     <div class="gauge-fill" id="gauge-fill-left"></div>
     <div class="gauge-status-text" id="gauge-text-left">1.0s HOLD</div>
+  </div>
+
+  <div class="gesture-gauge-container center" id="gauge-center">
+    <div class="gauge-fill" id="gauge-fill-center"></div>
+    <div class="gauge-status-text" id="gauge-text-center">1.0s HOLD</div>
   </div>
 
   <div class="gesture-gauge-container right" id="gauge-right">
@@ -436,10 +457,10 @@
     </div>
   </div>
 
-  <!-- 아이콘 패널 메뉴 레이아웃 (컴팩트화 적용) -->
+  <!-- 아이콘 패널 메뉴 레이아웃 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
-      <!-- 카메라 모션 인식 토글 버튼 -->
+      <!-- 카메라 모션/제스처 인식 토글 버튼 -->
       <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Gesture Control">
         <svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>CAM</span>
@@ -479,7 +500,7 @@
 
       <!-- 설정 버튼 -->
       <button class="btn-icon-menu" id="btn-settings-sidebar" title="Open Settings">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
         <span>SETTING</span>
       </button>
     </div>
@@ -493,7 +514,28 @@
         <button class="btn-close-modal" id="btn-close-settings">&times;</button>
       </div>
 
-      <!-- 카메라 해상도 설정 옵션 -->
+      <!-- 카메라 제스처 기능 설명 추가 영역 -->
+      <h3>Camera Gesture Guide (카메라 제스처 안내)</h3>
+      <div class="gesture-guide-list">
+        <div class="gesture-guide-item">
+          <div class="gesture-icon-title"><span class="emoji">🙆‍♂️</span> 머리 위 O자 모형</div>
+          <div class="gesture-action-desc">좌측 팀 득점</div>
+        </div>
+        <div class="gesture-guide-item">
+          <div class="gesture-icon-title"><span class="emoji">🙌</span> 양손 높이 들기</div>
+          <div class="gesture-action-desc">우측 팀 득점</div>
+        </div>
+        <div class="gesture-guide-item">
+          <div class="gesture-icon-title"><span class="emoji">✌️</span> 손가락 V (Victory)</div>
+          <div class="gesture-action-desc">점수 정정 (CORRECT)</div>
+        </div>
+        <div class="gesture-guide-item">
+          <div class="gesture-icon-title"><span class="emoji">👍</span> 손가락 엄지척 (Thumb Up)</div>
+          <div class="gesture-action-desc">코트 체인지 (COURT)</div>
+        </div>
+      </div>
+
+      <h3>General Settings</h3>
       <div class="setting-group">
         <label>카메라 해상도 (Camera Resolution)</label>
         <select id="set-camera-res">
@@ -504,7 +546,6 @@
         </select>
       </div>
 
-      <!-- 제스처 인식 유지 시간 설정 옵션 추가 -->
       <div class="setting-group">
         <label>제스처 인식 유지 시간 (Gesture Hold Duration)</label>
         <select id="set-gesture-hold">
@@ -633,7 +674,7 @@
 
     let config = {
       cameraRes: 'max',
-      gestureHoldDuration: 1.0, // 제스처 유지 시간 설정 (초)
+      gestureHoldDuration: 1.0,
       type: 'doubles',
       voiceLang: 'en-GB',
       firstServeTeam: 'A',
@@ -666,14 +707,15 @@
     let serverAnnounceTimer = null;
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
-    /* MediaPipe Pose AI & Gesture Tracking State */
+    /* MediaPipe Pose & Gesture Recognizer State */
     let isCameraActive = false;
     let cameraInstance = null;
     let poseInstance = null;
+    let gestureRecognizer = null;
 
     let gestureStartTime = null;
-    let detectedTargetSide = null; // 'left' (머리위 O자), 'right' (양손 들어올림)
-    let cooldownUntilTime = 0; // 3초간 인식 중지 타임스탬프
+    let detectedTargetSide = null; // 'left', 'right', 'undo', 'court'
+    let cooldownUntilTime = 0;
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
@@ -736,7 +778,6 @@
       }, 10000);
     }
 
-    // 화면 복귀(탭 이동, 기기 잠금 해제 등) 시 Wake Lock 자동 재요청
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         if (!wakeLock) {
@@ -943,11 +984,31 @@
       }
     }
 
+    async function initGestureRecognizer() {
+      if (gestureRecognizer) return;
+      try {
+        const { GestureRecognizer, FilesetResolver } = window.tasksVision;
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm");
+        gestureRecognizer = await GestureRecognizer.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+            delegate: "GPU"
+          },
+          runningMode: "VIDEO",
+          numHands: 2
+        });
+      } catch (err) {
+        console.warn("GestureRecognizer load failed:", err);
+      }
+    }
+
     async function startCameraRecognition() {
       const videoElement = document.getElementById('hidden-video');
       const cameraBtn = document.getElementById('btn-camera-toggle');
 
       try {
+        await initGestureRecognizer();
+
         if (!poseInstance) {
           poseInstance = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
@@ -996,7 +1057,7 @@
     }
 
     function onPoseResults(results) {
-      if (!isCameraActive || !results.poseLandmarks) {
+      if (!isCameraActive) {
         resetGestureGauge();
         return;
       }
@@ -1010,34 +1071,46 @@
         return;
       }
 
-      const landmarks = results.poseLandmarks;
+      const videoElement = document.getElementById('hidden-video');
+      let currentTarget = null; // 'left', 'right', 'undo', 'court'
 
-      // 주요 랜드마크 인덱스 (MediaPipe Pose 기준)
-      // 0: nose, 15: left_wrist, 16: right_wrist
-      const nose = landmarks[0];
-      const leftWrist = landmarks[15];
-      const rightWrist = landmarks[16];
-
-      if (!nose || !leftWrist || !rightWrist) {
-        resetGestureGauge();
-        return;
+      // 1. 손가락 제스처 (V자, 엄지척) 검사
+      if (gestureRecognizer && videoElement.readyState >= 2) {
+        try {
+          const gestureRes = gestureRecognizer.recognizeForVideo(videoElement, now);
+          if (gestureRes && gestureRes.gestures && gestureRes.gestures.length > 0) {
+            const topGesture = gestureRes.gestures[0][0];
+            if (topGesture && topGesture.score > 0.65) {
+              if (topGesture.categoryName === 'Victory') { // 손가락 V자 -> 점수 정정
+                currentTarget = 'undo';
+              } else if (topGesture.categoryName === 'Thumb_Up') { // 손가락 엄지척 -> 코트 체인지
+                currentTarget = 'court';
+              }
+            }
+          }
+        } catch (e) {}
       }
 
-      const headThresholdY = nose.y;
+      // 2. 양손 머리 위 포즈 검사 (V자나 엄지척이 감지되지 않았을 때)
+      if (!currentTarget && results.poseLandmarks) {
+        const landmarks = results.poseLandmarks;
+        const nose = landmarks[0];
+        const leftWrist = landmarks[15];
+        const rightWrist = landmarks[16];
 
-      const isLeftUp = (leftWrist.y < headThresholdY) && (leftWrist.visibility > 0.4);
-      const isRightUp = (rightWrist.y < headThresholdY) && (rightWrist.visibility > 0.4);
+        if (nose && leftWrist && rightWrist) {
+          const headThresholdY = nose.y;
+          const isLeftUp = (leftWrist.y < headThresholdY) && (leftWrist.visibility > 0.4);
+          const isRightUp = (rightWrist.y < headThresholdY) && (rightWrist.visibility > 0.4);
 
-      let currentTarget = null; // 'left' (머리위 O자 -> 좌측 스코어), 'right' (양손 완발 올려 벌림 -> 우측 스코어)
-
-      // 양 손이 모두 머리 위로 올라간 상태일 때만 동작 판별
-      if (isLeftUp && isRightUp) {
-        const wristsDistX = Math.abs(leftWrist.x - rightWrist.x);
-        // 양손 손목 간격 기준값 (화면 가로 비례 0.25)
-        if (wristsDistX < 0.25) {
-          currentTarget = 'left';  // 머리 위에서 O자 모형 (양손이 모임) -> 좌측 스코어
-        } else {
-          currentTarget = 'right'; // 양손을 머리 위로 완전히 들어올림 (양손이 벌어짐) -> 우측 스코어
+          if (isLeftUp && isRightUp) {
+            const wristsDistX = Math.abs(leftWrist.x - rightWrist.x);
+            if (wristsDistX < 0.25) {
+              currentTarget = 'left';  // 머리 위 O자 모형 -> 좌측 스코어
+            } else {
+              currentTarget = 'right'; // 양손 들어올림 -> 우측 스코어
+            }
+          }
         }
       }
 
@@ -1053,11 +1126,19 @@
 
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
-        if (elapsed >= requiredDurationMs) { // 설정된 유지 시간 달성 시 수행
-          const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-          addPoint(targetTeam);
+        if (elapsed >= requiredDurationMs) { // 설정된 유지 시간 달성 시 동작 수행
+          if (currentTarget === 'left') {
+            addPoint(state.courtLeftTeam);
+          } else if (currentTarget === 'right') {
+            const rightTeam = (state.courtLeftTeam === 'A') ? 'B' : 'A';
+            addPoint(rightTeam);
+          } else if (currentTarget === 'undo') {
+            undo();
+          } else if (currentTarget === 'court') {
+            manualCourtChange();
+          }
 
-          // 3초간 쿨다운 트리거
+          // 3초간 쿨다운 적용
           cooldownUntilTime = Date.now() + 3000;
           gestureStartTime = null;
           detectedTargetSide = null;
@@ -1070,40 +1151,57 @@
     function updateGestureGaugeDisplay(side, ratio) {
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
+      const centerGauge = document.getElementById('gauge-center');
+
       const fillLeft = document.getElementById('gauge-fill-left');
       const fillRight = document.getElementById('gauge-fill-right');
+      const fillCenter = document.getElementById('gauge-fill-center');
+
       const holdText = `${(config.gestureHoldDuration || 1.0).toFixed(1)}s HOLD`;
 
-      leftGauge.classList.remove('cooldown');
-      rightGauge.classList.remove('cooldown');
+      leftGauge.classList.remove('cooldown', 'active');
+      rightGauge.classList.remove('cooldown', 'active');
+      centerGauge.classList.remove('cooldown', 'active');
+
+      fillLeft.style.height = `0%`;
+      fillRight.style.height = `0%`;
+      fillCenter.style.height = `0%`;
 
       if (side === 'left') {
         leftGauge.classList.add('active');
-        rightGauge.classList.remove('active');
         fillLeft.style.height = `${ratio * 100}%`;
-        fillRight.style.height = `0%`;
         document.getElementById('gauge-text-left').innerText = holdText;
       } else if (side === 'right') {
         rightGauge.classList.add('active');
-        leftGauge.classList.remove('active');
         fillRight.style.height = `${ratio * 100}%`;
-        fillLeft.style.height = `0%`;
         document.getElementById('gauge-text-right').innerText = holdText;
+      } else if (side === 'undo') {
+        centerGauge.classList.add('active');
+        fillCenter.style.height = `${ratio * 100}%`;
+        document.getElementById('gauge-text-center').innerText = `✌️ CORRECT`;
+      } else if (side === 'court') {
+        centerGauge.classList.add('active');
+        fillCenter.style.height = `${ratio * 100}%`;
+        document.getElementById('gauge-text-center').innerText = `👍 COURT`;
       }
     }
 
     function updateCooldownGaugeDisplay(remainingSec) {
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
+      const centerGauge = document.getElementById('gauge-center');
 
       leftGauge.classList.add('active', 'cooldown');
       rightGauge.classList.add('active', 'cooldown');
+      centerGauge.classList.add('active', 'cooldown');
 
       document.getElementById('gauge-fill-left').style.height = '100%';
       document.getElementById('gauge-fill-right').style.height = '100%';
+      document.getElementById('gauge-fill-center').style.height = '100%';
 
       document.getElementById('gauge-text-left').innerText = `COOL ${remainingSec}s`;
       document.getElementById('gauge-text-right').innerText = `COOL ${remainingSec}s`;
+      document.getElementById('gauge-text-center').innerText = `COOL ${remainingSec}s`;
     }
 
     function resetGestureGauge() {
@@ -1112,12 +1210,15 @@
 
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
+      const centerGauge = document.getElementById('gauge-center');
 
       leftGauge.classList.remove('active', 'cooldown');
       rightGauge.classList.remove('active', 'cooldown');
+      centerGauge.classList.remove('active', 'cooldown');
 
       document.getElementById('gauge-fill-left').style.height = '0%';
       document.getElementById('gauge-fill-right').style.height = '0%';
+      document.getElementById('gauge-fill-center').style.height = '0%';
     }
 
     function saveState() {
