@@ -3,12 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Tennis Scoreboard with AI Gesture Control</title>
-
-  <!-- MediaPipe CDN Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-
+  <title>Tennis Scoreboard with Camera Detection</title>
+  <!-- MediaPipe Pose CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
   <style>
     :root {
       --bg-color: #08120c;
@@ -63,54 +60,14 @@
     .btn-fullscreen-start {
       padding: 15px 35px; font-size: 1.1rem; font-weight: bold;
       background-color: var(--accent-yellow); border: none; border-radius: 8px;
-      color: #000; cursor: pointer; transition: transform 0.2s, background-color 0.2s;
+      color: #000; cursor: pointer;
     }
-    .btn-fullscreen-start:active { transform: scale(0.96); }
 
     .main-app {
       flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative;
     }
 
-    /* 상단 카메라 게이지 바 */
-    .camera-gauge-container {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.1);
-      z-index: 90;
-      overflow: hidden;
-      display: none; /* 카메라 비활성화 시 노출 안 됨 */
-    }
-
-    .camera-gauge-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #00ff88, var(--accent-yellow));
-      box-shadow: 0 0 10px var(--accent-yellow);
-      transition: width 0.05s linear;
-    }
-
-    .camera-gauge-status {
-      position: absolute;
-      top: 12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.75);
-      border: 1px solid var(--accent-yellow);
-      color: var(--accent-yellow);
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: bold;
-      z-index: 89;
-      display: none;
-      pointer-events: none;
-      letter-spacing: 0.5px;
-    }
-
-    .scoreboard { display: flex; padding: 12px 10px 0 10px; gap: 10px; height: 70%; }
+    .scoreboard { display: flex; padding: 8px 10px 0 10px; gap: 10px; height: 70%; }
 
     .team-card {
       flex: 1; border-radius: 12px; padding: 12px 14px; display: flex;
@@ -173,18 +130,16 @@
       opacity: 0; cursor: pointer; z-index: 3;
     }
 
-    /* 사이드바/하단 메뉴 아이콘 전용 레이아웃 */
     .sidebar-controls {
-      display: flex; width: 80px; background-color: var(--card-bg);
-      border-left: 1px solid #234733; padding: 12px 6px; flex-direction: column; gap: 12px;
-      justify-content: space-between; align-items: center; z-index: 10;
+      display: flex; width: 120px; background-color: var(--card-bg);
+      border-left: 1px solid #234733; padding: 10px 8px; flex-direction: column; gap: 8px;
+      justify-content: space-between; z-index: 10;
     }
 
     .menu-group-main, .menu-group-bottom {
-      display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: center;
+      display: flex; flex-direction: column; gap: 8px; width: 100%;
     }
 
-    /* 화면이 세로 방향(Portrait)일 때 메뉴 컨트롤을 하단 패널로 변환 */
     @media (orientation: portrait) {
       .sidebar-controls {
         width: 100%;
@@ -194,67 +149,57 @@
         flex-direction: row;
         align-items: center;
         justify-content: space-around;
-        padding: 8px 12px;
+        padding: 6px;
       }
 
       .menu-group-main, .menu-group-bottom {
         flex-direction: row;
         width: auto;
-        gap: 8px;
+        flex: 1;
+        gap: 4px;
+      }
+
+      .sidebar-title {
+        display: none;
+      }
+
+      .sidebar-controls .btn-action, .sidebar-controls .btn-icon {
+        flex: 1;
+        padding: 10px 2px;
+        font-size: 0.7rem;
       }
     }
 
-    /* 아이콘 버튼 스타일 */
-    .btn-icon-nav {
-      background: #14261c;
-      border: 1px solid #2e5941;
-      color: #e0e0e0;
-      width: 52px;
-      height: 52px;
-      border-radius: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
-      padding: 4px;
+    .sidebar-title { font-size: 0.75rem; font-weight: 800; color: var(--accent-yellow); text-align: center; margin-bottom: 2px; }
+
+    .btn-action-large {
+      background-color: #1c3829; color: white; border: 1px solid #2e5941;
+      padding: 12px 4px; border-radius: 8px; font-size: 0.8rem; font-weight: bold;
+      cursor: pointer; text-align: center; line-height: 1.2;
     }
 
-    .btn-icon-nav svg {
-      width: 22px;
-      height: 22px;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .btn-icon-nav .nav-label {
-      font-size: 0.55rem;
-      font-weight: 700;
-      margin-top: 3px;
-      white-space: nowrap;
-    }
-
-    .btn-icon-nav:active {
-      transform: scale(0.92);
-      background: #1c3829;
-    }
-
-    .btn-icon-nav.active {
-      border-color: var(--accent-yellow);
-      color: var(--accent-yellow);
+    .btn-action-large.highlight { 
+      border-color: var(--accent-yellow); 
+      color: var(--accent-yellow); 
       background-color: #132b1e;
-      box-shadow: 0 0 8px rgba(204, 255, 0, 0.3);
     }
 
-    .btn-icon-nav.danger {
+    .btn-action-large.active-camera {
+      border-color: #00ff66;
+      color: #00ff66;
+      background-color: #083819;
+      box-shadow: 0 0 8px rgba(0, 255, 102, 0.4);
+    }
+
+    .btn-icon {
+      background: #14261c; border: 1px solid #2e5941; color: #a0a0a0;
+      padding: 8px 4px; border-radius: 6px; font-size: 0.7rem; font-weight: bold; cursor: pointer;
+      text-align: center;
+    }
+    
+    .btn-icon.danger {
       color: #ff6b6b;
       border-color: #592e2e;
-      background: #231212;
     }
 
     .court-section {
@@ -358,14 +303,48 @@
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
     .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid #2e5941 !important; }
 
-    /* 백그라운드 카메라 비디오 hidden 처리 */
-    #camera-video {
+    #cam-preview-container {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      width: 160px;
+      height: 120px;
+      border: 2px solid var(--accent-yellow);
+      border-radius: 8px;
+      overflow: hidden;
+      z-index: 90;
+      background: #000;
       display: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    #cam-video {
       position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-      pointer-events: none;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #cam-status-indicator {
+      position: absolute;
+      top: 4px; left: 4px;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      font-size: 0.65rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      z-index: 2;
+    }
+
+    .gesture-progress-bar {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 4px;
+      background: #00ff66;
+      width: 0%;
+      transition: width 0.1s linear;
+      z-index: 3;
     }
   </style>
 </head>
@@ -381,16 +360,7 @@
     <button class="btn-fullscreen-start" onclick="startFullscreenApp()">전체화면으로 시작하기</button>
   </div>
 
-  <!-- 숨겨진 실물 카메라인식 비디오 태그 -->
-  <video id="camera-video" playsinline></video>
-
   <div class="main-app">
-    <!-- 카메라 상태 상단 프로그레스 게이지 바 -->
-    <div class="camera-gauge-container" id="camera-gauge-container">
-      <div class="camera-gauge-bar" id="camera-gauge-bar"></div>
-    </div>
-    <div class="camera-gauge-status" id="camera-gauge-status">손 감지 대기 중...</div>
-
     <div class="scoreboard" id="scoreboard-container">
       <div class="team-card team-a" id="card-team-a" style="order: 1;">
         <div class="team-header">
@@ -464,75 +434,25 @@
     </div>
   </div>
 
-  <!-- 아이콘화된 메뉴 컨트롤 레이아웃 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
-      <!-- 카메라 온/오프 토글 아이콘 -->
-      <button class="btn-icon-nav" id="btn-toggle-camera" onclick="toggleCamera()" title="카메라 제스처 인식">
-        <svg viewBox="0 0 24 24">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-          <circle cx="12" cy="13" r="4"></circle>
-        </svg>
-        <span class="nav-label">Cam</span>
-      </button>
-
-      <!-- 서브 팀 변경 아이콘 -->
-      <button class="btn-icon-nav active" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="서브팀 변경">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="9"></circle>
-          <path d="M12 3a9 9 0 0 0 0 18"></path>
-        </svg>
-        <span class="nav-label" id="lbl-serve-team">Serve A</span>
-      </button>
-
-      <!-- 코트 체인지 아이콘 -->
-      <button class="btn-icon-nav" onclick="manualCourtChange()" title="코트 체인지">
-        <svg viewBox="0 0 24 24">
-          <polyline points="17 1 21 5 17 9"></polyline>
-          <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
-          <polyline points="7 23 3 19 7 15"></polyline>
-          <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
-        </svg>
-        <span class="nav-label">Court</span>
-      </button>
-
-      <!-- 스코어 정정(Undo) 아이콘 -->
-      <button class="btn-icon-nav" onclick="undo()" title="스코어 정정">
-        <svg viewBox="0 0 24 24">
-          <polyline points="1 4 1 10 7 10"></polyline>
-          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-        </svg>
-        <span class="nav-label">Undo</span>
-      </button>
+      <div class="sidebar-title">MENU</div>
+      <button class="btn-action-large highlight" id="btn-toggle-serve-s" onclick="toggleServeTeam()">SERVE: TEAM A</button>
+      <button class="btn-action-large" onclick="manualCourtChange()">CHANGE COURT</button>
+      <button class="btn-action-large" onclick="undo()">CORRECTION</button>
     </div>
 
     <div class="menu-group-bottom">
-      <!-- 초기화 아이콘 -->
-      <button class="btn-icon-nav danger" onclick="confirmResetMatch()" title="경기 초기화">
-        <svg viewBox="0 0 24 24">
-          <polyline points="3 6 5 6 21 6"></polyline>
-          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-        </svg>
-        <span class="nav-label">Reset</span>
-      </button>
-
-      <!-- 전체화면 토글 아이콘 -->
-      <button class="btn-icon-nav" onclick="toggleFullscreen()" title="전체화면">
-        <svg viewBox="0 0 24 24">
-          <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-        </svg>
-        <span class="nav-label">Full</span>
-      </button>
-
-      <!-- 설정 모달 아이콘 -->
-      <button class="btn-icon-nav" id="btn-settings-sidebar" title="설정">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-        <span class="nav-label">Config</span>
-      </button>
+      <button class="btn-icon danger" onclick="confirmResetMatch()">RESET</button>
+      <button class="btn-icon" onclick="toggleFullscreen()">Full Screen</button>
+      <button class="btn-icon" id="btn-settings-sidebar">Settings</button>
     </div>
+  </div>
+
+  <div id="cam-preview-container">
+    <span id="cam-status-indicator">CAM: Off</span>
+    <video id="cam-video" playsinline muted></video>
+    <div class="gesture-progress-bar" id="gesture-progress"></div>
   </div>
 
   <div class="modal" id="settings-modal">
@@ -540,6 +460,14 @@
       <div class="modal-header">
         <h2>Match Settings</h2>
         <button class="btn-close-modal" id="btn-close-settings">&times;</button>
+      </div>
+
+      <div class="setting-group">
+        <label>Camera Gesture Control (카메라인식)</label>
+        <select id="set-camera-mode" onchange="toggleCameraFromSettings()">
+          <option value="off" selected>Off (사용 안 함)</option>
+          <option value="on">On (사용함)</option>
+        </select>
       </div>
 
       <div class="setting-group">
@@ -659,6 +587,7 @@
     }
 
     let config = {
+      cameraMode: 'off',
       type: 'doubles',
       voiceLang: 'en-GB',
       firstServeTeam: 'A',
@@ -690,18 +619,13 @@
     let serverAnnounceTimer = null;
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
-    /* 카메라 & MediaPipe Hands 제어 변수 */
-    let isCameraActive = false;
-    let cameraInstance = null;
-    let handsInstance = null;
-
-    let currentGesture = 0; // 0: 손없음, 1: 한 손(좌측), 2: 양 손(우측)
+    let videoStream = null;
+    let poseInstance = null;
+    let animFrameId = null;
     let gestureStartTime = null;
+    let currentDetectedGesture = 'NONE';
     let gestureCooldown = false;
-    const HOLD_DURATION = 1000; // 1초 지속 시 스코어 증가
-    const COOLDOWN_DURATION = 2000; // 스코어 증가 후 2초간 쿨다운
 
-    /* 활성 서버 번호 (0: P1, 1: P2) 계산 */
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
       const cycle = Math.floor(totalGames / 2);
@@ -776,6 +700,9 @@
       toggleFullscreen();
       await requestWakeLock();
       document.getElementById('fs-overlay').style.display = 'none';
+      if (config.cameraMode === 'on') {
+        initCameraRecognition();
+      }
       render();
     }
 
@@ -788,149 +715,6 @@
       await requestWakeLock();
       render();
     };
-
-    // 카메라 토글 및 MediaPipe 로직
-    async function toggleCamera() {
-      const btnCam = document.getElementById('btn-toggle-camera');
-      const gaugeContainer = document.getElementById('camera-gauge-container');
-      const gaugeStatus = document.getElementById('camera-gauge-status');
-
-      if (isCameraActive) {
-        // 카메라 끄기
-        if (cameraInstance) {
-          await cameraInstance.stop();
-          cameraInstance = null;
-        }
-        isCameraActive = false;
-        btnCam.classList.remove('active');
-        gaugeContainer.style.display = 'none';
-        gaugeStatus.style.display = 'none';
-        resetGestureGauge();
-        speak("Camera gesture control deactivated.");
-      } else {
-        // 카메라 켜기
-        try {
-          btnCam.classList.add('active');
-          gaugeContainer.style.display = 'block';
-          gaugeStatus.style.display = 'block';
-          gaugeStatus.innerText = '카메라 초기화 중...';
-
-          if (!handsInstance) {
-            handsInstance = new Hands({
-              locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-            });
-            handsInstance.setOptions({
-              maxNumHands: 2,
-              modelComplexity: 1,
-              minDetectionConfidence: 0.6,
-              minTrackingConfidence: 0.6
-            });
-            handsInstance.onResults(onHandResults);
-          }
-
-          const videoElement = document.getElementById('camera-video');
-          cameraInstance = new Camera(videoElement, {
-            onFrame: async () => {
-              if (isCameraActive && handsInstance) {
-                await handsInstance.send({ image: videoElement });
-              }
-            },
-            width: 640,
-            height: 480
-          });
-
-          await cameraInstance.start();
-          isCameraActive = true;
-          gaugeStatus.innerText = '제스처 대기 중 (1손: 좌측 / 2손: 우측)';
-          speak("Camera gesture control activated.");
-        } catch (err) {
-          console.error("Camera activation error:", err);
-          btnCam.classList.remove('active');
-          gaugeContainer.style.display = 'none';
-          gaugeStatus.style.display = 'none';
-          isCameraActive = false;
-          speak("Camera initialization failed.");
-        }
-      }
-    }
-
-    // MediaPipe 결과 처리 함수
-    function onHandResults(results) {
-      if (!isCameraActive || gestureCooldown) return;
-
-      const gaugeBar = document.getElementById('camera-gauge-bar');
-      const gaugeStatus = document.getElementById('camera-gauge-status');
-      const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
-
-      // 손이 들려있는지 판단 (손목 Wrist Y 좌표보다 손가락 마디 Middle Tip Y 좌표가 상단에 위치하는지 검증)
-      let raisedHandCount = 0;
-      if (handCount > 0) {
-        for (let i = 0; i < handCount; i++) {
-          const landmarks = results.multiHandLandmarks[i];
-          const wristY = landmarks[0].y;
-          const middleTipY = landmarks[12].y;
-          // 손을 들어 올린 상태 (손가락 끝이 손목보다 화면상 위에 있음)
-          if (middleTipY < wristY - 0.1) {
-            raisedHandCount++;
-          }
-        }
-      }
-
-      let detectedType = 0; // 0: 손 없음, 1: 한 손 감지, 2: 양 손 감지
-      if (raisedHandCount === 1) detectedType = 1;
-      else if (raisedHandCount >= 2) detectedType = 2;
-
-      const now = Date.now();
-
-      if (detectedType > 0) {
-        if (currentGesture !== detectedType) {
-          currentGesture = detectedType;
-          gestureStartTime = now;
-        }
-
-        const elapsed = now - gestureStartTime;
-        const progress = Math.min((elapsed / HOLD_DURATION) * 100, 100);
-
-        gaugeBar.style.width = `${progress}%`;
-        const leftTeam = state.courtLeftTeam;
-        const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
-        const targetTeamName = (detectedType === 1) ? `[좌측] TEAM ${leftTeam}` : `[우측] TEAM ${rightTeam}`;
-        
-        gaugeStatus.innerText = `${targetTeamName} 득점 제스처 감지 중 (${Math.floor(progress)}%)`;
-
-        if (elapsed >= HOLD_DURATION) {
-          // 1초 홀드 달성 시 점수 추가
-          gestureCooldown = true;
-          gaugeBar.style.width = '100%';
-          gaugeStatus.innerText = `득점 추가 완료! (${targetTeamName})`;
-
-          if (detectedType === 1) {
-            addPoint(leftTeam);
-          } else if (detectedType === 2) {
-            addPoint(rightTeam);
-          }
-
-          // 쿨다운 적용 후 리셋
-          setTimeout(() => {
-            resetGestureGauge();
-            gestureCooldown = false;
-            if (isCameraActive) {
-              gaugeStatus.innerText = '제스처 대기 중 (1손: 좌측 / 2손: 우측)';
-            }
-          }, COOLDOWN_DURATION);
-        }
-      } else {
-        resetGestureGauge();
-        gaugeStatus.innerText = '제스처 대기 중 (1손: 좌측 / 2손: 우측)';
-      }
-    }
-
-    function resetGestureGauge() {
-      currentGesture = 0;
-      gestureStartTime = null;
-      const gaugeBar = document.getElementById('camera-gauge-bar');
-      if (gaugeBar) gaugeBar.style.width = '0%';
-    }
 
     function setupEvents() {
       const modal = document.getElementById('settings-modal');
@@ -989,6 +773,7 @@
     }
 
     function populateSettingsModal() {
+      document.getElementById('set-camera-mode').value = config.cameraMode || 'off';
       document.getElementById('set-type').value = config.type;
       document.getElementById('set-voice-lang').value = config.voiceLang || 'en-GB';
       document.getElementById('set-first-serve').value = config.firstServeTeam;
@@ -1019,6 +804,8 @@
     function saveSettings() {
       cancelServerAnnouncement();
 
+      const prevCamMode = config.cameraMode;
+      config.cameraMode = document.getElementById('set-camera-mode').value;
       config.type = document.getElementById('set-type').value;
       config.voiceLang = document.getElementById('set-voice-lang').value;
       config.firstServeTeam = document.getElementById('set-first-serve').value;
@@ -1039,7 +826,164 @@
       };
 
       saveConfigToStorage();
+
+      if (prevCamMode !== config.cameraMode) {
+        if (config.cameraMode === 'on') {
+          initCameraRecognition();
+        } else {
+          stopCameraRecognition();
+        }
+      }
+
       render();
+    }
+
+    function toggleCameraFromSettings() {
+    }
+
+    async function initCameraRecognition() {
+      const container = document.getElementById('cam-preview-container');
+      const videoElement = document.getElementById('cam-video');
+      const statusText = document.getElementById('cam-status-indicator');
+      container.style.display = 'block';
+      statusText.innerText = "CAM: Loading...";
+
+      if (!poseInstance) {
+        poseInstance = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseInstance.setOptions({
+          modelComplexity: 2, // 높은 인식률을 위한 고정밀 모델 적용
+          smoothLandmarks: true,
+          minDetectionConfidence: 0.7,
+          minTrackingConfidence: 0.7
+        });
+        poseInstance.onResults(onPoseResults);
+      }
+
+      try {
+        // 하드웨어 지원 최대 해상도 요청 (4K, FHD 지원)
+        const constraints = {
+          video: {
+            facingMode: 'user',
+            width: { ideal: 3840, max: 3840, min: 1280 },
+            height: { ideal: 2160, max: 2160, min: 720 },
+            frameRate: { ideal: 60, max: 60, min: 30 }
+          }
+        };
+
+        videoStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoElement.srcObject = videoStream;
+        await videoElement.play();
+
+        statusText.innerText = `CAM: Active (${videoElement.videoWidth}x${videoElement.videoHeight})`;
+
+        const processFrame = async () => {
+          if (config.cameraMode === 'on' && poseInstance && videoElement.readyState >= 2) {
+            await poseInstance.send({ image: videoElement });
+          }
+          if (config.cameraMode === 'on') {
+            animFrameId = requestAnimationFrame(processFrame);
+          }
+        };
+        processFrame();
+
+      } catch (err) {
+        statusText.innerText = "CAM: Error";
+        console.error("Camera access error:", err);
+      }
+    }
+
+    function stopCameraRecognition() {
+      const container = document.getElementById('cam-preview-container');
+      container.style.display = 'none';
+
+      if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+
+      if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+      }
+
+      gestureStartTime = null;
+      currentDetectedGesture = 'NONE';
+      updateGestureProgress(0);
+    }
+
+    function onPoseResults(results) {
+      if (!results.poseLandmarks || gestureCooldown) {
+        updateGestureProgress(0);
+        gestureStartTime = null;
+        currentDetectedGesture = 'NONE';
+        return;
+      }
+
+      const landmarks = results.poseLandmarks;
+      const leftShoulder = landmarks[11];
+      const rightShoulder = landmarks[12];
+      const leftWrist = landmarks[15];
+      const rightWrist = landmarks[16];
+      const nose = landmarks[0];
+
+      if (!leftShoulder || !rightShoulder || !leftWrist || !rightWrist) return;
+
+      const thresholdY = Math.min(leftShoulder.y, rightShoulder.y, nose ? nose.y : 1.0);
+      const minConfidence = 0.6;
+
+      const leftHandUp = leftWrist.y < thresholdY && leftWrist.visibility > minConfidence;
+      const rightHandUp = rightWrist.y < thresholdY && rightWrist.visibility > minConfidence;
+
+      let detected = 'NONE';
+      if (leftHandUp && rightHandUp) {
+        detected = 'TWO_HANDS';
+      } else if (leftHandUp || rightHandUp) {
+        detected = 'ONE_HAND';
+      }
+
+      const now = performance.now();
+
+      if (detected !== 'NONE') {
+        if (currentDetectedGesture !== detected) {
+          currentDetectedGesture = detected;
+          gestureStartTime = now;
+        } else {
+          const elapsed = now - gestureStartTime;
+          const progress = Math.min(1.0, elapsed / 1000);
+          updateGestureProgress(progress * 100);
+
+          if (elapsed >= 1000) {
+            triggerGestureAction(detected);
+            gestureCooldown = true;
+            updateGestureProgress(0);
+            setTimeout(() => { gestureCooldown = false; }, 1500);
+          }
+        }
+      } else {
+        currentDetectedGesture = 'NONE';
+        gestureStartTime = null;
+        updateGestureProgress(0);
+      }
+    }
+
+    function updateGestureProgress(percent) {
+      const progressBar = document.getElementById('gesture-progress');
+      if (progressBar) progressBar.style.width = `${percent}%`;
+    }
+
+    function triggerGestureAction(gesture) {
+      const leftTeam = state.courtLeftTeam;
+      const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
+
+      if (gesture === 'ONE_HAND') {
+        addPoint(leftTeam);
+        speak("Left score point.");
+      } else if (gesture === 'TWO_HANDS') {
+        addPoint(rightTeam);
+        speak("Right score point.");
+      }
     }
 
     function saveState() {
@@ -1304,8 +1248,8 @@
       document.getElementById('serve-a').classList.toggle('active', state.currentServerTeam === 'A');
       document.getElementById('serve-b').classList.toggle('active', state.currentServerTeam === 'B');
 
-      const lblServeTeam = document.getElementById('lbl-serve-team');
-      if (lblServeTeam) lblServeTeam.innerText = `Serve ${state.currentServerTeam}`;
+      const btnServeText = `SERVE: TEAM ${state.currentServerTeam}`;
+      document.getElementById('btn-toggle-serve-s').innerText = btnServeText;
 
       const leftTeam = state.courtLeftTeam;
       const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
@@ -1316,7 +1260,7 @@
       cardB.style.order = (leftTeam === 'B') ? 1 : 2;
 
       document.getElementById('arrow-a').innerText = (leftTeam === 'A') ? '◀' : '▶';
-      document.getElementById('arrow-b').innerText = (leftTeam === 'A') ? '◀' : '▶';
+      document.getElementById('arrow-b').innerText = (leftTeam === 'B') ? '◀' : '▶';
 
       document.getElementById('side-left-bg').className = `court-side left ${leftTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
       document.getElementById('side-right-bg').className = `court-side right ${rightTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
