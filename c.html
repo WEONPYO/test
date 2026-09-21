@@ -504,7 +504,7 @@
         </select>
       </div>
 
-      <!-- 제스처 인식 유지 시간 설정 옵션 -->
+      <!-- 제스처 인식 유지 시간 설정 옵션 추가 -->
       <div class="setting-group">
         <label>제스처 인식 유지 시간 (Gesture Hold Duration)</label>
         <select id="set-gesture-hold">
@@ -672,7 +672,7 @@
     let poseInstance = null;
 
     let gestureStartTime = null;
-    let detectedTargetSide = null; // 'left' (왼손만 올림), 'right' (양손 모두 올림)
+    let detectedTargetSide = null; // 'left' (머리위 O자), 'right' (양손 들어올림)
     let cooldownUntilTime = 0; // 3초간 인식 중지 타임스탬프
 
     function getActiveServerIndices() {
@@ -736,7 +736,7 @@
       }, 10000);
     }
 
-    // 화면 복귀 시 Wake Lock 자동 재요청
+    // 화면 복귀(탭 이동, 기기 잠금 해제 등) 시 Wake Lock 자동 재요청
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState === 'visible') {
         if (!wakeLock) {
@@ -995,11 +995,6 @@
       resetGestureGauge();
     }
 
-    /* =========================================================================
-       제스쳐 인식 및 조건 처리 로직
-       - 좌측 스코어: 왼손만 머리(코) 위로 완전히 올라갔을 때
-       - 우측 스코어: 양손(왼손, 오른손)이 모두 머리(코) 위로 완전히 올라갔을 때
-       ========================================================================= */
     function onPoseResults(results) {
       if (!isCameraActive || !results.poseLandmarks) {
         resetGestureGauge();
@@ -1017,7 +1012,8 @@
 
       const landmarks = results.poseLandmarks;
 
-      // MediaPipe Pose 주요 랜드마크 (0: nose, 15: left_wrist, 16: right_wrist)
+      // 주요 랜드마크 인덱스 (MediaPipe Pose 기준)
+      // 0: nose, 15: left_wrist, 16: right_wrist
       const nose = landmarks[0];
       const leftWrist = landmarks[15];
       const rightWrist = landmarks[16];
@@ -1029,18 +1025,20 @@
 
       const headThresholdY = nose.y;
 
-      // Y 좌표는 위쪽이 0에 가깝고 아래쪽이 1에 가까움 (wrist.y < nose.y 인 경우 머리 위로 올라감)
       const isLeftUp = (leftWrist.y < headThresholdY) && (leftWrist.visibility > 0.4);
       const isRightUp = (rightWrist.y < headThresholdY) && (rightWrist.visibility > 0.4);
 
-      let currentTarget = null; // 'left' (좌측 점수 추가), 'right' (우측 점수 추가)
+      let currentTarget = null; // 'left' (머리위 O자 -> 좌측 스코어), 'right' (양손 완발 올려 벌림 -> 우측 스코어)
 
+      // 양 손이 모두 머리 위로 올라간 상태일 때만 동작 판별
       if (isLeftUp && isRightUp) {
-        // 양손이 모두 머리 위로 완전히 올라간 경우 -> 우측 스코어 추가
-        currentTarget = 'right';
-      } else if (isLeftUp && !isRightUp) {
-        // 왼손만 머리 위로 완전히 올라간 경우 -> 좌측 스코어 추가
-        currentTarget = 'left';
+        const wristsDistX = Math.abs(leftWrist.x - rightWrist.x);
+        // 양손 손목 간격 기준값 (화면 가로 비례 0.25)
+        if (wristsDistX < 0.25) {
+          currentTarget = 'left';  // 머리 위에서 O자 모형 (양손이 모임) -> 좌측 스코어
+        } else {
+          currentTarget = 'right'; // 양손을 머리 위로 완전히 들어올림 (양손이 벌어짐) -> 우측 스코어
+        }
       }
 
       if (currentTarget) {
@@ -1055,11 +1053,11 @@
 
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
-        if (elapsed >= requiredDurationMs) { // 설정된 유지 시간 달성 시 스코어 추가
+        if (elapsed >= requiredDurationMs) { // 설정된 유지 시간 달성 시 수행
           const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
           addPoint(targetTeam);
 
-          // 득점 처리 후 3초간 쿨다운 적용
+          // 3초간 쿨다운 트리거
           cooldownUntilTime = Date.now() + 3000;
           gestureStartTime = null;
           detectedTargetSide = null;
