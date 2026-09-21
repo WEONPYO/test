@@ -273,23 +273,17 @@
     }
     .player-marker.receiver .role-badge { background: var(--accent-yellow); color: #000; }
 
-    /* 동작 인식 게이지 오버레이 (좌/우/중앙 X-모션) */
+    /* 동작 인식 게이지 오버레이 (좌/우 모션) */
     .gesture-gauge-container {
-      position: absolute; top: 0; bottom: 0; width: 22px;
-      background: rgba(0,0,0,0.4); display: flex; flex-direction: column;
-      justify-content: flex-end; z-index: 80; pointer-events: none; opacity: 0;
+      position: absolute; top: 0; bottom: 0; width: 28px;
+      background: rgba(0,0,0,0.5); display: flex; flex-direction: column;
+      justify-content: flex-end; z-index: 150; pointer-events: none; opacity: 0;
       transition: opacity 0.2s ease;
     }
 
-    .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(255,255,255,0.2); }
-    .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(255,255,255,0.2); }
-    
-    /* X 모션 중앙 게이지 바 */
-    .gesture-gauge-container.center {
-      left: 50%; transform: translateX(-50%); width: 120px; height: 16px; top: 10px; bottom: auto;
-      border-radius: 8px; overflow: hidden; border: 1px solid var(--accent-yellow);
-      background: rgba(0,0,0,0.6); flex-direction: row; justify-content: flex-start;
-    }
+    /* 좌/우 게이지 위치 최적화 및 Z-INDEX 보장 */
+    .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(204,255,0,0.4); }
+    .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(204,255,0,0.4); }
 
     .gesture-gauge-container.active { opacity: 1; }
 
@@ -298,23 +292,14 @@
       transition: height 0.05s linear; box-shadow: 0 0 10px var(--accent-yellow);
     }
 
-    .gesture-gauge-container.center .gauge-fill {
-      height: 100%; width: 0%; background: linear-gradient(to right, #ff9900, #ccff00);
-      transition: width 0.05s linear;
-    }
-
     .gauge-status-text {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg);
       white-space: nowrap; font-size: 0.65rem; font-weight: 900; letter-spacing: 1px;
       color: var(--accent-yellow); text-shadow: 0 2px 4px rgba(0,0,0,0.9);
     }
 
-    .gesture-gauge-container.center .gauge-status-text {
-      transform: translate(-50%, -50%); font-size: 0.6rem;
-    }
-
     .gesture-gauge-container.cooldown .gauge-fill {
-      height: 100% !important; width: 100% !important; background: #ff4d4d !important; opacity: 0.6;
+      height: 100% !important; background: #ff4d4d !important; opacity: 0.6;
     }
     .gesture-gauge-container.cooldown .gauge-status-text {
       color: #ffffff;
@@ -364,15 +349,10 @@
   <!-- 비디오 영상은 화면상에 표시하지 않음 -->
   <video id="hidden-video" playsinline></video>
 
-  <!-- 동작 인식 활성화 시 상태/점수 반영을 보여주는 게이지 (좌측, 우측, 중앙 X게이지) -->
+  <!-- 동작 인식 활성화 시 상태/점수 반영을 보여주는 게이지 (좌측, 우측) -->
   <div class="gesture-gauge-container left" id="gauge-left">
     <div class="gauge-fill" id="gauge-fill-left"></div>
     <div class="gauge-status-text" id="gauge-text-left">1s HOLD</div>
-  </div>
-
-  <div class="gesture-gauge-container center" id="gauge-center">
-    <div class="gauge-fill" id="gauge-fill-center"></div>
-    <div class="gauge-status-text" id="gauge-text-center">X: UNDO 1s</div>
   </div>
 
   <div class="gesture-gauge-container right" id="gauge-right">
@@ -677,8 +657,8 @@
     let poseInstance = null;
 
     let gestureStartTime = null;
-    let detectedTargetSide = null; // 'left' (한손), 'right' (양손), 'center' (X자 정정)
-    let cooldownUntilTime = 0; // 5초간 인식 중지 타임스탬프
+    let detectedTargetSide = null; // 'left' (한손), 'right' (양손)
+    let cooldownUntilTime = 0; // 3초간 인식 중지 타임스탬프 (기존 5초에서 3초로 변경)
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
@@ -966,7 +946,7 @@
 
       const now = Date.now();
 
-      // 5초간 인식 차단 (Cool-down)
+      // 3초간 인식 차단 (Cool-down: 5초에서 3초로 변경)
       if (now < cooldownUntilTime) {
         const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
         updateCooldownGaugeDisplay(remainingCd);
@@ -976,10 +956,8 @@
       const landmarks = results.poseLandmarks;
 
       // 주요 랜드마크 인덱스 (MediaPipe Pose기준)
-      // 0: nose, 11: left_shoulder, 12: right_shoulder, 15: left_wrist, 16: right_wrist
+      // 0: nose, 15: left_wrist, 16: right_wrist
       const nose = landmarks[0];
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
       const leftWrist = landmarks[15];
       const rightWrist = landmarks[16];
 
@@ -993,25 +971,9 @@
       const isLeftUp = (leftWrist.y < headThresholdY) && (leftWrist.visibility > 0.4);
       const isRightUp = (rightWrist.y < headThresholdY) && (rightWrist.visibility > 0.4);
 
-      // X자 교차 제스처 검증 (몸통 및 상체 근처에서 양 손목 교차)
-      let isXShape = false;
-      if (leftShoulder && rightShoulder && leftWrist.visibility > 0.4 && rightWrist.visibility > 0.4) {
-        const isBelowHead = (leftWrist.y > headThresholdY) && (rightWrist.y > headThresholdY);
-        const isNearTorso = (leftWrist.y < Math.max(leftShoulder.y, rightShoulder.y) + 0.3) && 
-                            (rightWrist.y < Math.max(leftShoulder.y, rightShoulder.y) + 0.3);
-        
-        // 거울식 및 일반 방향 검증: 손목 X좌표 교차 판별
-        const isCrossed = (leftWrist.x > rightShoulder.x && rightWrist.x < leftShoulder.x) ||
-                          (leftWrist.x > rightWrist.x);
+      let currentTarget = null; // 'left' (한 손), 'right' (양 손)
 
-        isXShape = isBelowHead && isNearTorso && isCrossed;
-      }
-
-      let currentTarget = null; // 'left' (한 손), 'right' (양 손), 'center' (X모션 정정)
-
-      if (isXShape) {
-        currentTarget = 'center'; // X자 모양 교차 -> 점수 정정 / Undo
-      } else if (isLeftUp && isRightUp) {
+      if (isLeftUp && isRightUp) {
         currentTarget = 'right'; // 양 손을 올린 경우 -> 우측 스코어
       } else if (isLeftUp || isRightUp) {
         currentTarget = 'left';  // 한 손만 올린 경우 -> 좌측 스코어
@@ -1029,15 +991,11 @@
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
         if (elapsed >= 1000) { // 1초 유지 시 수행
-          if (currentTarget === 'center') {
-            undo(); // X 모션 1초 유지 시 Correction(Undo) 실행
-          } else {
-            const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-            addPoint(targetTeam);
-          }
+          const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+          addPoint(targetTeam);
 
-          // 5초간 쿨다운 트리거
-          cooldownUntilTime = Date.now() + 5000;
+          // 3초간 쿨다운 트리거
+          cooldownUntilTime = Date.now() + 3000;
           gestureStartTime = null;
           detectedTargetSide = null;
         }
@@ -1049,52 +1007,39 @@
     function updateGestureGaugeDisplay(side, ratio) {
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
-      const centerGauge = document.getElementById('gauge-center');
       const fillLeft = document.getElementById('gauge-fill-left');
       const fillRight = document.getElementById('gauge-fill-right');
-      const fillCenter = document.getElementById('gauge-fill-center');
 
       leftGauge.classList.remove('cooldown');
       rightGauge.classList.remove('cooldown');
-      centerGauge.classList.remove('cooldown');
 
       if (side === 'left') {
         leftGauge.classList.add('active');
         rightGauge.classList.remove('active');
-        centerGauge.classList.remove('active');
         fillLeft.style.height = `${ratio * 100}%`;
+        fillRight.style.height = `0%`;
         document.getElementById('gauge-text-left').innerText = "1s HOLD";
       } else if (side === 'right') {
         rightGauge.classList.add('active');
         leftGauge.classList.remove('active');
-        centerGauge.classList.remove('active');
         fillRight.style.height = `${ratio * 100}%`;
+        fillLeft.style.height = `0%`;
         document.getElementById('gauge-text-right').innerText = "1s HOLD";
-      } else if (side === 'center') {
-        centerGauge.classList.add('active');
-        leftGauge.classList.remove('active');
-        rightGauge.classList.remove('active');
-        fillCenter.style.width = `${ratio * 100}%`;
-        document.getElementById('gauge-text-center').innerText = "X: UNDO 1s";
       }
     }
 
     function updateCooldownGaugeDisplay(remainingSec) {
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
-      const centerGauge = document.getElementById('gauge-center');
 
       leftGauge.classList.add('active', 'cooldown');
       rightGauge.classList.add('active', 'cooldown');
-      centerGauge.classList.add('active', 'cooldown');
 
       document.getElementById('gauge-fill-left').style.height = '100%';
       document.getElementById('gauge-fill-right').style.height = '100%';
-      document.getElementById('gauge-fill-center').style.width = '100%';
 
       document.getElementById('gauge-text-left').innerText = `COOL ${remainingSec}s`;
       document.getElementById('gauge-text-right').innerText = `COOL ${remainingSec}s`;
-      document.getElementById('gauge-text-center').innerText = `COOL ${remainingSec}s`;
     }
 
     function resetGestureGauge() {
@@ -1103,15 +1048,12 @@
 
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
-      const centerGauge = document.getElementById('gauge-center');
 
       leftGauge.classList.remove('active', 'cooldown');
       rightGauge.classList.remove('active', 'cooldown');
-      centerGauge.classList.remove('active', 'cooldown');
 
       document.getElementById('gauge-fill-left').style.height = '0%';
       document.getElementById('gauge-fill-right').style.height = '0%';
-      document.getElementById('gauge-fill-center').style.width = '0%';
     }
 
     function saveState() {
