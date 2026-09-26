@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>AI Tennis Scoreboard</title>
+  <title>WP Tennis Scoreboard</title>
 
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -17,6 +17,7 @@
       --team-b-color: #6b1158;
       --line-color: #ffffff;
       --accent-yellow: #ccff00;
+      --accent-cyan: #00d4ff;
       --text-main: #ffffff;
       --panel-border: #234733;
     }
@@ -43,7 +44,7 @@
 
     @media (orientation: portrait) {
       body {
-        flex-direction: column;
+        flex-direction: column-reverse; /* 상단 메뉴를 위해 세로모드 시 메인 앱 위로 배치 */
       }
     }
 
@@ -180,56 +181,33 @@
       100% { transform: scale(0.8); opacity: 1; }
     }
 
-    /* CORRECT(정정) 버튼 강조 스타일 */
+    /* CORRECT(정정) 버튼 하늘색 강조 스타일 */
     .btn-icon-menu.highlight-correct {
-      background: #3a2205;
-      border: 1px solid #f39c12;
-      color: #f39c12;
+      background: #062a36;
+      border: 1px solid var(--accent-cyan);
+      color: var(--accent-cyan);
     }
     .btn-icon-menu.highlight-correct:active {
-      background: #543207;
+      background: #0a4154;
     }
 
     .btn-icon-menu.danger {
       color: #ff6b6b; border-color: #592e2e; background: #261414;
     }
 
-    /* 세로 모드 대응 레이아웃 및 크기 비율 조정 */
+    /* 세로 모드 대응: 메뉴 위치 상단으로 배치 및 비율 조정 */
     @media (orientation: portrait) {
-      .main-app {
-        flex: none;
-        height: calc(100% - 72px - env(safe-area-inset-bottom, 0px)); /* 하단 메뉴 영역 및 Safe Area 여백 확보 */
-      }
-
-      /* 세로 모드 상단 점수판 10% 축소 (기존 65% -> 55%) 및 하단 코트 크기(35% -> 45%) 자동 보정 */
-      .scoreboard {
-        height: 55%;
-      }
-
-      .court-section {
-        height: 45%;
-      }
-
-      /* 세로 모드 하단 컨트롤 바 및 제스처 바디 세이프 에어리어 공백 추가 */
       .sidebar-controls {
-        width: 100%; 
-        height: calc(56px + max(16px, env(safe-area-inset-bottom, 0px))); 
-        border-left: none; 
-        border-top: 1px solid var(--panel-border);
-        flex-direction: row; 
-        padding: 4px 4px calc(4px + max(12px, env(safe-area-inset-bottom, 0px))) 4px; /* 버튼 아래 공백 여백 디자인 추가 */
-        gap: 3px; 
-        justify-content: space-between;
-        background-color: var(--card-bg);
+        width: 100%; height: 56px; border-left: none; border-bottom: 1px solid var(--panel-border);
+        flex-direction: row; padding: 4px; gap: 3px; justify-content: space-between;
       }
-
       .menu-group-main, .menu-group-bottom {
         flex-direction: row; flex: none; gap: 3px; width: auto;
       }
       .menu-group-main { flex: 5; }
       .menu-group-bottom { flex: 3; }
       
-      /* 일반 주요 버튼 크기 유지 */
+      /* 일반 주요 버튼들 */
       .btn-icon-menu { height: 46px; flex: 1.2; }
       
       /* Reset, Full, Setting 버튼 */
@@ -394,7 +372,7 @@
   </div>
 
   <div id="fs-overlay">
-    <h2>AI TENNIS SCOREBOARD</h2>
+    <h2>WP TENNIS SCOREBOARD</h2>
     <button class="btn-fullscreen-start" onclick="startFullscreenApp()">전체화면으로 시작하기</button>
   </div>
 
@@ -509,7 +487,7 @@
         <span>COURT</span>
       </button>
 
-      <!-- CORRECT(정정) 버튼 색상 강조 적용 -->
+      <!-- CORRECT(정정) 버튼 하늘색 강조 적용 -->
       <button class="btn-icon-menu highlight-correct" onclick="undo()" title="Undo Last Point">
         <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 6v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
         <span>CORRECT</span>
@@ -517,7 +495,6 @@
     </div>
 
     <div class="menu-group-bottom">
-      <!-- 세로모드에서 컴팩트(작은 크기)하게 처리되는 버튼 3개 -->
       <button class="btn-icon-menu danger btn-compact" onclick="confirmResetMatch()" title="Reset Match">
         <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
         <span>RESET</span>
