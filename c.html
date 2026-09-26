@@ -73,7 +73,7 @@
       flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative; overflow: hidden;
     }
 
-    /* 점수판 레이아웃 - 가로모드 컴팩트화 */
+    /* 점수판 레이아웃 */
     .scoreboard { display: flex; padding: 6px 8px 0 8px; gap: 8px; height: 65%; }
 
     .team-card {
@@ -137,7 +137,7 @@
       opacity: 0; cursor: pointer; z-index: 3;
     }
 
-    /* 사이드바 메뉴 컴팩트화 (가로모드 대응) */
+    /* 사이드바 메뉴 패널 */
     .sidebar-controls {
       display: flex; width: 68px; background-color: var(--card-bg);
       border-left: 1px solid var(--panel-border); padding: 6px 4px; flex-direction: column; gap: 4px;
@@ -148,7 +148,7 @@
       display: flex; flex-direction: column; gap: 4px; width: 100%; align-items: center;
     }
 
-    /* 컴팩트 아이콘 버튼 스타일 */
+    /* 컴팩트 아이콘 버튼 기본 스타일 */
     .btn-icon-menu {
       width: 100%; height: 44px; background: #14261c; border: 1px solid #2e5941;
       border-radius: 8px; color: #d0d0d0; display: flex; flex-direction: column;
@@ -180,20 +180,37 @@
       100% { transform: scale(0.8); opacity: 1; }
     }
 
+    /* CORRECT(정정) 버튼 강조 스타일 (가로/세로 공통) */
+    .btn-icon-menu.highlight-correct {
+      background: #3a2205;
+      border: 1px solid #f39c12;
+      color: #f39c12;
+    }
+    .btn-icon-menu.highlight-correct:active {
+      background: #543207;
+    }
+
     .btn-icon-menu.danger {
       color: #ff6b6b; border-color: #592e2e; background: #261414;
     }
 
-    /* 세로 모드 대응 레이아웃 - 균등 간격 배치 수정 */
+    /* 세로 모드 대응 레이아웃 및 크기 비율 조정 */
     @media (orientation: portrait) {
       .sidebar-controls {
         width: 100%; height: 56px; border-left: none; border-top: 1px solid var(--panel-border);
-        flex-direction: row; padding: 4px; gap: 4px; justify-content: space-between;
+        flex-direction: row; padding: 4px; gap: 3px; justify-content: space-between;
       }
       .menu-group-main, .menu-group-bottom {
-        flex-direction: row; flex: 1; gap: 4px; justify-content: space-between; width: auto;
+        flex-direction: row; flex: none; gap: 3px; width: auto;
       }
-      .btn-icon-menu { height: 46px; flex: 1; }
+      .menu-group-main { flex: 5; }
+      .menu-group-bottom { flex: 3; }
+      
+      /* 일반 주요 버튼들: 넓은 비율 */
+      .btn-icon-menu { height: 46px; flex: 1.2; }
+      
+      /* Reset, Full, Setting 버튼: 컴팩트한 비중 */
+      .btn-icon-menu.btn-compact { flex: 0.7; }
     }
 
     /* 테니스 코트 영역 */
@@ -273,7 +290,7 @@
     }
     .player-marker.receiver .role-badge { background: var(--accent-yellow); color: #000; }
 
-    /* 동작 인식 게이지 오버레이 (좌/우 모션) */
+    /* 동작 인식 게이지 */
     .gesture-gauge-container {
       position: absolute; top: 0; bottom: 0; width: 28px;
       background: rgba(0,0,0,0.5); display: flex; flex-direction: column;
@@ -304,7 +321,7 @@
       color: #ffffff;
     }
 
-    /* 설정 및 공통 모달 UI - 컴팩트 디자인 */
+    /* 설정 및 공통 모달 UI */
     .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 200; padding: 10px; overflow-y: auto; }
     .modal-content { background: var(--card-bg); border-radius: 10px; padding: 14px; max-width: 440px; margin: 5px auto; border: 1px solid var(--panel-border); position: relative; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -342,7 +359,6 @@
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
     .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid var(--panel-border) !important; }
 
-    /* 숨김 처리용 비디오 및 캔버스 */
     #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
     #keep-awake-canvas { display: none; width: 1px; height: 1px; position: absolute; pointer-events: none; }
   </style>
@@ -362,7 +378,6 @@
   <video id="hidden-video" playsinline></video>
   <canvas id="keep-awake-canvas"></canvas>
 
-  <!-- 제스처 인식 게이지 -->
   <div class="gesture-gauge-container left" id="gauge-left">
     <div class="gauge-fill" id="gauge-fill-left"></div>
     <div class="gauge-status-text" id="gauge-text-left">1.0s HOLD</div>
@@ -450,52 +465,47 @@
   <!-- 아이콘 패널 메인 메뉴 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
-      <!-- 카메라 모션 인식 On/Off 아이콘 -->
-      <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Gesture Control On/Off">
+      <!-- 주요 버튼 5개 -->
+      <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
         <svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>CAM</span>
       </button>
 
-      <!-- 스와이프 모드 On/Off 아이콘 -->
-      <button class="btn-icon-menu" id="btn-swipe-toggle" onclick="toggleSwipeMode()" title="Swipe Gesture Mode On/Off">
+      <button class="btn-icon-menu" id="btn-swipe-toggle" onclick="toggleSwipeMode()" title="Swipe Mode On/Off">
         <svg viewBox="0 0 24 24"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zM18.5 13H18v-2.5C18 9.01 16.99 8 15.75 8S13.5 9.01 13.5 10.5V13h-.5c-.83 0-1.5.67-1.5 1.5v6c0 .83.67 1.5 1.5 1.5h5.5c.83 0 1.5-.67 1.5-1.5v-6c0-.83-.67-1.5-1.5-1.5z"/></svg>
         <span>SWIPE</span>
       </button>
 
-      <!-- 서브 팀 전환 아이콘 -->
       <button class="btn-icon-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
         <span>SERVE</span>
       </button>
 
-      <!-- 코트 체인지 아이콘 -->
       <button class="btn-icon-menu" onclick="manualCourtChange()" title="Change Court Ends">
         <svg viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>
         <span>COURT</span>
       </button>
 
-      <!-- 정정 (CORRECT / UNDO) 아이콘 -->
-      <button class="btn-icon-menu" onclick="undo()" title="Undo Last Point">
+      <!-- CORRECT(정정) 버튼 색상 강조 적용 -->
+      <button class="btn-icon-menu highlight-correct" onclick="undo()" title="Undo Last Point">
         <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 6v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
         <span>CORRECT</span>
       </button>
     </div>
 
     <div class="menu-group-bottom">
-      <!-- 초기화 (RESET) 아이콘 -->
-      <button class="btn-icon-menu danger" onclick="confirmResetMatch()" title="Reset Match">
+      <!-- 세로모드에서 컴팩트(작은 크기)하게 처리되는 버튼 3개 -->
+      <button class="btn-icon-menu danger btn-compact" onclick="confirmResetMatch()" title="Reset Match">
         <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
         <span>RESET</span>
       </button>
 
-      <!-- 전체화면 토글 아이콘 -->
-      <button class="btn-icon-menu" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+      <button class="btn-icon-menu btn-compact" onclick="toggleFullscreen()" title="Toggle Fullscreen">
         <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         <span>FULL</span>
       </button>
 
-      <!-- 설정 아이콘 -->
-      <button class="btn-icon-menu" id="btn-settings-sidebar" title="Open Settings">
+      <button class="btn-icon-menu btn-compact" id="btn-settings-sidebar" title="Open Settings">
         <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         <span>SETTING</span>
       </button>
@@ -506,7 +516,6 @@
   <div class="modal" id="settings-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <!-- 설정 제목 변경: Settings -->
         <h2>Settings</h2>
         <button class="btn-close-modal" id="btn-close-settings">&times;</button>
       </div>
@@ -521,7 +530,6 @@
         </select>
       </div>
 
-      <!-- 카메라 제스처 안내 상자 위치 이동 (카메라 해상도 바로 밑) -->
       <div class="info-box">
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
         • <strong>좌측 팀 득점:</strong> 머리 위로 양손을 모아 'O'자 동작 유지<br/>
