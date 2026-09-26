@@ -184,16 +184,16 @@
       color: #ff6b6b; border-color: #592e2e; background: #261414;
     }
 
-    /* 세로 모드 대응 레이아웃 */
+    /* 세로 모드 대응 레이아웃 - 균등 간격 배치 수정 */
     @media (orientation: portrait) {
       .sidebar-controls {
         width: 100%; height: 56px; border-left: none; border-top: 1px solid var(--panel-border);
-        flex-direction: row; padding: 4px 8px; gap: 4px;
+        flex-direction: row; padding: 4px; gap: 4px; justify-content: space-between;
       }
       .menu-group-main, .menu-group-bottom {
-        flex-direction: row; width: auto; flex: 1; gap: 4px;
+        flex-direction: row; flex: 1; gap: 4px; justify-content: space-between; width: auto;
       }
-      .btn-icon-menu { height: 46px; }
+      .btn-icon-menu { height: 46px; flex: 1; }
     }
 
     /* 테니스 코트 영역 */
@@ -326,7 +326,8 @@
       font-size: 0.68rem;
       line-height: 1.35;
       color: #dcdcdc;
-      margin-bottom: 10px;
+      margin-top: 4px;
+      margin-bottom: 8px;
     }
     .info-box strong { color: var(--accent-yellow); }
 
@@ -505,15 +506,9 @@
   <div class="modal" id="settings-modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h2>Match & Camera Settings</h2>
+        <!-- 설정 제목 변경: Settings -->
+        <h2>Settings</h2>
         <button class="btn-close-modal" id="btn-close-settings">&times;</button>
-      </div>
-
-      <!-- 카메라 인식 설명 안내 가이드 추가 -->
-      <div class="info-box">
-        <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
-        • <strong>좌측 팀 득점:</strong> 머리 위로 양손을 모아 'O'자 동작 유지<br/>
-        • <strong>우측 팀 득점:</strong> 머리 위로 양손을 넓게 들어올리는 동작 유지
       </div>
 
       <div class="setting-group">
@@ -526,6 +521,13 @@
         </select>
       </div>
 
+      <!-- 카메라 제스처 안내 상자 위치 이동 (카메라 해상도 바로 밑) -->
+      <div class="info-box">
+        <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
+        • <strong>좌측 팀 득점:</strong> 머리 위로 양손을 모아 'O'자 동작 유지<br/>
+        • <strong>우측 팀 득점:</strong> 머리 위로 양손을 넓게 들어올리는 동작 유지
+      </div>
+
       <div class="setting-group">
         <label>제스처 인식 유지 시간 (Gesture Hold Duration)</label>
         <select id="set-gesture-hold">
@@ -536,7 +538,6 @@
         </select>
       </div>
 
-      <!-- 오디오 지연 시간 설정 옵션 (Bluetooth/TTS 절전 해제용) -->
       <div class="setting-group">
         <label>오디오 지연 시간 (Audio Delay for Speaker)</label>
         <select id="set-audio-delay">
@@ -667,8 +668,8 @@
     let config = {
       cameraRes: 'max',
       gestureHoldDuration: 1.0,
-      audioDelay: 200, // 오디오 지연 설정 (ms)
-      swipeEnabled: true, // 스와이프 기능 토글 상태
+      audioDelay: 200,
+      swipeEnabled: true,
       type: 'doubles',
       voiceLang: 'en-GB',
       firstServeTeam: 'A',
@@ -701,7 +702,6 @@
     let serverAnnounceTimer = null;
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
-    /* Web Audio Context - 스피커 깨우기용 묵음 오디오 신호 */
     let audioCtx = null;
 
     function playSilentWakeAudio() {
@@ -718,16 +718,15 @@
           const gain = audioCtx.createGain();
           osc.type = 'sine';
           osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-          gain.gain.setValueAtTime(0.001, audioCtx.currentTime); // 들리지 않는 극소음
+          gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
           osc.connect(gain);
           gain.connect(audioCtx.destination);
           osc.start();
-          osc.stop(audioCtx.currentTime + 0.05); // 0.05초간 출력하여 스피커 절전 해제
+          osc.stop(audioCtx.currentTime + 0.05);
         }
       } catch(e) {}
     }
 
-    /* MediaPipe Pose AI State */
     let isCameraActive = false;
     let cameraInstance = null;
     let poseInstance = null;
@@ -1364,13 +1363,11 @@
         .trim();
     }
 
-    /* TTS 스피커 절전 해제 신호 포함 음성 출력 함수 */
     function speak(text) {
       if ('speechSynthesis' in window) {
         try {
           window.speechSynthesis.cancel();
 
-          // TTS 발성 시작 전 스피커 깨우기용 묵음 신호 선재 재생
           playSilentWakeAudio();
 
           const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
@@ -1436,13 +1433,11 @@
     }
 
     function render() {
-      // 카메라 On/Off 아이콘 토글 상태 반영
       const camBtn = document.getElementById('btn-camera-toggle');
       if (camBtn) {
         camBtn.classList.toggle('active-toggle', isCameraActive);
       }
 
-      // 스와이프 On/Off 아이콘 토글 상태 반영
       const swipeBtn = document.getElementById('btn-swipe-toggle');
       if (swipeBtn) {
         swipeBtn.classList.toggle('active-toggle', !!config.swipeEnabled);
