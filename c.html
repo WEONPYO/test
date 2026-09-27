@@ -44,7 +44,7 @@
 
     @media (orientation: portrait) {
       body {
-        flex-direction: column-reverse; /* 상단 메뉴를 위해 세로모드 시 메인 앱 위로 배치 */
+        flex-direction: column-reverse; /* 세로모드 시 상단에 메뉴 배치 */
       }
     }
 
@@ -195,7 +195,7 @@
       color: #ff6b6b; border-color: #592e2e; background: #261414;
     }
 
-    /* 세로 모드 대응: 메뉴 위치 상단으로 배치 및 비율 조정 */
+    /* 세로 모드 대응: 상단 메뉴 배치 */
     @media (orientation: portrait) {
       .sidebar-controls {
         width: 100%; height: 56px; border-left: none; border-bottom: 1px solid var(--panel-border);
@@ -207,10 +207,7 @@
       .menu-group-main { flex: 5; }
       .menu-group-bottom { flex: 3; }
       
-      /* 일반 주요 버튼들 */
       .btn-icon-menu { height: 46px; flex: 1.2; }
-      
-      /* Reset, Full, Setting 버튼 */
       .btn-icon-menu.btn-compact { flex: 0.7; }
     }
 
@@ -466,7 +463,6 @@
   <!-- 아이콘 패널 메인 메뉴 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
-      <!-- 주요 버튼 5개 -->
       <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
         <svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>CAM</span>
@@ -532,8 +528,8 @@
 
       <div class="info-box">
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
-        • <strong>좌측 팀 득점:</strong> 머리 위로 양손을 모아 'O'자 동작 유지<br/>
-        • <strong>우측 팀 득점:</strong> 머리 위로 양손을 넓게 들어올리는 동작 유지
+        • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
+        • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지
       </div>
 
       <div class="setting-group">
@@ -1094,15 +1090,15 @@
         return;
       }
 
-      const headThresholdY = nose.y;
-
-      const isLeftUp = (leftWrist.y < headThresholdY) && (leftWrist.visibility > 0.4);
-      const isRightUp = (rightWrist.y < headThresholdY) && (rightWrist.visibility > 0.4);
+      // 두 손 모두 코보다 위로 위치해 있는지 확인
+      const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
+      const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
 
       let currentTarget = null;
 
       if (isLeftUp && isRightUp) {
         const wristsDistX = Math.abs(leftWrist.x - rightWrist.x);
+        // 모으면(거리 < 0.25) 왼쪽 스코어 증가, 넓게 벌리면(거리 >= 0.25) 오른쪽 스코어 증가
         if (wristsDistX < 0.25) {
           currentTarget = 'left';
         } else {
