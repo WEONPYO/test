@@ -8,6 +8,7 @@
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
   <style>
     :root {
@@ -801,6 +802,7 @@
     let isCameraActive = false;
     let cameraInstance = null;
     let poseInstance = null;
+    let handsInstance = null;
 
     let gestureStartTime = null;
     let detectedTargetSide = null;
@@ -1134,12 +1136,31 @@
           poseInstance.onResults(onPoseResults);
         }
 
+        // 복식에서는 Pose 1인 추적 대신 MediaPipe Hands를 함께 사용합니다.
+        // 최대 4개의 손을 받아 두 선수의 손이 섞이는 문제를 줄입니다.
+        if (!handsInstance) {
+          handsInstance = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+          });
+          handsInstance.setOptions({
+            maxNumHands: 4,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.55,
+            minTrackingConfidence: 0.55
+          });
+          handsInstance.onResults(onHandsResults);
+        }
+
         const res = getCameraResolution(config.cameraRes);
 
         cameraInstance = new Camera(videoElement, {
           onFrame: async () => {
             if (isCameraActive && videoElement && videoElement.readyState >= 2) {
-              await poseInstance.send({ image: videoElement });
+              if (config.type === 'doubles' && handsInstance) {
+                await handsInstance.send({ image: videoElement });
+              } else if (poseInstance) {
+                await poseInstance.send({ image: videoElement });
+              }
             }
           },
           width: res.width,
@@ -1169,6 +1190,8 @@
     }
 
     function onPoseResults(results) {
+      // 복식은 아래 onHandsResults()가 전담합니다.
+      if (config.type === 'doubles') return;
       if (!isCameraActive || !results.poseLandmarks) {
         resetGestureGauge();
         resetCorrectSequenceGauge();
@@ -1176,7 +1199,6 @@
       }
 
       const now = Date.now();
-
       if (now < cooldownUntilTime) {
         const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
         updateCooldownGaugeDisplay(remainingCd);
@@ -1189,7 +1211,6 @@
       const rightWrist = landmarks[16];
       const leftShoulder = landmarks[11];
       const rightShoulder = landmarks[12];
-
       if (!nose || !leftWrist || !rightWrist) {
         resetGestureGauge();
         resetCorrectSequenceGauge();
@@ -1197,104 +1218,154 @@
         return;
       }
 
-      const leftVisible = leftWrist.visibility > 0.35;
-      const rightVisible = rightWrist.visibility > 0.35;
-      const isLeftUp = leftVisible && leftWrist.y < nose.y;
-      const isRightUp = rightVisible && rightWrist.y < nose.y;
-
       let currentTarget = null;
-
-      // 기존 제스처 판정 유지:
-      // 양손이 머리 위 + 손 모음 = left, 손 벌림 = right
-      if (isLeftUp && isRightUp) {
-        const wristsDist = Math.hypot(
-          leftWrist.x - rightWrist.x,
-          leftWrist.y - rightWrist.y
-        );
-
+      if (leftWrist.visibility > 0.35 && rightWrist.visibility > 0.35 &&
+          leftWrist.y < nose.y && rightWrist.y < nose.y) {
+        const wristsDist = Math.hypot(leftWrist.x-rightWrist.x, leftWrist.y-rightWrist.y);
         let shoulderWidth = 0.2;
-        if (leftShoulder && rightShoulder &&
-            leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
-          shoulderWidth = Math.hypot(
-            leftShoulder.x - rightShoulder.x,
-            leftShoulder.y - rightShoulder.y
-          );
+        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
+          shoulderWidth = Math.hypot(leftShoulder.x-rightShoulder.x, leftShoulder.y-rightShoulder.y);
         }
-
         const handRatio = wristsDist / (shoulderWidth || 0.2);
         currentTarget = handRatio < 1.0 ? 'left' : 'right';
       }
+      processGestureTarget(currentTarget, now);
+    }
 
-      // ------------------------------------------------------------
-      // 핵심 분리 규칙
-      // 1) 손 모음(left)만으로는 Correct 게이지를 절대 표시하지 않는다.
-      // 2) 손 모음 상태를 기존 HOLD 방식으로 그대로 좌측 점수에 사용한다.
-      // 3) 손 모음 -> 손 벌림(right)이 HOLD 시간 안에 실제 전환되었을 때만
-      //    Correct 패턴을 시작하고 그때부터 상단 게이지를 표시한다.
-      // ------------------------------------------------------------
+    // 복식 전용 손 인식:
+    // MediaPipe Hands는 최대 4개 손을 동시에 검출합니다.
+    // 왼손/오른손 후보를 묶어 한 선수의 양손으로 추정하고,
+    // 가장 위에 있고 두 손의 높이가 비슷한 쌍을 제스처 사용자로 선택합니다.
+    function onHandsResults(results) {
+      if (config.type !== 'doubles') return;
+      if (!isCameraActive || !results.multiHandLandmarks || !results.multiHandLandmarks.length) {
+        processGestureTarget(null, Date.now());
+        return;
+      }
+
+      const now = Date.now();
+      if (now < cooldownUntilTime) {
+        const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
+        updateCooldownGaugeDisplay(remainingCd);
+        return;
+      }
+
+      const hands = results.multiHandLandmarks;
+      const handed = results.multiHandedness || [];
+      const candidates = [];
+      for (let i=0; i<hands.length; i++) {
+        const lm = hands[i];
+        const wrist = lm && lm[0];
+        if (!wrist) continue;
+        const label = handed[i] && handed[i].label ? handed[i].label : null;
+        if (label !== 'Left' && label !== 'Right') continue;
+        candidates.push({ label, wrist, index:i });
+      }
+
+      let bestPair = null;
+      let bestScore = Infinity;
+      for (const lh of candidates.filter(h => h.label === 'Left')) {
+        for (const rh of candidates.filter(h => h.label === 'Right')) {
+          const dy = Math.abs(lh.wrist.y - rh.wrist.y);
+          const dx = Math.abs(lh.wrist.x - rh.wrist.x);
+          // 같은 선수의 양손은 머리 위 동작에서 높이가 대체로 비슷합니다.
+          // 두 손 모두 위쪽일수록 우선합니다.
+          const avgY = (lh.wrist.y + rh.wrist.y) / 2;
+          const raisedPenalty = Math.max(0, avgY - 0.58) * 1.4;
+          const heightPenalty = dy * 2.2;
+          // 너무 가까운 두 손은 정상적인 좌/우 손쌍이므로 허용하되,
+          // 화면 반대편의 두 선수 손을 무작위로 묶지 않도록 x 차이도 약하게 반영합니다.
+          const score = raisedPenalty + heightPenalty + Math.max(0, 0.06-dx) * 0.5;
+          if (score < bestScore) {
+            bestScore = score;
+            bestPair = { left: lh.wrist, right: rh.wrist };
+          }
+        }
+      }
+
+      if (!bestPair) {
+        processGestureTarget(null, now);
+        return;
+      }
+
+      // 머리 위 제스처 영역: 손목 평균 y가 화면 상단 58%보다 위여야 합니다.
+      // 이 값은 복식에서 다른 선수의 일반적인 손 움직임이 점수로 들어오는 것을 방지합니다.
+      const avgY = (bestPair.left.y + bestPair.right.y) / 2;
+      if (avgY > 0.58) {
+        processGestureTarget(null, now);
+        return;
+      }
+
+      const wristDist = Math.hypot(
+        bestPair.left.x-bestPair.right.x,
+        bestPair.left.y-bestPair.right.y
+      );
+      // Pose의 어깨 폭 대신 손쌍의 세로 위치/화면 폭을 이용하되,
+      // 기존 모음/벌림 기준과 최대한 비슷하게 유지합니다.
+      const closeThreshold = 0.18;
+      const openThreshold = 0.30;
+
+      // 경계 구간(0.18~0.30)은 이전 상태를 유지하는 히스테리시스.
+      let currentTarget = null;
+      if (wristDist <= closeThreshold) {
+        currentTarget = 'left';
+      } else if (wristDist >= openThreshold) {
+        currentTarget = 'right';
+      } else if (detectedTargetSide === 'left' || detectedTargetSide === 'right') {
+        currentTarget = detectedTargetSide;
+      }
+
+      processGestureTarget(currentTarget, now);
+    }
+
+    function processGestureTarget(currentTarget, now) {
+      if (currentTarget === null) {
+        resetGestureGauge();
+        if (correctSequenceStage > 0 && now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
+          resetCorrectSequenceGauge();
+        }
+        gesturePointLocked = false;
+        return;
+      }
+
       const requiredDurationMs = (config.gestureHoldDuration || 1.0) * 1000;
       let correctPatternRunning = false;
 
-      if (currentTarget) {
-        // 현재 자세가 바뀌었는지 먼저 확인한다.
-        if (detectedTargetSide !== currentTarget) {
-          const previousSide = detectedTargetSide;
-          const previousStart = gestureStartTime;
+      if (detectedTargetSide !== currentTarget) {
+        const previousSide = detectedTargetSide;
+        const previousStart = gestureStartTime;
+        detectedTargetSide = currentTarget;
+        gestureStartTime = now;
 
-          detectedTargetSide = currentTarget;
-          gestureStartTime = now;
-
-          // 아직 Correct가 시작되지 않았고,
-          // "모음(left)"을 잡은 뒤 HOLD 시간 전에 "벌림(right)"으로
-          // 실제 전환되었을 때만 Correct를 시작한다.
-          if (correctSequenceStage === 0 &&
-              previousSide === 'left' &&
-              previousStart !== null &&
-              now - previousStart < requiredDurationMs) {
-            startCorrectSequenceFromTransition(now);
-          } else if (correctSequenceStage > 0) {
-            updateCorrectSequence(currentTarget, now);
-          }
+        if (correctSequenceStage === 0 && previousSide === 'left' && previousStart !== null &&
+            now - previousStart < requiredDurationMs) {
+          startCorrectSequenceFromTransition(now);
         } else if (correctSequenceStage > 0) {
           updateCorrectSequence(currentTarget, now);
         }
+      } else if (correctSequenceStage > 0) {
+        updateCorrectSequence(currentTarget, now);
+      }
 
-        correctPatternRunning = correctSequenceStage > 0;
+      correctPatternRunning = correctSequenceStage > 0;
 
-        // Correct가 시작되기 전에는 기존 좌/우 HOLD 게이지와 점수를 정상 처리.
-        if (!correctPatternRunning) {
-          const elapsed = now - gestureStartTime;
-          const progressRatio = Math.min(elapsed / requiredDurationMs, 1.0);
-          updateGestureGaugeDisplay(currentTarget, progressRatio);
+      if (!correctPatternRunning) {
+        const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
+        const progressRatio = Math.min(elapsed / requiredDurationMs, 1.0);
+        updateGestureGaugeDisplay(currentTarget, progressRatio);
 
-          if (elapsed >= requiredDurationMs && !gesturePointLocked) {
-            const targetTeam = (currentTarget === 'left')
-              ? state.courtLeftTeam
-              : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-
-            addPoint(targetTeam);
-
-            // 같은 자세를 계속 유지하는 동안 중복 점수 방지.
-            gesturePointLocked = true;
-            gestureStartTime = null;
-            detectedTargetSide = null;
-            cooldownUntilTime = Date.now() + 450;
-          }
-        } else {
-          // Correct 패턴 중에는 기존 좌/우 점수 게이지를 숨긴다.
-          resetGestureGauge();
+        if (elapsed >= requiredDurationMs && !gesturePointLocked) {
+          const targetTeam = currentTarget === 'left'
+            ? state.courtLeftTeam
+            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+          addPoint(targetTeam);
+          gesturePointLocked = true;
+          gestureStartTime = null;
+          detectedTargetSide = null;
+          cooldownUntilTime = Date.now() + 450;
         }
       } else {
         resetGestureGauge();
-
-        // 손을 머리 아래로 내리면 일반 점수 제스처를 다시 허용.
-        gesturePointLocked = false;
-
-        // Correct 진행 중 손이 완전히 내려가면 패턴 종료.
-        if (correctSequenceStage > 0 &&
-            now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
-          resetCorrectSequenceGauge();
-        }
       }
     }
 
