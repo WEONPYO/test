@@ -130,12 +130,36 @@
       transform: translateY(-2%);
     }
 
+    /* 현재 서브 팀 표시등: 팀명 바로 앞에서 크게 점멸 */
     .serve-ball {
-      display: inline-block; width: 10px; height: 10px;
-      background-color: var(--accent-yellow); border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-yellow); visibility: hidden;
+      position: relative; flex: 0 0 18px; width: 18px; height: 18px;
+      border-radius: 50%; visibility: hidden; opacity: 0;
+      background: #12351f; border: 2px solid #2f8f4e;
+      box-shadow: inset 0 0 3px rgba(0,0,0,.8);
+      transition: opacity .15s ease, transform .15s ease;
+      margin-right: 7px;
     }
-    .serve-ball.active { visibility: visible; }
+    .serve-ball::before {
+      content: ''; position: absolute; inset: 3px; border-radius: 50%;
+      background: #39ff68; box-shadow: 0 0 6px #39ff68, 0 0 14px rgba(57,255,104,.95);
+    }
+    .serve-ball::after {
+      content: ''; position: absolute; inset: -5px; border-radius: 50%;
+      border: 2px solid rgba(57,255,104,.45); opacity: 0;
+    }
+    .serve-ball.active {
+      visibility: visible; opacity: 1; transform: scale(1.08);
+      animation: serve-led-blink .75s steps(1, end) infinite;
+    }
+    .serve-ball.active::after { animation: serve-led-ring .75s ease-out infinite; }
+    @keyframes serve-led-blink {
+      0%, 45% { filter: brightness(1.0); }
+      46%, 100% { filter: brightness(1.85); }
+    }
+    @keyframes serve-led-ring {
+      0% { transform: scale(.72); opacity: .9; }
+      100% { transform: scale(1.45); opacity: 0; }
+    }
 
     .btn-score-up {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -477,8 +501,14 @@
         <span>SWIPE</span>
       </button>
 
-      <button class="btn-icon-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+      <button class="btn-icon-menu serve-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
+        <!-- 서브 전환: 테니스공 + 위쪽 서브 궤적/화살표 -->
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="15" cy="18" r="7.5" fill="none" stroke="currentColor" stroke-width="2.2"/>
+          <path d="M10.3 12.8c2.1 1.2 4.8 1.6 7.7.7 1.9-.6 3.4-1.7 4.6-3.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M22.5 4.5v6.2h-6.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22.5 4.5l-3.3 3.3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
         <span>SERVE</span>
       </button>
 
@@ -1621,8 +1651,16 @@
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
 
-      document.getElementById('serve-a').classList.toggle('active', state.currentServerTeam === 'A');
-      document.getElementById('serve-b').classList.toggle('active', state.currentServerTeam === 'B');
+      const serveAActive = state.currentServerTeam === 'A';
+      const serveBActive = state.currentServerTeam === 'B';
+      document.getElementById('serve-a').classList.toggle('active', serveAActive);
+      document.getElementById('serve-b').classList.toggle('active', serveBActive);
+      const serveMenu = document.getElementById('btn-toggle-serve-s');
+      if (serveMenu) {
+        serveMenu.classList.toggle('active-toggle', true);
+        serveMenu.dataset.serverTeam = state.currentServerTeam;
+        serveMenu.title = `Switch Serve Team (current: Team ${state.currentServerTeam})`;
+      }
 
       const leftTeam = state.courtLeftTeam;
       const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
