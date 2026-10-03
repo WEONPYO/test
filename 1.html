@@ -110,14 +110,13 @@
       z-index: 1; pointer-events: none;
     }
 
-    /* 게임 스코어: 포인트 스코어를 가리지 않도록 좌측 하단에 크게 표시 */
     .games-score {
-      font-size: clamp(0.85rem, 2.5vw, 1.8rem); font-weight: 900; line-height: 1;
-      opacity: 0.98; position: absolute; left: 8px; bottom: 8px;
-      max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis;
-      background: rgba(0,0,0,0.62); padding: 4px 7px; border-radius: 6px;
-      z-index: 4; pointer-events: none; white-space: nowrap;
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.85);
+      /* 게임 스코어는 포인트 스코어를 가리지 않도록 좌하단에 크게 표시 */
+      font-size: 1.6rem; font-weight: 900; opacity: 0.98; position: absolute;
+      left: 12px; bottom: 10px; background: rgba(0,0,0,0.55);
+      padding: 4px 10px; border-radius: 6px; z-index: 4;
+      line-height: 1.05; text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+      white-space: nowrap;
     }
 
     .point-score {
@@ -132,35 +131,15 @@
     }
 
     .serve-ball {
-      display: inline-block; flex: 0 0 14px; width: 14px; height: 14px;
-      background: #39ff14; border: 2px solid #ffffff; border-radius: 50%;
-      box-shadow: 0 0 0 2px rgba(57,255,20,.35), 0 0 12px #39ff14;
-      visibility: hidden;
+      display: inline-block; width: 10px; height: 10px;
+      background-color: var(--accent-yellow); border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-yellow); visibility: hidden;
     }
-    .serve-ball.active {
-      visibility: visible;
-      animation: serve-pulse 0.9s ease-in-out infinite;
-    }
-    @keyframes serve-pulse {
-      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 2px rgba(57,255,20,.45), 0 0 12px #39ff14; }
-      50% { opacity: .55; transform: scale(1.28); box-shadow: 0 0 0 5px rgba(57,255,20,.18), 0 0 18px #39ff14; }
-    }
+    .serve-ball.active { visibility: visible; }
 
     .btn-score-up {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       opacity: 0; cursor: pointer; z-index: 3;
-    }
-
-    @media (max-width: 700px) {
-      .games-score { font-size: clamp(0.8rem, 3.2vw, 1.25rem); left: 6px; bottom: 6px; padding: 3px 5px; }
-    }
-    @media (orientation: portrait) {
-      .games-score { font-size: clamp(0.72rem, 2.8vw, 1.05rem); left: 5px; bottom: 5px; padding: 3px 4px; }
-      .point-score { font-size: min(25vw, 25vh); }
-    }
-    @media (orientation: landscape) and (max-height: 500px) {
-      .games-score { font-size: clamp(0.75rem, 2.2vh, 1.1rem); left: 5px; bottom: 5px; padding: 2px 5px; }
-      .point-score { font-size: min(27vw, 30vh); }
     }
 
     /* 사이드바 메뉴 패널 */
@@ -729,8 +708,6 @@
     let wakeLock = null;
     let keepAwakeInterval = null;
     let serverAnnounceTimer = null;
-    let speechSequenceToken = 0;
-    let speechSequenceTimers = [];
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
     let audioCtx = null;
@@ -780,20 +757,8 @@
         clearTimeout(serverAnnounceTimer);
         serverAnnounceTimer = null;
       }
-    }
-
-    function cancelSpeechSequence() {
-      speechSequenceToken++;
-      speechSequenceTimers.forEach(t => clearTimeout(t));
-      speechSequenceTimers = [];
-    }
-
-    function getServerCallText() {
-      if (config.type !== 'doubles' || config.announceServer === 'off') return null;
-      const serverTeam = state.currentServerTeam;
-      const indices = getActiveServerIndices();
-      const activeServerIdx = (serverTeam === 'A') ? indices.serverIdxA : indices.serverIdxB;
-      return (activeServerIdx === 0) ? 'First server.' : 'Second server.';
+      // 진행 중인 종료 음성도 취소하여 정정/새 득점 음성과 겹치지 않게 한다.
+      if (typeof cancelSpeechSequence === 'function') cancelSpeechSequence();
     }
 
     function scheduleServerAnnouncement(customDelayMs = null) {
@@ -802,8 +767,12 @@
       const delayMs = customDelayMs !== null ? customDelayMs : parseInt(config.announceServer || '3000', 10);
 
       serverAnnounceTimer = setTimeout(() => {
-        const callText = getServerCallText();
-        if (callText) speak(callText);
+        if (config.type !== 'doubles') return;
+        const serverTeam = state.currentServerTeam;
+        const indices = getActiveServerIndices();
+        const activeServerIdx = (serverTeam === 'A') ? indices.serverIdxA : indices.serverIdxB;
+        const callText = (activeServerIdx === 0) ? "First server." : "Second server.";
+        speak(callText);
         serverAnnounceTimer = null;
       }, delayMs);
     }
@@ -1335,107 +1304,142 @@
       return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
     }
 
-    function getGameScoreAnnouncement() {
-      const serverTeam = state.currentServerTeam;
-      const first = serverTeam === 'A' ? state.gamesA : state.gamesB;
-      const second = serverTeam === 'A' ? state.gamesB : state.gamesA;
-      return `${first} to ${second}.`;
-    }
-
-    function getSetScoreAnnouncement() {
-      const serverTeam = state.currentServerTeam;
-      const first = serverTeam === 'A' ? state.setsA : state.setsB;
-      const second = serverTeam === 'A' ? state.setsB : state.setsA;
-      return `${first} to ${second}.`;
-    }
-
     function winGame(team) {
       cancelServerAnnouncement();
+
       const winnerCall = getTeamDisplayName(team);
       if (team === 'A') state.gamesA++; else state.gamesB++;
-      state.ptsA = 0; state.ptsB = 0;
+      state.ptsA = 0;
+      state.ptsB = 0;
 
       const gWin = team === 'A' ? state.gamesA : state.gamesB;
       const gLose = team === 'A' ? state.gamesB : state.gamesA;
-      const gameAnnouncement = `Game ${winnerCall}.`;
-
       const totalGames = state.gamesA + state.gamesB;
       const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !state.isTiebreak);
 
+      /*
+       * 게임 종료 음성 순서
+       * 1) "Game, Team A."
+       * 2) 약간의 딜레이 후 다음 서브 팀 기준으로 "2 to 3." 방식
+       *
+       * 세트가 끝나는 경우에는 winSet()에서 동일한 순서로 세트 스코어까지 이어서 호출한다.
+       */
+      if (isAutoCourtChange) manualCourtChange(false, false);
+
       if (state.isTiebreak) {
-        winSet(team, true);
+        winSet(team, true, { finalGameA: state.gamesA, finalGameB: state.gamesB, gameWinner: winnerCall });
         return;
       }
 
       if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
-        // 세트 종료: 세트의 다음 서브 팀을 먼저 결정한 뒤 세트 스코어를 그 팀 기준으로 호출한다.
-        winSet(team, false);
+        winSet(team, false, { finalGameA: state.gamesA, finalGameB: state.gamesB, gameWinner: winnerCall });
         return;
       }
 
+      // 6-6 등 타이브레이크 진입 전 게임 종료
       if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
         state.isTiebreak = true;
         switchServer();
-        if (isAutoCourtChange) manualCourtChange(false, false);
 
-        // 타이브레이크 진입 시에는 Game -> 게임 스코어 -> 기존 서버 지연 -> 1st/2nd server.
-        const score = getGameScoreAnnouncement();
-        const serverCall = getServerCallText();
         speakSequence([
-          { text: gameAnnouncement, delayAfter: 900 },
-          { text: score, delayAfter: parseInt(config.announceServer || '3000', 10) }
-        ], null, serverCall);
+          `Game, ${winnerCall}.`,
+          `${getGameScoreForServer(state.currentServerTeam)}.`
+        ], 750);
+
+        // 음성 큐가 끝난 뒤 서버 순서를 안내
+        scheduleServerAnnouncement(2600);
         return;
       }
 
-      // 일반 게임 종료: 먼저 다음 서브 팀으로 서버를 변경한 뒤 그 팀 기준으로 2 to 3 호출.
+      // 일반 게임 종료: 다음 서브 팀 기준으로 스코어를 먼저 읽는다.
       switchServer();
-      if (isAutoCourtChange) manualCourtChange(false, false);
 
-      const score = getGameScoreAnnouncement();
-      const serverCall = getServerCallText();
       speakSequence([
-        { text: gameAnnouncement, delayAfter: 900 },
-        { text: score, delayAfter: parseInt(config.announceServer || '3000', 10) }
-      ], null, serverCall);
+        `Game, ${winnerCall}.`,
+        `${getGameScoreForServer(state.currentServerTeam)}.`
+      ], 750);
+
+      // "First/Second server" 호출이 게임/스코어 음성과 겹치지 않도록 여유를 둔다.
+      scheduleServerAnnouncement(2600);
     }
 
-    function winSet(team, viaTiebreak = false) {
+    function winSet(team, viaTiebreak = false, gameInfo = null) {
       cancelServerAnnouncement();
+
       const winnerCall = getTeamDisplayName(team);
+      const finalGameA = gameInfo && Number.isFinite(gameInfo.finalGameA) ? gameInfo.finalGameA : state.gamesA;
+      const finalGameB = gameInfo && Number.isFinite(gameInfo.finalGameB) ? gameInfo.finalGameB : state.gamesB;
+
       if (team === 'A') state.setsA++; else state.setsB++;
 
       const tiebreakFirstServer = state.tiebreakFirstServer;
-      state.gamesA = 0; state.gamesB = 0;
+
+      // 세트 종료 전 세트 스코어
+      const newSetsA = state.setsA;
+      const newSetsB = state.setsB;
+      const sWin = team === 'A' ? newSetsA : newSetsB;
+      const isMatchFinished = sWin >= config.setsToWin;
+
+      // 다음 세트의 서버를 먼저 결정한 뒤, 그 팀 기준으로 세트 스코어를 읽는다.
+      if (!isMatchFinished) {
+        if (viaTiebreak && tiebreakFirstServer) {
+          state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
+        } else {
+          switchServer();
+        }
+      }
+
+      const setScoreCall = isMatchFinished
+        ? `${newSetsA} sets to ${newSetsB}.`
+        : `${getSetScoreForServer(state.currentServerTeam, newSetsA, newSetsB)}.`;
+
+      // 세트 상태 초기화
+      state.gamesA = 0;
+      state.gamesB = 0;
       state.isTiebreak = false;
       state.tiebreakFirstServer = null;
 
-      const sWin = team === 'A' ? state.setsA : state.setsB;
-      const matchFinished = sWin >= config.setsToWin;
-
-      if (matchFinished) {
-        // 매치 종료: 더 이상 다음 서브가 없으므로 최종 세트 스코어만 이어서 호출한다.
+      if (isMatchFinished) {
+        // 경기 전체 종료: "Game, Set and Match" 후 게임/세트 스코어를 순서대로 안내
         speakSequence([
-          { text: `Game, set and match, ${winnerCall}.`, delayAfter: 900 },
-          { text: `${state.setsA} to ${state.setsB}.`, delayAfter: 0 }
-        ]);
+          `Game, ${winnerCall}.`,
+          `${getGameScoreForServer(team, finalGameA, finalGameB)}.`,
+          `Set, ${winnerCall}.`,
+          setScoreCall
+        ], 750);
         return;
       }
 
-      // 다음 세트의 서브 팀을 먼저 확정한다.
-      if (viaTiebreak && tiebreakFirstServer) {
-        state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
-      } else {
-        switchServer();
+      if (viaTiebreak && config.courtChange === 'auto') {
+        manualCourtChange(false, false);
       }
-      if (config.courtChange === 'auto') manualCourtChange(false, false);
 
-      const setScore = getSetScoreAnnouncement();
-      const serverCall = getServerCallText();
       speakSequence([
-        { text: `Set, ${winnerCall}.`, delayAfter: 900 },
-        { text: setScore, delayAfter: parseInt(config.announceServer || '3000', 10) }
-      ], null, serverCall);
+        `Game, ${winnerCall}.`,
+        `${getGameScoreForServer(
+          // 세트가 끝난 직후에는 새 세트 서버가 정해져 있으므로,
+          // 종료한 세트의 스코어는 다음 서브 팀 기준으로 읽는다.
+          state.currentServerTeam,
+          finalGameA,
+          finalGameB
+        )}.`,
+        `Set, ${winnerCall}.`,
+        setScoreCall
+      ], 750);
+
+      scheduleServerAnnouncement(5200);
+    }
+
+    // 게임 스코어: 항상 다음 서브를 넣는 팀의 스코어를 먼저 읽는다.
+    function getGameScoreForServer(serverTeam, gamesA = state.gamesA, gamesB = state.gamesB) {
+      if (serverTeam === 'A') return `${gamesA} to ${gamesB}`;
+      return `${gamesB} to ${gamesA}`;
+    }
+
+    // 세트 스코어: 항상 다음 서브를 넣는 팀의 세트 스코어를 먼저 읽는다.
+    function getSetScoreForServer(serverTeam, setsA = state.setsA, setsB = state.setsB) {
+      if (serverTeam === 'A') return `${setsA} to ${setsB}`;
+      return `${setsB} to ${setsA}`;
     }
 
     function switchServer() {
@@ -1465,81 +1469,116 @@
         .trim();
     }
 
-    function createUtterance(text) {
-      const spokenText = getSpokenText(text);
-      const utterance = new SpeechSynthesisUtterance(spokenText);
-      const selectedLang = config.voiceLang || 'en-GB';
-      utterance.lang = selectedLang;
-      utterance.rate = 0.92;
-      utterance.pitch = 1.0;
+    /*
+     * 여러 음성 호출을 순서대로 재생한다.
+     * 기존 speak()는 새 호출 때 이전 음성을 취소하므로,
+     * 게임 종료처럼 "Game → 스코어 → Set → 세트 스코어"가 필요한 경우에는
+     * 이 큐를 사용해 호출 간 간격을 보장한다.
+     */
+    let speechSequenceTimer = null;
+    let speechSequenceToken = 0;
 
-      const voices = window.speechSynthesis.getVoices();
-      if (voices && voices.length > 0) {
-        const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
-                             voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
-        if (matchedVoice) utterance.voice = matchedVoice;
+    function cancelSpeechSequence() {
+      speechSequenceToken++;
+      if (speechSequenceTimer) {
+        clearTimeout(speechSequenceTimer);
+        speechSequenceTimer = null;
       }
-      return utterance;
+    }
+
+    function speakSequence(texts, gapMs = 750) {
+      if (!('speechSynthesis' in window)) return;
+
+      cancelSpeechSequence();
+      window.speechSynthesis.cancel();
+
+      const token = speechSequenceToken;
+      const items = Array.isArray(texts) ? texts.filter(Boolean) : [texts];
+      if (!items.length) return;
+
+      const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
+      let index = 0;
+
+      const playNext = () => {
+        if (token !== speechSequenceToken || index >= items.length) {
+          speechSequenceTimer = null;
+          return;
+        }
+
+        const spokenText = getSpokenText(items[index++]);
+        try {
+          playSilentWakeAudio();
+
+          const utterance = new SpeechSynthesisUtterance(spokenText);
+          const selectedLang = config.voiceLang || 'en-GB';
+          utterance.lang = selectedLang;
+          utterance.rate = 0.92;
+          utterance.pitch = 1.0;
+
+          const voices = window.speechSynthesis.getVoices();
+          if (voices && voices.length > 0) {
+            const matchedVoice =
+              voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
+              voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
+            if (matchedVoice) utterance.voice = matchedVoice;
+          }
+
+          utterance.onend = () => {
+            if (token !== speechSequenceToken) return;
+            speechSequenceTimer = setTimeout(playNext, gapMs);
+          };
+          utterance.onerror = () => {
+            if (token !== speechSequenceToken) return;
+            speechSequenceTimer = setTimeout(playNext, gapMs);
+          };
+
+          // 첫 음성만 기존 Audio Delay를 적용하고, 이후에는 utterance 종료 후 gapMs만 적용한다.
+          if (index === 1 && delay > 0) {
+            speechSequenceTimer = setTimeout(() => {
+              if (token === speechSequenceToken) window.speechSynthesis.speak(utterance);
+            }, delay);
+          } else {
+            window.speechSynthesis.speak(utterance);
+          }
+        } catch (e) {
+          speechSequenceTimer = setTimeout(playNext, gapMs);
+        }
+      };
+
+      playNext();
     }
 
     function speak(text) {
-      if (!('speechSynthesis' in window)) return;
-      try {
-        cancelSpeechSequence();
-        cancelServerAnnouncement();
-        window.speechSynthesis.cancel();
-        playSilentWakeAudio();
+      if ('speechSynthesis' in window) {
+        try {
+          cancelSpeechSequence();
+          window.speechSynthesis.cancel();
 
-        const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
-        const token = speechSequenceToken;
-        const timer = setTimeout(() => {
-          if (token !== speechSequenceToken) return;
-          window.speechSynthesis.speak(createUtterance(text));
-        }, delay);
-        speechSequenceTimers.push(timer);
-      } catch (e) {}
-    }
+          playSilentWakeAudio();
 
-    /*
-     * 종료 안내 전용 음성 큐.
-     * Game/Set -> 짧은 지연 -> 스코어 -> 기존 서버 호출 지연 -> 1st/2nd server
-     * 순서를 보장하기 위해 speechSynthesis.cancel()을 중간에 호출하지 않는다.
-     */
-    function speakSequence(items, finalDelayMs = null, finalText = null) {
-      if (!('speechSynthesis' in window)) return;
-      try {
-        cancelSpeechSequence();
-        cancelServerAnnouncement();
-        window.speechSynthesis.cancel();
-        playSilentWakeAudio();
+          const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
 
-        const token = speechSequenceToken;
-        const audioDelay = config.audioDelay !== undefined ? config.audioDelay : 200;
-        const queue = items.map(item => ({ text: item.text, delayAfter: item.delayAfter || 0 }));
-        if (finalText) queue.push({ text: finalText, delayAfter: 0 });
+          setTimeout(() => {
+            const spokenText = getSpokenText(text);
+            const utterance = new SpeechSynthesisUtterance(spokenText);
+            const selectedLang = config.voiceLang || 'en-GB';
+            utterance.lang = selectedLang;
+            utterance.rate = 0.92;
+            utterance.pitch = 1.0;
 
-        const playAt = (index, delayBefore) => {
-          if (token !== speechSequenceToken || index >= queue.length) return;
-          const timer = setTimeout(() => {
-            if (token !== speechSequenceToken) return;
-            const u = createUtterance(queue[index].text);
-            u.onend = () => {
-              if (token !== speechSequenceToken) return;
-              const nextDelay = queue[index].delayAfter || 0;
-              playAt(index + 1, nextDelay);
-            };
-            u.onerror = () => {
-              if (token !== speechSequenceToken) return;
-              const nextDelay = queue[index].delayAfter || 0;
-              playAt(index + 1, nextDelay);
-            };
-            window.speechSynthesis.speak(u);
-          }, delayBefore);
-          speechSequenceTimers.push(timer);
-        };
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+              const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
+                                   voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
+              if (matchedVoice) {
+                utterance.voice = matchedVoice;
+              }
+            }
 
-        if (queue.length > 0) playAt(0, audioDelay);
-      } catch (e) {}
+            window.speechSynthesis.speak(utterance);
+          }, delay);
+        } catch (e) {}
+      }
     }
 
     function speakCall(prefix = "") {
