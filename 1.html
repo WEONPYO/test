@@ -327,6 +327,34 @@
     .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(204,255,0,0.4); }
     .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(204,255,0,0.4); }
 
+    /* 신규 Correct 제스처 게이지: 화면 상단 */
+    .correct-gauge-container {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: min(62vw, 520px); height: 34px;
+      background: rgba(0,0,0,0.72); border: 2px solid rgba(204,255,0,0.55);
+      border-top: none; border-radius: 0 0 10px 10px;
+      z-index: 155; pointer-events: none; opacity: 0;
+      transition: opacity .15s ease, transform .15s ease; overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,.45);
+    }
+    .correct-gauge-container.active { opacity: 1; }
+    .correct-gauge-fill {
+      position: absolute; left: 0; bottom: 0; height: 5px; width: 0%;
+      background: linear-gradient(90deg, #ccff00, #00ffaa);
+      box-shadow: 0 0 12px rgba(204,255,0,.9);
+      transition: width .08s linear;
+    }
+    .correct-gauge-text {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: .72rem; font-weight: 900; letter-spacing: 1px;
+      text-shadow: 0 2px 5px #000;
+    }
+    .correct-gauge-text .step { color: var(--accent-yellow); margin-left: 7px; }
+    .correct-gauge-container.success {
+      border-color: #00ffaa; box-shadow: 0 0 20px rgba(0,255,170,.65);
+    }
+    .correct-gauge-container.success .correct-gauge-fill { background: #00ffaa; }
+
     .gesture-gauge-container.active { opacity: 1; }
 
     .gauge-fill {
@@ -412,6 +440,11 @@
   <div class="gesture-gauge-container right" id="gauge-right">
     <div class="gauge-fill" id="gauge-fill-right"></div>
     <div class="gauge-status-text" id="gauge-text-right">1.0s HOLD</div>
+  </div>
+
+  <div class="correct-gauge-container" id="correct-gauge">
+    <div class="correct-gauge-text">CORRECT <span class="step" id="correct-gauge-step">READY</span></div>
+    <div class="correct-gauge-fill" id="correct-gauge-fill"></div>
   </div>
 
   <div class="main-app">
@@ -773,6 +806,15 @@
     let detectedTargetSide = null;
     let cooldownUntilTime = 0;
 
+    // 신규 Correct 제스처 상태: 모음 → 벌림 → 모음 → 벌림
+    let correctSequenceStage = 0;
+    let correctSequenceState = null;
+    let correctSequenceLastChange = 0;
+    let correctSequenceStartTime = 0;
+    const CORRECT_SEQUENCE_STEPS = 4;
+    const CORRECT_SEQUENCE_TIMEOUT = 4500;
+    const CORRECT_SEQUENCE_DEBOUNCE = 250;
+
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
       const cycle = Math.floor(totalGames / 2);
@@ -1118,11 +1160,13 @@
       isCameraActive = false;
       render();
       resetGestureGauge();
+      resetCorrectSequenceGauge();
     }
 
     function onPoseResults(results) {
       if (!isCameraActive || !results.poseLandmarks) {
         resetGestureGauge();
+        resetCorrectSequenceGauge();
         return;
       }
 
@@ -1131,6 +1175,7 @@
       if (now < cooldownUntilTime) {
         const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
         updateCooldownGaugeDisplay(remainingCd);
+        resetCorrectSequenceGauge();
         return;
       }
 
@@ -1143,36 +1188,40 @@
 
       if (!nose || !leftWrist || !rightWrist) {
         resetGestureGauge();
+        resetCorrectSequenceGauge();
         return;
       }
 
-      // 두 손 모두 코보다 위로 위치하고 감지 신뢰도가 높은지 판별
-      const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
-      const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
-
+      const leftVisible = leftWrist.visibility > 0.35;
+      const rightVisible = rightWrist.visibility > 0.35;
+      const isLeftUp = (leftWrist.y < nose.y) && leftVisible;
+      const isRightUp = (rightWrist.y < nose.y) && rightVisible;
       let currentTarget = null;
+      let handRatio = null;
 
       if (isLeftUp && isRightUp) {
-        // 2D 피타고라스 정리를 사용하여 두 손목 간 및 어깨 간 유클리드 거리 계산
         const wristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
-        
-        let shoulderWidth = 0.2; // 기본 어깨 너비 대치값
+        let shoulderWidth = 0.2;
         if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
           shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
         }
+        handRatio = wristsDist / (shoulderWidth || 0.2);
+        currentTarget = handRatio < 1.0 ? 'left' : 'right';
+      }
 
-        // 어깨 너비 대비 손목 사이의 거리 비율 계산
-        const handRatio = wristsDist / (shoulderWidth || 0.2);
-
-        // 손을 모았을 때(어깨너비 이하, 비율 < 1.0) -> 왼쪽 스코어
-        // 손을 넓게 벌렸을 때(어깨너비 초과, 비율 >= 1.0) -> 오른쪽 스코어
-        if (handRatio < 1.0) {
-          currentTarget = 'left';
-        } else {
-          currentTarget = 'right';
+      // 신규 Correct 패턴은 기존 모음/벌림 판정값을 그대로 사용한다.
+      // 반드시 '모음(left) → 벌림(right) → 모음(left) → 벌림(right)' 순서여야 한다.
+      if (isLeftUp && isRightUp && handRatio !== null) {
+        updateCorrectSequence(currentTarget, now);
+      } else {
+        // 손이 머리 위에서 내려오면 다음 단계 전환을 준비할 수 있도록 잠시 상태를 유지한다.
+        // 단, 너무 오래 자세가 사라지면 패턴을 초기화한다.
+        if (correctSequenceStage > 0 && now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
+          resetCorrectSequenceGauge();
         }
       }
 
+      // 기존 제스처: 손 모음/벌림을 일정 시간 유지하면 기존 점수 기능 수행.
       if (currentTarget) {
         if (detectedTargetSide !== currentTarget) {
           detectedTargetSide = currentTarget;
@@ -1185,17 +1234,98 @@
 
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
-        if (elapsed >= requiredDurationMs) {
+        // Correct 패턴이 2단계 이상 진행 중이면 기존 HOLD 점수 동작을 잠시 막아
+        // 반복 제스처가 점수 제스처로 오인되는 것을 방지한다.
+        const correctPatternRunning = correctSequenceStage >= 2;
+        if (elapsed >= requiredDurationMs && !correctPatternRunning) {
           const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
           addPoint(targetTeam);
 
           cooldownUntilTime = Date.now() + 3000;
           gestureStartTime = null;
           detectedTargetSide = null;
+          resetCorrectSequenceGauge();
         }
       } else {
         resetGestureGauge();
       }
+    }
+
+    function updateCorrectSequence(currentState, now) {
+      // 첫 동작은 반드시 '손 모음'으로 시작한다.
+      if (correctSequenceStage === 0) {
+        if (currentState === 'left') {
+          correctSequenceStage = 1;
+          correctSequenceState = 'left';
+          correctSequenceLastChange = now;
+          correctSequenceStartTime = now;
+          updateCorrectSequenceGauge();
+        }
+        return;
+      }
+
+      if (now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
+        resetCorrectSequenceGauge();
+        if (currentState === 'left') {
+          correctSequenceStage = 1;
+          correctSequenceState = 'left';
+          correctSequenceLastChange = now;
+          correctSequenceStartTime = now;
+          updateCorrectSequenceGauge();
+        }
+        return;
+      }
+
+      const expected = (correctSequenceStage % 2 === 1) ? 'right' : 'left';
+      if (currentState !== expected || currentState === correctSequenceState) return;
+      if (now - correctSequenceLastChange < CORRECT_SEQUENCE_DEBOUNCE) return;
+
+      correctSequenceStage++;
+      correctSequenceState = currentState;
+      correctSequenceLastChange = now;
+      updateCorrectSequenceGauge();
+
+      if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+        const gauge = document.getElementById('correct-gauge');
+        const text = document.getElementById('correct-gauge-step');
+        const fill = document.getElementById('correct-gauge-fill');
+        gauge.classList.add('active', 'success');
+        fill.style.width = '100%';
+        text.innerText = 'EXECUTE';
+
+        // Correct = 기존 Correction(Undo) 기능을 그대로 호출
+        setTimeout(() => {
+          undo();
+          cooldownUntilTime = Date.now() + 1500;
+          resetCorrectSequenceGauge();
+        }, 180);
+      }
+    }
+
+    function updateCorrectSequenceGauge() {
+      const gauge = document.getElementById('correct-gauge');
+      const fill = document.getElementById('correct-gauge-fill');
+      const text = document.getElementById('correct-gauge-step');
+      if (!gauge || !fill || !text) return;
+
+      gauge.classList.add('active');
+      gauge.classList.remove('success');
+      const ratio = Math.min(correctSequenceStage / CORRECT_SEQUENCE_STEPS, 1);
+      fill.style.width = `${ratio * 100}%`;
+      text.innerText = `${correctSequenceStage}/${CORRECT_SEQUENCE_STEPS}`;
+    }
+
+    function resetCorrectSequenceGauge() {
+      correctSequenceStage = 0;
+      correctSequenceState = null;
+      correctSequenceLastChange = 0;
+      correctSequenceStartTime = 0;
+      const gauge = document.getElementById('correct-gauge');
+      const fill = document.getElementById('correct-gauge-fill');
+      const text = document.getElementById('correct-gauge-step');
+      if (gauge) gauge.classList.remove('active', 'success');
+      if (fill) fill.style.width = '0%';
+      if (text) text.innerText = 'READY';
     }
 
     function updateGestureGaugeDisplay(side, ratio) {
