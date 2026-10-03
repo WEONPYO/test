@@ -112,11 +112,12 @@
 
     /* 게임 스코어: 포인트 스코어를 가리지 않도록 좌측 하단에 크게 표시 */
     .games-score {
-      font-size: 1.6rem; font-weight: 900; line-height: 1.0; opacity: 0.98;
-      position: absolute; left: 10px; bottom: 8px;
-      background: rgba(0,0,0,0.48); padding: 3px 7px; border-radius: 6px;
+      font-size: clamp(0.85rem, 2.5vw, 1.8rem); font-weight: 900; line-height: 1;
+      opacity: 0.98; position: absolute; left: 8px; bottom: 8px;
+      max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis;
+      background: rgba(0,0,0,0.62); padding: 4px 7px; border-radius: 6px;
       z-index: 4; pointer-events: none; white-space: nowrap;
-      text-shadow: 1px 1px 4px rgba(0,0,0,0.85);
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.85);
     }
 
     .point-score {
@@ -131,11 +132,19 @@
     }
 
     .serve-ball {
-      display: inline-block; width: 10px; height: 10px;
-      background-color: var(--accent-yellow); border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-yellow); visibility: hidden;
+      display: inline-block; flex: 0 0 14px; width: 14px; height: 14px;
+      background: #39ff14; border: 2px solid #ffffff; border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(57,255,20,.35), 0 0 12px #39ff14;
+      visibility: hidden;
     }
-    .serve-ball.active { visibility: visible; }
+    .serve-ball.active {
+      visibility: visible;
+      animation: serve-pulse 0.9s ease-in-out infinite;
+    }
+    @keyframes serve-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 2px rgba(57,255,20,.45), 0 0 12px #39ff14; }
+      50% { opacity: .55; transform: scale(1.28); box-shadow: 0 0 0 5px rgba(57,255,20,.18), 0 0 18px #39ff14; }
+    }
 
     .btn-score-up {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -143,7 +152,15 @@
     }
 
     @media (max-width: 700px) {
-      .games-score { font-size: 1.6rem; left: 8px; bottom: 7px; padding: 3px 6px; }
+      .games-score { font-size: clamp(0.8rem, 3.2vw, 1.25rem); left: 6px; bottom: 6px; padding: 3px 5px; }
+    }
+    @media (orientation: portrait) {
+      .games-score { font-size: clamp(0.72rem, 2.8vw, 1.05rem); left: 5px; bottom: 5px; padding: 3px 4px; }
+      .point-score { font-size: min(25vw, 25vh); }
+    }
+    @media (orientation: landscape) and (max-height: 500px) {
+      .games-score { font-size: clamp(0.75rem, 2.2vh, 1.1rem); left: 5px; bottom: 5px; padding: 2px 5px; }
+      .point-score { font-size: min(27vw, 30vh); }
     }
 
     /* 사이드바 메뉴 패널 */
@@ -298,32 +315,30 @@
 
     /* 동작 인식 게이지 */
     .gesture-gauge-container {
-      position: absolute; top: 0; left: 0; right: 0; bottom: auto; width: 100%; height: 20px;
-      background: rgba(0,0,0,0.58); display: flex; flex-direction: row;
-      justify-content: flex-start; z-index: 150; pointer-events: none; opacity: 0;
-      transition: opacity 0.2s ease; overflow: hidden;
-      border-bottom: 2px solid rgba(204,255,0,0.45);
+      position: absolute; top: 0; bottom: 0; width: 28px;
+      background: rgba(0,0,0,0.5); display: flex; flex-direction: column;
+      justify-content: flex-end; z-index: 150; pointer-events: none; opacity: 0;
+      transition: opacity 0.2s ease;
     }
 
-    /* 양손을 어깨높이에서 좌우로 크게 벌리는 Correct 제스처의 게이지는 상단에 표시 */
-    .gesture-gauge-container.right { display: none; }
-    .gesture-gauge-container.left { left: 0; right: 0; }
+    .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(204,255,0,0.4); }
+    .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(204,255,0,0.4); }
 
     .gesture-gauge-container.active { opacity: 1; }
 
     .gauge-fill {
-      width: 0%; height: 100%; background: linear-gradient(to right, #ccff00, #00ffaa);
-      transition: width 0.05s linear; box-shadow: 0 0 10px var(--accent-yellow);
+      width: 100%; height: 0%; background: linear-gradient(to top, #ccff00, #00ffaa);
+      transition: height 0.05s linear; box-shadow: 0 0 10px var(--accent-yellow);
     }
 
     .gauge-status-text {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      white-space: nowrap; font-size: 0.7rem; font-weight: 900; letter-spacing: 1px;
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg);
+      white-space: nowrap; font-size: 0.65rem; font-weight: 900; letter-spacing: 1px;
       color: var(--accent-yellow); text-shadow: 0 2px 4px rgba(0,0,0,0.9);
     }
 
     .gesture-gauge-container.cooldown .gauge-fill {
-      width: 100% !important; height: 100% !important; background: #ff4d4d !important; opacity: 0.6;
+      height: 100% !important; background: #ff4d4d !important; opacity: 0.6;
     }
     .gesture-gauge-container.cooldown .gauge-status-text {
       color: #ffffff;
@@ -1110,50 +1125,35 @@
       const leftShoulder = landmarks[11];
       const rightShoulder = landmarks[12];
 
-      if (!nose || !leftWrist || !rightWrist || !leftShoulder || !rightShoulder) {
+      if (!nose || !leftWrist || !rightWrist) {
         resetGestureGauge();
         return;
       }
 
-      const visibilityOk =
-        leftWrist.visibility > 0.45 && rightWrist.visibility > 0.45 &&
-        leftShoulder.visibility > 0.45 && rightShoulder.visibility > 0.45;
+      // 두 손 모두 코보다 위로 위치하고 감지 신뢰도가 높은지 판별
+      const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
+      const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
 
       let currentTarget = null;
 
-      if (visibilityOk) {
-        // Correct 제스처:
-        // 양손을 양쪽 어깨와 같은 높이로 두고, 각 손을 자기 쪽 바깥으로 최대한 벌린 자세.
-        // 손목의 높이는 어깨 높이와 가까워야 하며, 양손 간격도 어깨 너비보다 충분히 커야 한다.
-        const shoulderWidth = Math.max(
-          Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y),
-          0.12
-        );
+      if (isLeftUp && isRightUp) {
+        // 2D 피타고라스 정리를 사용하여 두 손목 간 및 어깨 간 유클리드 거리 계산
         const wristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
-        const leftOutward = leftWrist.x < leftShoulder.x - shoulderWidth * 0.45;
-        const rightOutward = rightWrist.x > rightShoulder.x + shoulderWidth * 0.45;
-        const leftShoulderLevel = Math.abs(leftWrist.y - leftShoulder.y) <= 0.14;
-        const rightShoulderLevel = Math.abs(rightWrist.y - rightShoulder.y) <= 0.14;
-        const armsSpread = wristsDist / shoulderWidth >= 1.9;
-
-        if (leftOutward && rightOutward && leftShoulderLevel && rightShoulderLevel && armsSpread) {
-          currentTarget = 'correct';
+        
+        let shoulderWidth = 0.2; // 기본 어깨 너비 대치값
+        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
+          shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
         }
-      }
 
-      // 기존 양손 위 제스처(득점)는 Correct 자세가 아닐 때만 처리한다.
-      if (!currentTarget) {
-        const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
-        const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
+        // 어깨 너비 대비 손목 사이의 거리 비율 계산
+        const handRatio = wristsDist / (shoulderWidth || 0.2);
 
-        if (isLeftUp && isRightUp) {
-          const wristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
-          let shoulderWidth = Math.max(
-            Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y),
-            0.2
-          );
-          const handRatio = wristsDist / shoulderWidth;
-          currentTarget = handRatio < 1.0 ? 'left' : 'right';
+        // 손을 모았을 때(어깨너비 이하, 비율 < 1.0) -> 왼쪽 스코어
+        // 손을 넓게 벌렸을 때(어깨너비 초과, 비율 >= 1.0) -> 오른쪽 스코어
+        if (handRatio < 1.0) {
+          currentTarget = 'left';
+        } else {
+          currentTarget = 'right';
         }
       }
 
@@ -1170,15 +1170,8 @@
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
         if (elapsed >= requiredDurationMs) {
-          if (currentTarget === 'correct') {
-            // 설정한 유지 시간 동안 Correct 자세를 유지하면 마지막 포인트를 정정한다.
-            undo();
-          } else {
-            const targetTeam = (currentTarget === 'left')
-              ? state.courtLeftTeam
-              : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-            addPoint(targetTeam);
-          }
+          const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+          addPoint(targetTeam);
 
           cooldownUntilTime = Date.now() + 3000;
           gestureStartTime = null;
@@ -1190,30 +1183,42 @@
     }
 
     function updateGestureGaugeDisplay(side, ratio) {
-      const gauge = document.getElementById('gauge-left');
-      const fill = document.getElementById('gauge-fill-left');
+      const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
+      const fillLeft = document.getElementById('gauge-fill-left');
+      const fillRight = document.getElementById('gauge-fill-right');
       const holdText = `${(config.gestureHoldDuration || 1.0).toFixed(1)}s HOLD`;
 
-      gauge.classList.remove('cooldown');
-      rightGauge.classList.remove('active', 'cooldown');
-      gauge.classList.add('active');
-      fill.style.width = `${ratio * 100}%`;
-      fill.style.height = '100%';
-      document.getElementById('gauge-text-left').innerText =
-        side === 'correct' ? `CORRECT · ${holdText}` : holdText;
+      leftGauge.classList.remove('cooldown');
+      rightGauge.classList.remove('cooldown');
+
+      if (side === 'left') {
+        leftGauge.classList.add('active');
+        rightGauge.classList.remove('active');
+        fillLeft.style.height = `${ratio * 100}%`;
+        fillRight.style.height = `0%`;
+        document.getElementById('gauge-text-left').innerText = holdText;
+      } else if (side === 'right') {
+        rightGauge.classList.add('active');
+        leftGauge.classList.remove('active');
+        fillRight.style.height = `${ratio * 100}%`;
+        fillLeft.style.height = `0%`;
+        document.getElementById('gauge-text-right').innerText = holdText;
+      }
     }
 
     function updateCooldownGaugeDisplay(remainingSec) {
-      const gauge = document.getElementById('gauge-left');
-      const fill = document.getElementById('gauge-fill-left');
+      const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
 
-      rightGauge.classList.remove('active', 'cooldown');
-      gauge.classList.add('active', 'cooldown');
-      fill.style.width = '100%';
-      fill.style.height = '100%';
+      leftGauge.classList.add('active', 'cooldown');
+      rightGauge.classList.add('active', 'cooldown');
+
+      document.getElementById('gauge-fill-left').style.height = '100%';
+      document.getElementById('gauge-fill-right').style.height = '100%';
+
       document.getElementById('gauge-text-left').innerText = `COOL ${remainingSec}s`;
+      document.getElementById('gauge-text-right').innerText = `COOL ${remainingSec}s`;
     }
 
     function resetGestureGauge() {
@@ -1222,13 +1227,12 @@
 
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
-      const fill = document.getElementById('gauge-fill-left');
 
       leftGauge.classList.remove('active', 'cooldown');
       rightGauge.classList.remove('active', 'cooldown');
-      fill.style.width = '0%';
-      fill.style.height = '100%';
-      document.getElementById('gauge-text-left').innerText = `${(config.gestureHoldDuration || 1.0).toFixed(1)}s HOLD`;
+
+      document.getElementById('gauge-fill-left').style.height = '0%';
+      document.getElementById('gauge-fill-right').style.height = '0%';
     }
 
     function saveState() {
