@@ -110,20 +110,24 @@
       z-index: 1; pointer-events: none;
     }
 
-    /* 게임 스코어 크기를 기존 0.8rem에서 4배(3.2rem) 수준으로 확대 */
+    /* 게임 스코어 크기 5배 확대 (0.8rem -> 4.0rem) 및 가독성 강조 */
     .games-score {
-      font-size: clamp(2rem, 5vw, 3.2rem);
-      font-weight: 900;
-      opacity: 0.95;
-      position: absolute;
-      left: 10px;
-      bottom: 8px;
-      background: rgba(0,0,0,0.6);
-      padding: 4px 12px;
-      border-radius: 8px;
+      font-size: clamp(2rem, 6vw, 4rem); 
+      font-weight: 900; 
+      opacity: 0.95; 
+      position: absolute; 
+      bottom: 6px; 
+      left: 50%; 
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.65); 
+      padding: 2px 14px; 
+      border-radius: 8px; 
+      border: 1px solid rgba(255, 255, 255, 0.2);
       z-index: 4;
-      line-height: 1;
-      border: 1px solid rgba(255,255,255,0.2);
+      color: #ffffff;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+      letter-spacing: 1px;
+      white-space: nowrap;
     }
 
     .point-score {
@@ -134,7 +138,7 @@
       text-align: center;
       display: flex; align-items: center; justify-content: center;
       letter-spacing: -2px; margin: 0; padding: 0;
-      transform: translateY(-2%);
+      transform: translateY(-5%);
     }
 
     .serve-ball {
@@ -1104,7 +1108,6 @@
         return;
       }
 
-      // 두 손 모두 코보다 위로 위치하고 감지 신뢰도가 높은지 판별
       const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
       const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
 
@@ -1295,18 +1298,36 @@
       }
     }
 
+    function getLastName(fullName) {
+      if (!fullName) return "";
+      const parts = fullName.trim().split(' ');
+      return parts[parts.length - 1];
+    }
+
+    function getTeamDisplayName(team) {
+      return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
+    }
+
+    /* 게임 승리 시 음성 콜 처리 (서브넣는 팀 점수부터 호출) */
     function winGame(team) {
       cancelServerAnnouncement();
+      const servingTeam = state.currentServerTeam;
+      const receivingTeam = servingTeam === 'A' ? 'B' : 'A';
+
       if (team === 'A') state.gamesA++; else state.gamesB++;
       state.ptsA = 0; state.ptsB = 0;
 
       const gWin = team === 'A' ? state.gamesA : state.gamesB;
       const gLose = team === 'A' ? state.gamesB : state.gamesA;
 
+      // 서브넣은 팀 점수부터 'X to Y' 형태로 스코어 구성
+      const sGames = servingTeam === 'A' ? state.gamesA : state.gamesB;
+      const rGames = receivingTeam === 'A' ? state.gamesA : state.gamesB;
+
       const totalGames = state.gamesA + state.gamesB;
       const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !state.isTiebreak);
 
-      if (isAutoCourtChange) manualCourtChange(false, false);
+      if (isAutoCourtChange) manualCourtChange(true, false);
 
       if (state.isTiebreak) {
         winSet(team, true);
@@ -1314,18 +1335,33 @@
         winSet(team, false);
       } else if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
         state.isTiebreak = true;
+        announceGameEnd(sGames, rGames, true, isAutoCourtChange);
         switchServer();
-        speakScoreSimple();
         scheduleServerAnnouncement();
       } else {
+        announceGameEnd(sGames, rGames, false, isAutoCourtChange);
         switchServer();
-        speakScoreSimple();
         scheduleServerAnnouncement();
       }
     }
 
+    /* 게임 종료 간단 안내 ("Game" -> 약간의 딜레이 후 서브팀 기준 "X to Y") */
+    function announceGameEnd(sGames, rGames, isTiebreakNext = false, isAutoCourtChange = false) {
+      speak("Game");
+      setTimeout(() => {
+        let scoreMsg = `${sGames} to ${rGames}.`;
+        if (isTiebreakNext) scoreMsg += " Tiebreak.";
+        speak(scoreMsg);
+      }, 400);
+    }
+
+    /* 세트 승리 시 음성 콜 처리 (서브넣는 팀 세트 스코어부터 호출) */
     function winSet(team, viaTiebreak = false) {
       cancelServerAnnouncement();
+      const winnerCall = getTeamDisplayName(team);
+      const servingTeam = state.currentServerTeam;
+      const receivingTeam = servingTeam === 'A' ? 'B' : 'A';
+
       if (team === 'A') state.setsA++; else state.setsB++;
 
       const tiebreakFirstServer = state.tiebreakFirstServer;
@@ -1333,35 +1369,28 @@
       state.isTiebreak = false;
       state.tiebreakFirstServer = null;
 
+      const sSets = servingTeam === 'A' ? state.setsA : state.setsB;
+      const rSets = receivingTeam === 'A' ? state.setsA : state.setsB;
+
       const sWin = team === 'A' ? state.setsA : state.setsB;
       if (sWin >= config.setsToWin) {
-        speakScoreSimple(true);
+        speak(`Game, set and match, ${winnerCall}.`);
+        setTimeout(() => {
+          speak(`${sSets} to ${rSets}.`);
+        }, 400);
       } else {
+        speak(`Set, ${winnerCall}.`);
+        setTimeout(() => {
+          speak(`${sSets} to ${rSets}.`);
+        }, 400);
+
         if (viaTiebreak && tiebreakFirstServer) {
           state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
-          if (config.courtChange === 'auto') manualCourtChange(false, false);
+          if (config.courtChange === 'auto') manualCourtChange(true, false);
         } else {
           switchServer();
         }
-        speakScoreSimple();
         scheduleServerAnnouncement();
-      }
-    }
-
-    /* 게임 승리 및 세트 승리 시 서브 팀의 점수를 먼저 읽도록 음성 안내 */
-    function speakScoreSimple(isMatchOver = false) {
-      const server = state.currentServerTeam;
-      const receiver = server === 'A' ? 'B' : 'A';
-      
-      const serverGames = server === 'A' ? state.gamesA : state.gamesB;
-      const receiverGames = receiver === 'A' ? state.gamesA : state.gamesB;
-
-      if (isMatchOver) {
-        const winnerCall = team === 'A' ? (config.playersA[0] || 'Team A') : (config.playersB[0] || 'Team B');
-        speak(`Match over. ${state.setsA} : ${state.setsB}`);
-      } else {
-        // 간단히 서브권을 가진 팀의 점수를 먼저 3:2 형식으로 발음
-        speak(`${serverGames} : ${receiverGames}`);
       }
     }
 
@@ -1424,16 +1453,6 @@
       }
     }
 
-    function getLastName(fullName) {
-      if (!fullName) return "";
-      const parts = fullName.trim().split(' ');
-      return parts[parts.length - 1];
-    }
-
-    function getTeamDisplayName(team) {
-      return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
-    }
-
     function speakCall(prefix = "") {
       let callText = "";
       if (state.isTiebreak) {
@@ -1489,8 +1508,10 @@
 
       document.getElementById('sets-a').innerText = `Set: ${state.setsA}`;
       document.getElementById('sets-b').innerText = `Set: ${state.setsB}`;
-      document.getElementById('games-a').innerText = state.gamesA;
-      document.getElementById('games-b').innerText = state.gamesB;
+      
+      // 게임 스코어 표시는 숫자 형태로 출력
+      document.getElementById('games-a').innerText = `${state.gamesA}`;
+      document.getElementById('games-b').innerText = `${state.gamesB}`;
 
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
