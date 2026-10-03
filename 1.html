@@ -369,11 +369,23 @@
       color: var(--accent-yellow); text-shadow: 0 2px 4px rgba(0,0,0,0.9);
     }
 
+    /* 3초 잠금 중에도 게이지는 빨간색으로 바뀌지 않습니다. */
     .gesture-gauge-container.cooldown .gauge-fill {
-      height: 100% !important; background: #ff4d4d !important; opacity: 0.6;
+      height: 100% !important;
+      background: linear-gradient(to top, #ccff00, #00ffaa) !important;
+      opacity: 0.55;
+      box-shadow: 0 0 10px rgba(0,255,170,.55);
     }
     .gesture-gauge-container.cooldown .gauge-status-text {
       color: #ffffff;
+    }
+
+    /* 서브 아이콘은 활성 상태와 관계없이 항상 흰색 */
+    .serve-menu,
+    .serve-menu.active-toggle,
+    .serve-menu svg,
+    .serve-menu.active-toggle svg {
+      color: #ffffff !important;
     }
 
     /* 설정 및 공통 모달 UI */
@@ -813,6 +825,9 @@
     let gestureStartTime = null;
     let detectedTargetSide = null;
     let cooldownUntilTime = 0;
+    let cameraGestureLockUntil = 0;
+    let cameraGestureNeedsNeutral = false;
+    let cameraGestureLockTimer = null;
 
     // 신규 Correct 제스처 상태: 모음 → 벌림 → 모음 → 벌림
     let correctSequenceStage = 0;
@@ -1196,6 +1211,11 @@
         cameraInstance = null;
       }
       isCameraActive = false;
+      if (cameraGestureLockTimer) { clearTimeout(cameraGestureLockTimer); cameraGestureLockTimer = null; }
+      cameraGestureLockUntil = 0;
+      cooldownUntilTime = 0;
+      cameraGestureNeedsNeutral = false;
+      gesturePointLocked = false;
       render();
       resetGestureGauge();
       resetCorrectSequenceGauge();
@@ -1210,19 +1230,6 @@
       }
 
       const now = Date.now();
-      if (now < cooldownUntilTime) {
-        const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
-        updateCooldownGaugeDisplay(remainingCd);
-        return;
-      }
-      // 3초 잠금이 끝난 뒤에는 반드시 새 제스처를 처음부터 다시 잡습니다.
-      if (cooldownUntilTime !== 0) {
-        cooldownUntilTime = 0;
-        gesturePointLocked = false;
-        gestureStartTime = null;
-        detectedTargetSide = null;
-        resetGestureGauge();
-      }
 
       const landmarks = results.poseLandmarks;
       const nose = landmarks[0];
@@ -1278,19 +1285,6 @@
       // 한 명일 때 Hands의 작은 오검출이 기존 정상 인식을 방해하지 않게 합니다.
       if (lastPoseHadTarget && now - lastPoseGestureTime <= POSE_PRIMARY_WINDOW_MS) {
         return;
-      }
-
-      if (now < cooldownUntilTime) {
-        const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
-        updateCooldownGaugeDisplay(remainingCd);
-        return;
-      }
-      if (cooldownUntilTime !== 0) {
-        cooldownUntilTime = 0;
-        gesturePointLocked = false;
-        gestureStartTime = null;
-        detectedTargetSide = null;
-        resetGestureGauge();
       }
 
       const hands = results.multiHandLandmarks;
@@ -1362,7 +1356,37 @@
     }
 
     function processGestureTarget(currentTarget, now) {
-      if (now < cooldownUntilTime) return;
+      // 점수/정정이 한 번 확정되면 카메라 입력을 정확히 3초간 잠급니다.
+      // 잠금 중 손을 내려놓은 사실은 기록하여, 잠금 해제 후 새 동작만 인정합니다.
+      if (cameraGestureLockUntil > 0) {
+        if (currentTarget === null) {
+          cameraGestureNeedsNeutral = false;
+        }
+        if (now < cameraGestureLockUntil) {
+          const remainingCd = Math.max(0, (cameraGestureLockUntil - now) / 1000);
+          updateCooldownGaugeDisplay(remainingCd.toFixed(1));
+          return;
+        }
+        cameraGestureLockUntil = 0;
+        cooldownUntilTime = 0;
+        gesturePointLocked = false;
+        gestureStartTime = null;
+        detectedTargetSide = null;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
+        resetGestureGauge();
+      }
+
+      // 3초 동안 손을 내리지 않았다면 잠금 해제 후에도 같은 자세를 재인식하지 않습니다.
+      if (cameraGestureNeedsNeutral) {
+        if (currentTarget === null) {
+          cameraGestureNeedsNeutral = false;
+          resetGestureGauge();
+        } else {
+          updateCooldownGaugeDisplay('WAIT');
+          return;
+        }
+      }
 
       // 순간적인 Pose/Hands 흔들림은 후보 상태로만 보관하고,
       // 같은 방향이 짧게 안정된 뒤에만 실제 제스처 상태로 반영합니다.
@@ -1420,10 +1444,7 @@
             ? state.courtLeftTeam
             : (state.courtLeftTeam === 'A' ? 'B' : 'A');
           addPoint(targetTeam);
-          gesturePointLocked = true;
-          gestureStartTime = null;
-          detectedTargetSide = null;
-          cooldownUntilTime = Date.now() + GESTURE_COOLDOWN_MS;
+          lockCameraGestureFor3Seconds();
         }
       } else {
         resetGestureGauge();
@@ -1481,12 +1502,9 @@
         // 완성된 경우에만 기존 Correction(Undo) 실행.
         setTimeout(() => {
           undo();
-          cooldownUntilTime = Date.now() + GESTURE_COOLDOWN_MS;
-          gesturePointLocked = true;
+          lockCameraGestureFor3Seconds();
           resetCorrectSequenceGauge();
           correctSequenceBusy = false;
-          detectedTargetSide = null;
-          gestureStartTime = null;
         }, 220);
       }
     }
@@ -1546,6 +1564,29 @@
       }
     }
 
+    function lockCameraGestureFor3Seconds() {
+      const now = Date.now();
+      cameraGestureLockUntil = now + GESTURE_COOLDOWN_MS;
+      cooldownUntilTime = cameraGestureLockUntil;
+      gesturePointLocked = true;
+      cameraGestureNeedsNeutral = true;
+      gestureStartTime = null;
+      detectedTargetSide = null;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      resetCorrectSequenceGauge();
+      if (cameraGestureLockTimer) clearTimeout(cameraGestureLockTimer);
+      cameraGestureLockTimer = setTimeout(() => {
+        cameraGestureLockTimer = null;
+        if (Date.now() >= cameraGestureLockUntil) {
+          cameraGestureLockUntil = 0;
+          cooldownUntilTime = 0;
+          gesturePointLocked = false;
+          resetGestureGauge();
+        }
+      }, GESTURE_COOLDOWN_MS + 80);
+    }
+
     function updateCooldownGaugeDisplay(remainingSec) {
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
@@ -1556,8 +1597,9 @@
       document.getElementById('gauge-fill-left').style.height = '100%';
       document.getElementById('gauge-fill-right').style.height = '100%';
 
-      document.getElementById('gauge-text-left').innerText = `COOL ${remainingSec}s`;
-      document.getElementById('gauge-text-right').innerText = `COOL ${remainingSec}s`;
+      const label = remainingSec === 'WAIT' ? 'WAIT' : `LOCK ${remainingSec}s`;
+      document.getElementById('gauge-text-left').innerText = label;
+      document.getElementById('gauge-text-right').innerText = label;
     }
 
     function resetGestureGauge() {
