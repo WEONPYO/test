@@ -110,22 +110,13 @@
       z-index: 1; pointer-events: none;
     }
 
-    /* 기존 대비 폰트크기 약 5배 증대 및 왼쪽 하단 배치 */
+    /* 게임 스코어: 포인트 스코어를 가리지 않도록 좌측 하단에 크게 표시 */
     .games-score {
-      font-size: clamp(2.5rem, 6vw, 4.2rem);
-      font-weight: 900;
-      position: absolute;
-      left: 12px;
-      bottom: 8px;
-      background: rgba(0, 0, 0, 0.45);
-      padding: 2px 12px;
-      border-radius: 8px;
-      z-index: 2;
-      pointer-events: none;
-      color: var(--accent-yellow);
-      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
-      line-height: 1;
-      border: 1px solid rgba(204, 255, 0, 0.3);
+      font-size: 4rem; font-weight: 900; line-height: 0.95; opacity: 0.98;
+      position: absolute; left: 14px; bottom: 12px;
+      background: rgba(0,0,0,0.48); padding: 6px 12px; border-radius: 8px;
+      z-index: 4; pointer-events: none; white-space: nowrap;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.85);
     }
 
     .point-score {
@@ -149,6 +140,10 @@
     .btn-score-up {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       opacity: 0; cursor: pointer; z-index: 3;
+    }
+
+    @media (max-width: 700px) {
+      .games-score { font-size: 3rem; left: 10px; bottom: 10px; padding: 5px 9px; }
     }
 
     /* 사이드바 메뉴 패널 */
@@ -418,7 +413,7 @@
         <div class="score-body">
           <div class="point-score" id="points-a">0</div>
         </div>
-        <div class="games-score" id="games-a">0</div>
+        <div class="games-score" id="games-a">Game: 0</div>
         <button class="btn-score-up" onclick="addPoint('A')"></button>
       </div>
 
@@ -439,7 +434,7 @@
         <div class="score-body">
           <div class="point-score" id="points-b">0</div>
         </div>
-        <div class="games-score" id="games-b">0</div>
+        <div class="games-score" id="games-b">Game: 0</div>
         <button class="btn-score-up" onclick="addPoint('B')"></button>
       </div>
     </div>
@@ -515,7 +510,7 @@
       </button>
 
       <button class="btn-icon-menu btn-compact" id="btn-settings-sidebar" title="Open Settings">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         <span>SETTING</span>
       </button>
     </div>
@@ -717,6 +712,8 @@
     let wakeLock = null;
     let keepAwakeInterval = null;
     let serverAnnounceTimer = null;
+    let speechSequenceToken = 0;
+    let speechSequenceTimers = [];
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
 
     let audioCtx = null;
@@ -768,18 +765,28 @@
       }
     }
 
+    function cancelSpeechSequence() {
+      speechSequenceToken++;
+      speechSequenceTimers.forEach(t => clearTimeout(t));
+      speechSequenceTimers = [];
+    }
+
+    function getServerCallText() {
+      if (config.type !== 'doubles' || config.announceServer === 'off') return null;
+      const serverTeam = state.currentServerTeam;
+      const indices = getActiveServerIndices();
+      const activeServerIdx = (serverTeam === 'A') ? indices.serverIdxA : indices.serverIdxB;
+      return (activeServerIdx === 0) ? 'First server.' : 'Second server.';
+    }
+
     function scheduleServerAnnouncement(customDelayMs = null) {
       cancelServerAnnouncement();
       if (config.type !== 'doubles' || config.announceServer === 'off') return;
       const delayMs = customDelayMs !== null ? customDelayMs : parseInt(config.announceServer || '3000', 10);
 
       serverAnnounceTimer = setTimeout(() => {
-        if (config.type !== 'doubles') return;
-        const serverTeam = state.currentServerTeam;
-        const indices = getActiveServerIndices();
-        const activeServerIdx = (serverTeam === 'A') ? indices.serverIdxA : indices.serverIdxB;
-        const callText = (activeServerIdx === 0) ? "First server." : "Second server.";
-        speak(callText);
+        const callText = getServerCallText();
+        if (callText) speak(callText);
         serverAnnounceTimer = null;
       }, delayMs);
     }
@@ -1106,21 +1113,26 @@
         return;
       }
 
+      // 두 손 모두 코보다 위로 위치하고 감지 신뢰도가 높은지 판별
       const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
       const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
 
       let currentTarget = null;
 
       if (isLeftUp && isRightUp) {
+        // 2D 피타고라스 정리를 사용하여 두 손목 간 및 어깨 간 유클리드 거리 계산
         const wristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
         
-        let shoulderWidth = 0.2;
+        let shoulderWidth = 0.2; // 기본 어깨 너비 대치값
         if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
           shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
         }
 
+        // 어깨 너비 대비 손목 사이의 거리 비율 계산
         const handRatio = wristsDist / (shoulderWidth || 0.2);
 
+        // 손을 모았을 때(어깨너비 이하, 비율 < 1.0) -> 왼쪽 스코어
+        // 손을 넓게 벌렸을 때(어깨너비 초과, 비율 >= 1.0) -> 오른쪽 스코어
         if (handRatio < 1.0) {
           currentTarget = 'left';
         } else {
@@ -1306,6 +1318,20 @@
       return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
     }
 
+    function getGameScoreAnnouncement() {
+      const serverTeam = state.currentServerTeam;
+      const first = serverTeam === 'A' ? state.gamesA : state.gamesB;
+      const second = serverTeam === 'A' ? state.gamesB : state.gamesA;
+      return `${first} to ${second}.`;
+    }
+
+    function getSetScoreAnnouncement() {
+      const serverTeam = state.currentServerTeam;
+      const first = serverTeam === 'A' ? state.setsA : state.setsB;
+      const second = serverTeam === 'A' ? state.setsB : state.setsA;
+      return `${first} to ${second}.`;
+    }
+
     function winGame(team) {
       cancelServerAnnouncement();
       const winnerCall = getTeamDisplayName(team);
@@ -1314,42 +1340,47 @@
 
       const gWin = team === 'A' ? state.gamesA : state.gamesB;
       const gLose = team === 'A' ? state.gamesB : state.gamesA;
+      const gameAnnouncement = `Game ${winnerCall}.`;
 
       const totalGames = state.gamesA + state.gamesB;
       const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !state.isTiebreak);
 
-      if (isAutoCourtChange) manualCourtChange(false, false);
-
       if (state.isTiebreak) {
         winSet(team, true);
-      } else if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
-        winSet(team, false);
-      } else {
-        // 1. 게임 종료 시 간단하게 Game [팀명] 호출
-        speak(`Game ${winnerCall}.`);
-
-        // 다음 서브팀 변경
-        switchServer();
-
-        // 2. 약 700ms 딜레이 후 다음 서브 넣을 팀 기준으로 간단 스코어(2 to 3) 호출
-        setTimeout(() => {
-          const nextServe = state.currentServerTeam;
-          const sGames = (nextServe === 'A') ? state.gamesA : state.gamesB;
-          const rGames = (nextServe === 'A') ? state.gamesB : state.gamesA;
-          
-          let subCall = `${sGames} to ${rGames}.`;
-          if (isAutoCourtChange) {
-            subCall += " Change ends.";
-          }
-          if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
-            state.isTiebreak = true;
-            subCall += " Tiebreak.";
-          }
-
-          speak(subCall);
-          scheduleServerAnnouncement(isAutoCourtChange ? 3500 : 2500);
-        }, 700);
+        return;
       }
+
+      if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
+        // 세트 종료: 세트의 다음 서브 팀을 먼저 결정한 뒤 세트 스코어를 그 팀 기준으로 호출한다.
+        winSet(team, false);
+        return;
+      }
+
+      if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
+        state.isTiebreak = true;
+        switchServer();
+        if (isAutoCourtChange) manualCourtChange(false, false);
+
+        // 타이브레이크 진입 시에는 Game -> 게임 스코어 -> 기존 서버 지연 -> 1st/2nd server.
+        const score = getGameScoreAnnouncement();
+        const serverCall = getServerCallText();
+        speakSequence([
+          { text: gameAnnouncement, delayAfter: 900 },
+          { text: score, delayAfter: parseInt(config.announceServer || '3000', 10) }
+        ], null, serverCall);
+        return;
+      }
+
+      // 일반 게임 종료: 먼저 다음 서브 팀으로 서버를 변경한 뒤 그 팀 기준으로 2 to 3 호출.
+      switchServer();
+      if (isAutoCourtChange) manualCourtChange(false, false);
+
+      const score = getGameScoreAnnouncement();
+      const serverCall = getServerCallText();
+      speakSequence([
+        { text: gameAnnouncement, delayAfter: 900 },
+        { text: score, delayAfter: parseInt(config.announceServer || '3000', 10) }
+      ], null, serverCall);
     }
 
     function winSet(team, viaTiebreak = false) {
@@ -1363,35 +1394,31 @@
       state.tiebreakFirstServer = null;
 
       const sWin = team === 'A' ? state.setsA : state.setsB;
+      const matchFinished = sWin >= config.setsToWin;
 
-      if (sWin >= config.setsToWin) {
-        // 매치 종료
-        speak(`Game, set and match, ${winnerCall}.`);
-        setTimeout(() => {
-          const sSets = (state.currentServerTeam === 'A') ? state.setsA : state.setsB;
-          const rSets = (state.currentServerTeam === 'A') ? state.setsB : state.setsA;
-          speak(`${sSets} to ${rSets}.`);
-        }, 700);
-      } else {
-        // 세트 종료
-        speak(`Set ${winnerCall}.`);
-
-        if (viaTiebreak && tiebreakFirstServer) {
-          state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
-          if (config.courtChange === 'auto') manualCourtChange(false, false);
-        } else {
-          switchServer();
-        }
-
-        // 딜레이 후 세트 스코어 안내
-        setTimeout(() => {
-          const nextServe = state.currentServerTeam;
-          const sSets = (nextServe === 'A') ? state.setsA : state.setsB;
-          const rSets = (nextServe === 'A') ? state.setsB : state.setsA;
-          speak(`${sSets} to ${rSets}.`);
-          scheduleServerAnnouncement(2500);
-        }, 700);
+      if (matchFinished) {
+        // 매치 종료: 더 이상 다음 서브가 없으므로 최종 세트 스코어만 이어서 호출한다.
+        speakSequence([
+          { text: `Game, set and match, ${winnerCall}.`, delayAfter: 900 },
+          { text: `${state.setsA} to ${state.setsB}.`, delayAfter: 0 }
+        ]);
+        return;
       }
+
+      // 다음 세트의 서브 팀을 먼저 확정한다.
+      if (viaTiebreak && tiebreakFirstServer) {
+        state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
+      } else {
+        switchServer();
+      }
+      if (config.courtChange === 'auto') manualCourtChange(false, false);
+
+      const setScore = getSetScoreAnnouncement();
+      const serverCall = getServerCallText();
+      speakSequence([
+        { text: `Set, ${winnerCall}.`, delayAfter: 900 },
+        { text: setScore, delayAfter: parseInt(config.announceServer || '3000', 10) }
+      ], null, serverCall);
     }
 
     function switchServer() {
@@ -1421,36 +1448,81 @@
         .trim();
     }
 
-    function speak(text) {
-      if ('speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel();
+    function createUtterance(text) {
+      const spokenText = getSpokenText(text);
+      const utterance = new SpeechSynthesisUtterance(spokenText);
+      const selectedLang = config.voiceLang || 'en-GB';
+      utterance.lang = selectedLang;
+      utterance.rate = 0.92;
+      utterance.pitch = 1.0;
 
-          playSilentWakeAudio();
-
-          const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
-
-          setTimeout(() => {
-            const spokenText = getSpokenText(text);
-            const utterance = new SpeechSynthesisUtterance(spokenText);
-            const selectedLang = config.voiceLang || 'en-GB';
-            utterance.lang = selectedLang;
-            utterance.rate = 0.92;
-            utterance.pitch = 1.0;
-
-            const voices = window.speechSynthesis.getVoices();
-            if (voices && voices.length > 0) {
-              const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
-                                   voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
-              if (matchedVoice) {
-                utterance.voice = matchedVoice;
-              }
-            }
-
-            window.speechSynthesis.speak(utterance);
-          }, delay);
-        } catch (e) {}
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length > 0) {
+        const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
+                             voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
+        if (matchedVoice) utterance.voice = matchedVoice;
       }
+      return utterance;
+    }
+
+    function speak(text) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        cancelSpeechSequence();
+        cancelServerAnnouncement();
+        window.speechSynthesis.cancel();
+        playSilentWakeAudio();
+
+        const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
+        const token = speechSequenceToken;
+        const timer = setTimeout(() => {
+          if (token !== speechSequenceToken) return;
+          window.speechSynthesis.speak(createUtterance(text));
+        }, delay);
+        speechSequenceTimers.push(timer);
+      } catch (e) {}
+    }
+
+    /*
+     * 종료 안내 전용 음성 큐.
+     * Game/Set -> 짧은 지연 -> 스코어 -> 기존 서버 호출 지연 -> 1st/2nd server
+     * 순서를 보장하기 위해 speechSynthesis.cancel()을 중간에 호출하지 않는다.
+     */
+    function speakSequence(items, finalDelayMs = null, finalText = null) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        cancelSpeechSequence();
+        cancelServerAnnouncement();
+        window.speechSynthesis.cancel();
+        playSilentWakeAudio();
+
+        const token = speechSequenceToken;
+        const audioDelay = config.audioDelay !== undefined ? config.audioDelay : 200;
+        const queue = items.map(item => ({ text: item.text, delayAfter: item.delayAfter || 0 }));
+        if (finalText) queue.push({ text: finalText, delayAfter: 0 });
+
+        const playAt = (index, delayBefore) => {
+          if (token !== speechSequenceToken || index >= queue.length) return;
+          const timer = setTimeout(() => {
+            if (token !== speechSequenceToken) return;
+            const u = createUtterance(queue[index].text);
+            u.onend = () => {
+              if (token !== speechSequenceToken) return;
+              const nextDelay = queue[index].delayAfter || 0;
+              playAt(index + 1, nextDelay);
+            };
+            u.onerror = () => {
+              if (token !== speechSequenceToken) return;
+              const nextDelay = queue[index].delayAfter || 0;
+              playAt(index + 1, nextDelay);
+            };
+            window.speechSynthesis.speak(u);
+          }, delayBefore);
+          speechSequenceTimers.push(timer);
+        };
+
+        if (queue.length > 0) playAt(0, audioDelay);
+      } catch (e) {}
     }
 
     function speakCall(prefix = "") {
@@ -1508,8 +1580,8 @@
 
       document.getElementById('sets-a').innerText = `Set: ${state.setsA}`;
       document.getElementById('sets-b').innerText = `Set: ${state.setsB}`;
-      document.getElementById('games-a').innerText = state.gamesA;
-      document.getElementById('games-b').innerText = state.gamesB;
+      document.getElementById('games-a').innerText = `Game: ${state.gamesA}`;
+      document.getElementById('games-b').innerText = `Game: ${state.gamesB}`;
 
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
@@ -1565,7 +1637,7 @@
       updateMarkerContent(pmA1, config.playersA[0], isA1_Server ? 'SERVE' : (isA1_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmA2, config.playersA[1], isA2_Server ? 'SERVE' : (isA2_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmB1, config.playersB[0], isB1_Server ? 'SERVE' : (isB1_Receiver ? 'RECEIVER' : ''));
-      updateMarkerContent(pmB2, config.playersB[1], isB2_Receiver ? 'RECEIVER' : ''));
+      updateMarkerContent(pmB2, config.playersB[1], isB2_Server ? 'SERVE' : (isB2_Receiver ? 'RECEIVER' : ''));
 
       pmA1.style.background = 'var(--team-a-color)';
       pmA2.style.background = 'var(--team-a-color)';
