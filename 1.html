@@ -811,9 +811,14 @@
     let correctSequenceState = null;
     let correctSequenceLastChange = 0;
     let correctSequenceStartTime = 0;
+    let correctSequenceBusy = false;
     const CORRECT_SEQUENCE_STEPS = 4;
-    const CORRECT_SEQUENCE_TIMEOUT = 4500;
-    const CORRECT_SEQUENCE_DEBOUNCE = 250;
+    const CORRECT_SEQUENCE_TIMEOUT = 5000;
+    const CORRECT_SEQUENCE_DEBOUNCE = 220;
+    const CORRECT_SEQUENCE_STABLE_MS = 180;
+
+    // 기존 단일 점수 제스처의 중복 실행 방지용
+    let gesturePointLocked = false;
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
@@ -1175,7 +1180,6 @@
       if (now < cooldownUntilTime) {
         const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
         updateCooldownGaugeDisplay(remainingCd);
-        resetCorrectSequenceGauge();
         return;
       }
 
@@ -1194,34 +1198,49 @@
 
       const leftVisible = leftWrist.visibility > 0.35;
       const rightVisible = rightWrist.visibility > 0.35;
-      const isLeftUp = (leftWrist.y < nose.y) && leftVisible;
-      const isRightUp = (rightWrist.y < nose.y) && rightVisible;
+      const isLeftUp = leftVisible && leftWrist.y < nose.y;
+      const isRightUp = rightVisible && rightWrist.y < nose.y;
+
       let currentTarget = null;
       let handRatio = null;
 
+      // 기존 제스처 판정은 그대로 유지:
+      // 양손이 머리 위 + 손 모음 = left, 손 벌림 = right
       if (isLeftUp && isRightUp) {
-        const wristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
+        const wristsDist = Math.hypot(
+          leftWrist.x - rightWrist.x,
+          leftWrist.y - rightWrist.y
+        );
+
         let shoulderWidth = 0.2;
-        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
-          shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
+        if (leftShoulder && rightShoulder &&
+            leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
+          shoulderWidth = Math.hypot(
+            leftShoulder.x - rightShoulder.x,
+            leftShoulder.y - rightShoulder.y
+          );
         }
+
         handRatio = wristsDist / (shoulderWidth || 0.2);
         currentTarget = handRatio < 1.0 ? 'left' : 'right';
       }
 
-      // 신규 Correct 패턴은 기존 모음/벌림 판정값을 그대로 사용한다.
-      // 반드시 '모음(left) → 벌림(right) → 모음(left) → 벌림(right)' 순서여야 한다.
-      if (isLeftUp && isRightUp && handRatio !== null) {
+      // ------------------------------------------------------------
+      // 신규 Correct 패턴
+      // 모음(left) → 벌림(right) → 모음(left) → 벌림(right)
+      // ------------------------------------------------------------
+      if (currentTarget) {
         updateCorrectSequence(currentTarget, now);
-      } else {
-        // 손이 머리 위에서 내려오면 다음 단계 전환을 준비할 수 있도록 잠시 상태를 유지한다.
-        // 단, 너무 오래 자세가 사라지면 패턴을 초기화한다.
-        if (correctSequenceStage > 0 && now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
-          resetCorrectSequenceGauge();
-        }
+      } else if (correctSequenceStage > 0 &&
+                 now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
+        resetCorrectSequenceGauge();
       }
 
-      // 기존 제스처: 손 모음/벌림을 일정 시간 유지하면 기존 점수 기능 수행.
+      // ------------------------------------------------------------
+      // 기존 점수 제스처
+      // 기존의 "한 자세를 HOLD"하는 기능은 그대로 유지한다.
+      // Correct 패턴이 2단계 이상 진행되면 점수 동작은 잠시 정지한다.
+      // ------------------------------------------------------------
       if (currentTarget) {
         if (detectedTargetSide !== currentTarget) {
           detectedTargetSide = currentTarget;
@@ -1231,40 +1250,54 @@
         const requiredDurationMs = (config.gestureHoldDuration || 1.0) * 1000;
         const elapsed = now - gestureStartTime;
         const progressRatio = Math.min(elapsed / requiredDurationMs, 1.0);
-
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
-        // Correct 패턴이 2단계 이상 진행 중이면 기존 HOLD 점수 동작을 잠시 막아
-        // 반복 제스처가 점수 제스처로 오인되는 것을 방지한다.
+        // Correct가 실제 반복 동작으로 진행되면 점수 제스처를 막는다.
+        // 첫 자세(stage 1)는 기존 HOLD 기능을 그대로 사용할 수 있다.
         const correctPatternRunning = correctSequenceStage >= 2;
-        if (elapsed >= requiredDurationMs && !correctPatternRunning) {
-          const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+
+        if (elapsed >= requiredDurationMs &&
+            !correctPatternRunning &&
+            !gesturePointLocked) {
+          const targetTeam = (currentTarget === 'left')
+            ? state.courtLeftTeam
+            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+
           addPoint(targetTeam);
 
-          cooldownUntilTime = Date.now() + 3000;
+          // 기존 제스처의 중복 점수 방지. 다음 새로운 동작까지 잠금.
+          gesturePointLocked = true;
           gestureStartTime = null;
           detectedTargetSide = null;
-          resetCorrectSequenceGauge();
+
+          // Correct 반복을 시작한 경우에도 3초 전체 차단하지 않도록 짧게 둔다.
+          // 일반적인 HOLD 중복은 gesturePointLocked가 막는다.
+          cooldownUntilTime = Date.now() + 450;
         }
       } else {
         resetGestureGauge();
+        // 손을 머리 아래로 내리면 다음 단일 점수 제스처를 다시 허용한다.
+        gesturePointLocked = false;
       }
     }
 
     function updateCorrectSequence(currentState, now) {
-      // 첫 동작은 반드시 '손 모음'으로 시작한다.
+      if (correctSequenceBusy) return;
+
+      // 첫 시작은 반드시 "손 모음".
       if (correctSequenceStage === 0) {
-        if (currentState === 'left') {
-          correctSequenceStage = 1;
-          correctSequenceState = 'left';
-          correctSequenceLastChange = now;
-          correctSequenceStartTime = now;
-          updateCorrectSequenceGauge();
-        }
+        if (currentState !== 'left') return;
+
+        correctSequenceStage = 1;
+        correctSequenceState = 'left';
+        correctSequenceLastChange = now;
+        correctSequenceStartTime = now;
+        updateCorrectSequenceGauge();
         return;
       }
 
-      if (now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
+      // 전체 패턴을 완료하지 못하고 너무 오래 지나면 초기화.
+      if (now - correctSequenceStartTime > CORRECT_SEQUENCE_TIMEOUT) {
         resetCorrectSequenceGauge();
         if (currentState === 'left') {
           correctSequenceStage = 1;
@@ -1276,8 +1309,26 @@
         return;
       }
 
+      // 같은 자세가 계속 들어오는 동안에는 단계 증가 금지.
+      if (currentState === correctSequenceState) return;
+
+      // 반드시 left → right → left → right 순서.
       const expected = (correctSequenceStage % 2 === 1) ? 'right' : 'left';
-      if (currentState !== expected || currentState === correctSequenceState) return;
+      if (currentState !== expected) {
+        // 잘못된 방향이면 새 시작으로 재동기화.
+        resetCorrectSequenceGauge();
+        if (currentState === 'left') {
+          correctSequenceStage = 1;
+          correctSequenceState = 'left';
+          correctSequenceLastChange = now;
+          correctSequenceStartTime = now;
+          updateCorrectSequenceGauge();
+        }
+        return;
+      }
+
+      // 아주 짧은 Pose 흔들림으로 단계가 바뀌는 것을 방지.
+      if (now - correctSequenceLastChange < CORRECT_SEQUENCE_STABLE_MS) return;
       if (now - correctSequenceLastChange < CORRECT_SEQUENCE_DEBOUNCE) return;
 
       correctSequenceStage++;
@@ -1286,19 +1337,25 @@
       updateCorrectSequenceGauge();
 
       if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+        correctSequenceBusy = true;
+
         const gauge = document.getElementById('correct-gauge');
         const text = document.getElementById('correct-gauge-step');
         const fill = document.getElementById('correct-gauge-fill');
-        gauge.classList.add('active', 'success');
-        fill.style.width = '100%';
-        text.innerText = 'EXECUTE';
+        if (gauge && text && fill) {
+          gauge.classList.add('active', 'success');
+          fill.style.width = '100%';
+          text.innerText = 'CORRECT';
+        }
 
-        // Correct = 기존 Correction(Undo) 기능을 그대로 호출
+        // 마지막 반복 동작이 끝난 뒤 기존 Correction(Undo) 기능 실행.
         setTimeout(() => {
           undo();
           cooldownUntilTime = Date.now() + 1500;
+          gesturePointLocked = true;
           resetCorrectSequenceGauge();
-        }, 180);
+          correctSequenceBusy = false;
+        }, 220);
       }
     }
 
@@ -1320,6 +1377,8 @@
       correctSequenceState = null;
       correctSequenceLastChange = 0;
       correctSequenceStartTime = 0;
+      correctSequenceBusy = false;
+
       const gauge = document.getElementById('correct-gauge');
       const fill = document.getElementById('correct-gauge-fill');
       const text = document.getElementById('correct-gauge-step');
