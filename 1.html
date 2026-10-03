@@ -110,24 +110,22 @@
       z-index: 1; pointer-events: none;
     }
 
-    /* 게임 스코어 크기 5배 확대 (0.8rem -> 4.0rem) 및 가독성 강조 */
+    /* 기존 대비 폰트크기 약 5배 증대 및 왼쪽 하단 배치 */
     .games-score {
-      font-size: clamp(2rem, 6vw, 4rem); 
-      font-weight: 900; 
-      opacity: 0.95; 
-      position: absolute; 
-      bottom: 6px; 
-      left: 50%; 
-      transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.65); 
-      padding: 2px 14px; 
-      border-radius: 8px; 
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      z-index: 4;
-      color: #ffffff;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.9);
-      letter-spacing: 1px;
-      white-space: nowrap;
+      font-size: clamp(2.5rem, 6vw, 4.2rem);
+      font-weight: 900;
+      position: absolute;
+      left: 12px;
+      bottom: 8px;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 2px 12px;
+      border-radius: 8px;
+      z-index: 2;
+      pointer-events: none;
+      color: var(--accent-yellow);
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
+      line-height: 1;
+      border: 1px solid rgba(204, 255, 0, 0.3);
     }
 
     .point-score {
@@ -138,7 +136,7 @@
       text-align: center;
       display: flex; align-items: center; justify-content: center;
       letter-spacing: -2px; margin: 0; padding: 0;
-      transform: translateY(-5%);
+      transform: translateY(-2%);
     }
 
     .serve-ball {
@@ -517,7 +515,7 @@
       </button>
 
       <button class="btn-icon-menu btn-compact" id="btn-settings-sidebar" title="Open Settings">
-        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6-3.6z"/></svg>
         <span>SETTING</span>
       </button>
     </div>
@@ -1308,60 +1306,55 @@
       return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
     }
 
-    /* 게임 승리 시 음성 콜 처리 (서브넣는 팀 점수부터 호출) */
     function winGame(team) {
       cancelServerAnnouncement();
-      const servingTeam = state.currentServerTeam;
-      const receivingTeam = servingTeam === 'A' ? 'B' : 'A';
-
+      const winnerCall = getTeamDisplayName(team);
       if (team === 'A') state.gamesA++; else state.gamesB++;
       state.ptsA = 0; state.ptsB = 0;
 
       const gWin = team === 'A' ? state.gamesA : state.gamesB;
       const gLose = team === 'A' ? state.gamesB : state.gamesA;
 
-      // 서브넣은 팀 점수부터 'X to Y' 형태로 스코어 구성
-      const sGames = servingTeam === 'A' ? state.gamesA : state.gamesB;
-      const rGames = receivingTeam === 'A' ? state.gamesA : state.gamesB;
-
       const totalGames = state.gamesA + state.gamesB;
       const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !state.isTiebreak);
 
-      if (isAutoCourtChange) manualCourtChange(true, false);
+      if (isAutoCourtChange) manualCourtChange(false, false);
 
       if (state.isTiebreak) {
         winSet(team, true);
       } else if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
         winSet(team, false);
-      } else if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
-        state.isTiebreak = true;
-        announceGameEnd(sGames, rGames, true, isAutoCourtChange);
-        switchServer();
-        scheduleServerAnnouncement();
       } else {
-        announceGameEnd(sGames, rGames, false, isAutoCourtChange);
+        // 1. 게임 종료 시 간단하게 Game [팀명] 호출
+        speak(`Game ${winnerCall}.`);
+
+        // 다음 서브팀 변경
         switchServer();
-        scheduleServerAnnouncement();
+
+        // 2. 약 700ms 딜레이 후 다음 서브 넣을 팀 기준으로 간단 스코어(2 to 3) 호출
+        setTimeout(() => {
+          const nextServe = state.currentServerTeam;
+          const sGames = (nextServe === 'A') ? state.gamesA : state.gamesB;
+          const rGames = (nextServe === 'A') ? state.gamesB : state.gamesA;
+          
+          let subCall = `${sGames} to ${rGames}.`;
+          if (isAutoCourtChange) {
+            subCall += " Change ends.";
+          }
+          if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
+            state.isTiebreak = true;
+            subCall += " Tiebreak.";
+          }
+
+          speak(subCall);
+          scheduleServerAnnouncement(isAutoCourtChange ? 3500 : 2500);
+        }, 700);
       }
     }
 
-    /* 게임 종료 간단 안내 ("Game" -> 약간의 딜레이 후 서브팀 기준 "X to Y") */
-    function announceGameEnd(sGames, rGames, isTiebreakNext = false, isAutoCourtChange = false) {
-      speak("Game");
-      setTimeout(() => {
-        let scoreMsg = `${sGames} to ${rGames}.`;
-        if (isTiebreakNext) scoreMsg += " Tiebreak.";
-        speak(scoreMsg);
-      }, 400);
-    }
-
-    /* 세트 승리 시 음성 콜 처리 (서브넣는 팀 세트 스코어부터 호출) */
     function winSet(team, viaTiebreak = false) {
       cancelServerAnnouncement();
       const winnerCall = getTeamDisplayName(team);
-      const servingTeam = state.currentServerTeam;
-      const receivingTeam = servingTeam === 'A' ? 'B' : 'A';
-
       if (team === 'A') state.setsA++; else state.setsB++;
 
       const tiebreakFirstServer = state.tiebreakFirstServer;
@@ -1369,28 +1362,35 @@
       state.isTiebreak = false;
       state.tiebreakFirstServer = null;
 
-      const sSets = servingTeam === 'A' ? state.setsA : state.setsB;
-      const rSets = receivingTeam === 'A' ? state.setsA : state.setsB;
-
       const sWin = team === 'A' ? state.setsA : state.setsB;
+
       if (sWin >= config.setsToWin) {
+        // 매치 종료
         speak(`Game, set and match, ${winnerCall}.`);
         setTimeout(() => {
+          const sSets = (state.currentServerTeam === 'A') ? state.setsA : state.setsB;
+          const rSets = (state.currentServerTeam === 'A') ? state.setsB : state.setsA;
           speak(`${sSets} to ${rSets}.`);
-        }, 400);
+        }, 700);
       } else {
-        speak(`Set, ${winnerCall}.`);
-        setTimeout(() => {
-          speak(`${sSets} to ${rSets}.`);
-        }, 400);
+        // 세트 종료
+        speak(`Set ${winnerCall}.`);
 
         if (viaTiebreak && tiebreakFirstServer) {
           state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
-          if (config.courtChange === 'auto') manualCourtChange(true, false);
+          if (config.courtChange === 'auto') manualCourtChange(false, false);
         } else {
           switchServer();
         }
-        scheduleServerAnnouncement();
+
+        // 딜레이 후 세트 스코어 안내
+        setTimeout(() => {
+          const nextServe = state.currentServerTeam;
+          const sSets = (nextServe === 'A') ? state.setsA : state.setsB;
+          const rSets = (nextServe === 'A') ? state.setsB : state.setsA;
+          speak(`${sSets} to ${rSets}.`);
+          scheduleServerAnnouncement(2500);
+        }, 700);
       }
     }
 
@@ -1508,10 +1508,8 @@
 
       document.getElementById('sets-a').innerText = `Set: ${state.setsA}`;
       document.getElementById('sets-b').innerText = `Set: ${state.setsB}`;
-      
-      // 게임 스코어 표시는 숫자 형태로 출력
-      document.getElementById('games-a').innerText = `${state.gamesA}`;
-      document.getElementById('games-b').innerText = `${state.gamesB}`;
+      document.getElementById('games-a').innerText = state.gamesA;
+      document.getElementById('games-b').innerText = state.gamesB;
 
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
@@ -1567,7 +1565,7 @@
       updateMarkerContent(pmA1, config.playersA[0], isA1_Server ? 'SERVE' : (isA1_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmA2, config.playersA[1], isA2_Server ? 'SERVE' : (isA2_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmB1, config.playersB[0], isB1_Server ? 'SERVE' : (isB1_Receiver ? 'RECEIVER' : ''));
-      updateMarkerContent(pmB2, config.playersB[1], isB2_Server ? 'SERVE' : (isB2_Receiver ? 'RECEIVER' : ''));
+      updateMarkerContent(pmB2, config.playersB[1], isB2_Receiver ? 'RECEIVER' : ''));
 
       pmA1.style.background = 'var(--team-a-color)';
       pmA2.style.background = 'var(--team-a-color)';
