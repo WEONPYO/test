@@ -803,6 +803,9 @@
     let cameraInstance = null;
     let poseInstance = null;
     let handsInstance = null;
+    let lastPoseGestureTime = 0;
+    let lastPoseHadTarget = false;
+    const POSE_PRIMARY_WINDOW_MS = 280;
 
     let gestureStartTime = null;
     let detectedTargetSide = null;
@@ -1156,10 +1159,14 @@
         cameraInstance = new Camera(videoElement, {
           onFrame: async () => {
             if (isCameraActive && videoElement && videoElement.readyState >= 2) {
-              if (config.type === 'doubles' && handsInstance) {
-                await handsInstance.send({ image: videoElement });
-              } else if (poseInstance) {
+              // Pose를 항상 먼저 사용합니다. 1명일 때 가장 안정적이며,
+              // 복식에서도 Pose가 양손을 확실히 찾으면 이를 우선합니다.
+              // Hands는 Pose가 놓친 경우에만 보조적으로 사용합니다.
+              if (poseInstance) {
                 await poseInstance.send({ image: videoElement });
+              }
+              if (handsInstance) {
+                await handsInstance.send({ image: videoElement });
               }
             }
           },
@@ -1190,11 +1197,10 @@
     }
 
     function onPoseResults(results) {
-      // 복식은 아래 onHandsResults()가 전담합니다.
-      if (config.type === 'doubles') return;
+      // 1명/복식 모두 Pose를 1차 인식기로 사용합니다.
+      // 복식에서도 한 선수가 제스처를 하는 경우 Pose가 가장 안정적입니다.
       if (!isCameraActive || !results.poseLandmarks) {
-        resetGestureGauge();
-        resetCorrectSequenceGauge();
+        lastPoseHadTarget = false;
         return;
       }
 
@@ -1219,16 +1225,24 @@
       }
 
       let currentTarget = null;
-      if (leftWrist.visibility > 0.35 && rightWrist.visibility > 0.35 &&
-          leftWrist.y < nose.y && rightWrist.y < nose.y) {
+      if (leftWrist.visibility > 0.28 && rightWrist.visibility > 0.28 &&
+          leftWrist.y < nose.y + 0.03 && rightWrist.y < nose.y + 0.03) {
         const wristsDist = Math.hypot(leftWrist.x-rightWrist.x, leftWrist.y-rightWrist.y);
         let shoulderWidth = 0.2;
-        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
+        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.28 && rightShoulder.visibility > 0.28) {
           shoulderWidth = Math.hypot(leftShoulder.x-rightShoulder.x, leftShoulder.y-rightShoulder.y);
         }
-        const handRatio = wristsDist / (shoulderWidth || 0.2);
-        currentTarget = handRatio < 1.0 ? 'left' : 'right';
+        const handRatio = wristsDist / Math.max(shoulderWidth, 0.12);
+
+        // 경계에서 튀지 않도록 히스테리시스 적용.
+        // 기존 1.0 기준을 유지하되, 이전 상태가 있으면 작은 흔들림은 유지합니다.
+        if (handRatio <= 0.92) currentTarget = 'left';
+        else if (handRatio >= 1.08) currentTarget = 'right';
+        else if (detectedTargetSide === 'left' || detectedTargetSide === 'right') currentTarget = detectedTargetSide;
       }
+
+      lastPoseGestureTime = now;
+      lastPoseHadTarget = !!currentTarget;
       processGestureTarget(currentTarget, now);
     }
 
@@ -1244,6 +1258,13 @@
       }
 
       const now = Date.now();
+
+      // Pose가 최근 프레임에서 제스처를 확실히 잡았다면 Hands 결과는 무시합니다.
+      // 한 명일 때 Hands의 작은 오검출이 기존 정상 인식을 방해하지 않게 합니다.
+      if (lastPoseHadTarget && now - lastPoseGestureTime <= POSE_PRIMARY_WINDOW_MS) {
+        return;
+      }
+
       if (now < cooldownUntilTime) {
         const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
         updateCooldownGaugeDisplay(remainingCd);
