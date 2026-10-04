@@ -838,10 +838,15 @@
     let correctSequenceLastChange = 0;
     let correctSequenceStartTime = 0;
     let correctSequenceBusy = false;
+    let pendingLeftPointTimer = null;
+    let pendingLeftPointDeadline = 0;
     const CORRECT_SEQUENCE_STEPS = 4;
-    const CORRECT_SEQUENCE_TIMEOUT = 5000;
-    const CORRECT_SEQUENCE_DEBOUNCE = 220;
-    const CORRECT_SEQUENCE_STABLE_MS = 180;
+    const CORRECT_SEQUENCE_TIMEOUT = 8000;
+    const CORRECT_SEQUENCE_DEBOUNCE = 160;
+    const CORRECT_SEQUENCE_STABLE_MS = 140;
+    // 첫 번째 '모음' 이후 '벌림'으로 넘어갈 시간을 확보합니다.
+    // 일반 득점과 Correct 제스처가 서로 선점하지 않도록 첫 왼쪽 득점만 짧게 유예합니다.
+    const CORRECT_FIRST_TRANSITION_GRACE_MS = 1200;
 
     // 기존 단일 점수 제스처의 중복 실행 방지용
     let gesturePointLocked = false;
@@ -1246,6 +1251,7 @@
       cooldownUntilTime = 0;
       cameraGestureNeedsNeutral = false;
       gesturePointLocked = false;
+      cancelPendingLeftPoint();
       render();
       resetGestureGauge();
       resetCorrectSequenceGauge();
@@ -1385,6 +1391,31 @@
       processGestureTarget(currentTarget, now);
     }
 
+    function cancelPendingLeftPoint() {
+      if (pendingLeftPointTimer) {
+        clearTimeout(pendingLeftPointTimer);
+        pendingLeftPointTimer = null;
+      }
+      pendingLeftPointDeadline = 0;
+    }
+
+    function confirmLeftPointIfStillValid() {
+      pendingLeftPointTimer = null;
+      pendingLeftPointDeadline = 0;
+      if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
+      if (detectedTargetSide !== 'left' || correctSequenceStage > 0 || gesturePointLocked) return;
+      const targetTeam = state.courtLeftTeam;
+      addPoint(targetTeam);
+      lockCameraGestureFor3Seconds();
+    }
+
+    function scheduleLeftPointConfirmation(now) {
+      if (pendingLeftPointTimer || correctSequenceStage > 0) return;
+      const delay = Math.max(0, CORRECT_FIRST_TRANSITION_GRACE_MS);
+      pendingLeftPointDeadline = now + delay;
+      pendingLeftPointTimer = setTimeout(confirmLeftPointIfStillValid, delay);
+    }
+
     function processGestureTarget(currentTarget, now) {
       // 점수/정정이 한 번 확정되면 카메라 입력을 정확히 3초간 잠급니다.
       // 잠금 중 손을 내려놓은 사실은 기록하여, 잠금 해제 후 새 동작만 인정합니다.
@@ -1446,14 +1477,15 @@
 
       if (detectedTargetSide !== currentTarget) {
         const previousSide = detectedTargetSide;
-        const previousStart = gestureStartTime;
         detectedTargetSide = currentTarget;
         gestureCandidateSide = null;
         gestureCandidateSince = 0;
         gestureStartTime = now;
 
-        if (correctSequenceStage === 0 && previousSide === 'left' && previousStart !== null &&
-            now - previousStart < requiredDurationMs) {
+        // Correct는 '모음 -> 벌림 -> 모음 -> 벌림'의 실제 전환을 최우선으로 봅니다.
+        // 첫 모음이 1000ms를 넘어도 바로 득점 확정하지 않고, 잠시 전환을 기다립니다.
+        if (correctSequenceStage === 0 && previousSide === 'left' && currentTarget === 'right') {
+          cancelPendingLeftPoint();
           startCorrectSequenceFromTransition(now);
         } else if (correctSequenceStage > 0) {
           updateCorrectSequence(currentTarget, now);
@@ -1470,13 +1502,17 @@
         updateGestureGaugeDisplay(currentTarget, progressRatio);
 
         if (elapsed >= requiredDurationMs && !gesturePointLocked) {
-          const targetTeam = currentTarget === 'left'
-            ? state.courtLeftTeam
-            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-          addPoint(targetTeam);
-          lockCameraGestureFor3Seconds();
+          if (currentTarget === 'left') {
+            // 첫 모음은 Correct의 다음 전환 가능성을 위해 잠시 유예합니다.
+            scheduleLeftPointConfirmation(now);
+          } else {
+            const targetTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+            addPoint(targetTeam);
+            lockCameraGestureFor3Seconds();
+          }
         }
       } else {
+        cancelPendingLeftPoint();
         resetGestureGauge();
       }
     }
@@ -1605,6 +1641,7 @@
       gestureCandidateSide = null;
       gestureCandidateSince = 0;
       resetCorrectSequenceGauge();
+      cancelPendingLeftPoint();
       if (cameraGestureLockTimer) clearTimeout(cameraGestureLockTimer);
       cameraGestureLockTimer = setTimeout(() => {
         cameraGestureLockTimer = null;
