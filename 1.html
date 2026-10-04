@@ -1065,8 +1065,21 @@
 
     function populateSettingsModal() {
       document.getElementById('set-camera-res').value = config.cameraRes || 'max';
-      document.getElementById('set-gesture-hold').value = (Number.isFinite(Number(config.gestureHoldDuration)) && Number(config.gestureHoldDuration) > 0 ? Number(config.gestureHoldDuration) : 1.0).toString();
-      document.getElementById('set-audio-delay').value = (Number.isFinite(Number(config.audioDelay)) ? Number(config.audioDelay) : 600).toString();
+      // select option의 value와 정확히 일치하도록 문자열을 정규화합니다.
+      // 숫자 1을 그대로 toString()하면 "1"이 되어 value="1.0"과 일치하지 않아 빈칸처럼 보일 수 있습니다.
+      const gestureHold = Number(config.gestureHoldDuration);
+      const gestureHoldSelect = document.getElementById('set-gesture-hold');
+      gestureHoldSelect.value = (Number.isFinite(gestureHold) && gestureHold > 0)
+        ? gestureHold.toFixed(1)
+        : '1.0';
+      if (!gestureHoldSelect.value) gestureHoldSelect.value = '1.0';
+
+      const audioDelay = Number(config.audioDelay);
+      const audioDelaySelect = document.getElementById('set-audio-delay');
+      audioDelaySelect.value = (Number.isFinite(audioDelay) && audioDelay >= 0)
+        ? String(Math.trunc(audioDelay))
+        : '600';
+      if (!audioDelaySelect.value) audioDelaySelect.value = '600';
       document.getElementById('set-type').value = config.type;
       document.getElementById('set-voice-lang').value = config.voiceLang || 'en-GB';
       document.getElementById('set-first-serve').value = config.firstServeTeam;
@@ -1099,8 +1112,14 @@
 
       const prevCameraRes = config.cameraRes;
       config.cameraRes = document.getElementById('set-camera-res').value;
-      config.gestureHoldDuration = parseFloat(document.getElementById('set-gesture-hold').value) || 1.0;
-      config.audioDelay = parseInt(document.getElementById('set-audio-delay').value, 10);
+      const gestureHoldValue = document.getElementById('set-gesture-hold').value;
+      config.gestureHoldDuration = Number.isFinite(parseFloat(gestureHoldValue)) && parseFloat(gestureHoldValue) > 0
+        ? parseFloat(gestureHoldValue)
+        : 1.0;
+      const audioDelayValue = document.getElementById('set-audio-delay').value;
+      config.audioDelay = Number.isFinite(parseInt(audioDelayValue, 10))
+        ? parseInt(audioDelayValue, 10)
+        : 600;
       if (!Number.isFinite(config.audioDelay)) config.audioDelay = 600;
       config.type = document.getElementById('set-type').value;
       config.voiceLang = document.getElementById('set-voice-lang').value;
