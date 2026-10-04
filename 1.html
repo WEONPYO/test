@@ -1292,11 +1292,18 @@
         }
         const handRatio = wristsDist / Math.max(shoulderWidth, 0.12);
 
-        // Pose도 우측은 “확실히 벌어진” 경우에만 인정합니다.
-        // 0.92/1.08처럼 좁은 경계는 작은 손 움직임에도 상태가 뒤집히므로
-        // 좌측 진입은 넓게, 우측 진입은 훨씬 엄격하게 설정합니다.
-        if (handRatio >= 1.38) currentTarget = 'right';
-        else currentTarget = 'left';
+        // 좌측은 두 손이 실제로 가까이 모였을 때만 인정합니다.
+        // 중간 영역은 어느 쪽도 확정하지 않아, 약간 벌어진 손이 좌측 점수로
+        // 누적되는 것을 막습니다. 우측은 충분히 크게 벌어진 경우에만 인정합니다.
+        const poseLeftCloseThreshold = 0.82;
+        const poseRightOpenThreshold = 1.32;
+        if (handRatio <= poseLeftCloseThreshold) {
+          currentTarget = 'left';
+        } else if (handRatio >= poseRightOpenThreshold) {
+          currentTarget = 'right';
+        } else {
+          currentTarget = null;
+        }
       }
 
       lastPoseGestureTime = now;
@@ -1373,22 +1380,19 @@
         bestPair.left.x-bestPair.right.x,
         bestPair.left.y-bestPair.right.y
       );
-      // Hands fallback은 “완전히 벌어진 두 손”만 우측으로 인정합니다.
-      // 조금 떨어져 있거나 붙어 있는 상태는 모두 좌측으로 처리하여
-      // 작은 손 움직임이 우측 점수로 오인되는 것을 방지합니다.
-      // 중간 구간을 넓게 둔 이유는 카메라 원근/손 크기/프레임 흔들림 때문입니다.
-      const leftThreshold = 0.42;
+      // Hands도 동일하게 '가까움 = 좌측 / 충분한 벌어짐 = 우측'으로 판정합니다.
+      // 애매한 중간 구간은 null로 처리하여 좌측 점수가 올라가지 않도록 합니다.
+      // 특히 손이 조금만 떨어진 상태에서는 어느 쪽 점수도 누적하지 않습니다.
+      const leftThreshold = 0.32;
       const rightOpenThreshold = 0.46;
 
-      let currentTarget = 'left';
-      if (wristDist >= rightOpenThreshold) {
+      let currentTarget = null;
+      if (wristDist <= leftThreshold) {
+        currentTarget = 'left';
+      } else if (wristDist >= rightOpenThreshold) {
         currentTarget = 'right';
-      } else if (wristDist <= leftThreshold) {
-        currentTarget = 'left';
       } else {
-        // 0.42~0.50의 애매한 구간은 안전하게 좌측으로 귀결합니다.
-        // 특히 “약간 벌어진 손”은 절대로 우측으로 올리지 않습니다.
-        currentTarget = 'left';
+        currentTarget = null;
       }
 
       processGestureTarget(currentTarget, now);
