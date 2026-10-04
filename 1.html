@@ -841,12 +841,12 @@
     let pendingLeftPointTimer = null;
     let pendingLeftPointDeadline = 0;
     const CORRECT_SEQUENCE_STEPS = 4;
-    const CORRECT_SEQUENCE_TIMEOUT = 8000;
+    const CORRECT_SEQUENCE_TIMEOUT = 10000;
     const CORRECT_SEQUENCE_DEBOUNCE = 160;
     const CORRECT_SEQUENCE_STABLE_MS = 140;
     // 첫 번째 '모음' 이후 '벌림'으로 넘어갈 시간을 확보합니다.
     // 일반 득점과 Correct 제스처가 서로 선점하지 않도록 첫 왼쪽 득점만 짧게 유예합니다.
-    const CORRECT_FIRST_TRANSITION_GRACE_MS = 1200;
+    const CORRECT_FIRST_TRANSITION_GRACE_MS = 100;
 
     // 기존 단일 점수 제스처의 중복 실행 방지용
     let gesturePointLocked = false;
@@ -1405,13 +1405,22 @@
       if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
       if (detectedTargetSide !== 'left' || correctSequenceStage > 0 || gesturePointLocked) return;
       const targetTeam = state.courtLeftTeam;
-      addPoint(targetTeam);
-      lockCameraGestureFor3Seconds();
+      const fill = document.getElementById('gauge-fill-left');
+      if (fill) fill.style.height = '100%';
+      // 게이지가 100%에 도달한 화면 프레임을 먼저 보여준 뒤 점수를 반영합니다.
+      setTimeout(() => {
+        if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
+        if (detectedTargetSide !== 'left' || correctSequenceStage > 0 || gesturePointLocked) return;
+        addPoint(targetTeam);
+        lockCameraGestureFor3Seconds();
+      }, 80);
     }
 
     function scheduleLeftPointConfirmation(now) {
       if (pendingLeftPointTimer || correctSequenceStage > 0) return;
-      const delay = Math.max(0, CORRECT_FIRST_TRANSITION_GRACE_MS);
+      const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+      const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
+      const delay = Math.max(0, requiredDurationMs - elapsed) + CORRECT_FIRST_TRANSITION_GRACE_MS;
       pendingLeftPointDeadline = now + delay;
       pendingLeftPointTimer = setTimeout(confirmLeftPointIfStillValid, delay);
     }
@@ -1507,8 +1516,21 @@
             scheduleLeftPointConfirmation(now);
           } else {
             const targetTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
-            addPoint(targetTeam);
-            lockCameraGestureFor3Seconds();
+            // 오른쪽도 동일하게 게이지 100%를 먼저 화면에 반영한 후 점수를 처리합니다.
+            const fill = document.getElementById('gauge-fill-right');
+            if (fill) fill.style.height = '100%';
+            if (!gesturePointLocked) {
+              gesturePointLocked = true;
+              setTimeout(() => {
+                if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
+                if (detectedTargetSide !== 'right' || correctSequenceStage > 0) {
+                  gesturePointLocked = false;
+                  return;
+                }
+                addPoint(targetTeam);
+                lockCameraGestureFor3Seconds();
+              }, 80);
+            }
           }
         }
       } else {
