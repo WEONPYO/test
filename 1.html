@@ -186,7 +186,7 @@
       transition: all 0.15s ease; position: relative; padding: 2px 0;
     }
 
-    .btn-icon-menu svg { width: 17px; height: 17px; fill: currentColor; }
+    .btn-icon-menu svg { width: 17px; height: 17px; fill: #ffffff; color: #ffffff; }
     .btn-icon-menu span { font-size: 0.55rem; font-weight: 700; letter-spacing: -0.2px; }
 
     .btn-icon-menu:active { transform: scale(0.94); background: #1c3829; }
@@ -196,6 +196,8 @@
       color: var(--accent-yellow);
       background: #183321;
     }
+
+    .btn-icon-menu.active-toggle svg { fill: #ffffff; color: #ffffff; }
 
     .btn-icon-menu.active-toggle::after {
       content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px;
@@ -610,15 +612,16 @@
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
         • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
         • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지
+        • <strong>Correct:</strong> 양손을 머리 위에서 <strong>모음 → 벌림 → 모음 → 벌림</strong> 순서로 반복
       </div>
 
       <div class="setting-group">
-        <label>제스처 인식 유지 시간 (Gesture Hold Duration)</label>
+        <label>제스처 인식 유지 시간 (Gesture Hold Duration, 기본 1000ms)</label>
         <select id="set-gesture-hold">
-          <option value="0.5">0.5초 (빠름)</option>
-          <option value="1.0" selected>1.0초 (기본)</option>
-          <option value="1.5">1.5초 (안정적)</option>
-          <option value="2.0">2.0초 (느림)</option>
+          <option value="0.5">500ms</option>
+          <option value="1.0" selected>1000ms (기본)</option>
+          <option value="1.5">1500ms</option>
+          <option value="2.0">2000ms</option>
         </select>
       </div>
 
@@ -1005,11 +1008,16 @@
       };
     }
 
+
+    function speakWithConfiguredDelay(text) {
+      // 모든 메뉴/버튼 음성도 설정된 Audio Delay를 동일하게 사용합니다.
+      speak(text);
+    }
     function toggleSwipeMode() {
       config.swipeEnabled = !config.swipeEnabled;
       saveConfigToStorage();
       render();
-      speak(config.swipeEnabled ? "Swipe enabled." : "Swipe disabled.");
+      speakWithConfiguredDelay(config.swipeEnabled ? "Swipe enabled." : "Swipe disabled.");
     }
 
     function setupSwipeEvents() {
@@ -1134,10 +1142,10 @@
     function toggleCameraRecognition() {
       if (isCameraActive) {
         stopCameraRecognition();
-        speak("Camera disabled.");
+        speakWithConfiguredDelay("Camera disabled.");
       } else {
         startCameraRecognition();
-        speak("Camera enabled.");
+        speakWithConfiguredDelay("Camera enabled.");
       }
     }
 
@@ -1658,7 +1666,7 @@
       state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A';
       saveStateToStorage();
       render();
-      speak(`Service Team ${state.currentServerTeam}.`);
+      speakWithConfiguredDelay(`Service Team ${state.currentServerTeam}.`);
       scheduleServerAnnouncement();
     }
 
