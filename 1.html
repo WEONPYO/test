@@ -611,7 +611,7 @@
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
         • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
         • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지<br/>
-        • <strong>Correct:</strong> 양손을 머리 위에서 <strong>모음 → 벌림 → 모음 → 벌림</strong> 순서로 반복
+        • <strong>Correct:</strong> 양손을 머리 위에서 <strong>좌측 게이지 80% 이하 → 우측 게이지 80% 이하를 번갈아 반복</strong> 순서로 반복
       </div>
 
       <div class="setting-group">
@@ -831,7 +831,7 @@
     let cameraGestureNeedsNeutral = false;
     let cameraGestureLockTimer = null;
 
-    // 신규 Correct 제스처 상태: 모음 → 벌림 → 모음 → 벌림
+    // 신규 Correct 제스처 상태: 좌측 게이지 80% 이하 → 우측 게이지 80% 이하를 번갈아 반복
     let correctSequenceStage = 0;
     let correctSequenceState = null;
     let correctSequenceLastChange = 0;
@@ -843,6 +843,8 @@
     const CORRECT_SEQUENCE_TIMEOUT = 10000;
     const CORRECT_SEQUENCE_DEBOUNCE = 120;
     const CORRECT_SEQUENCE_STABLE_MS = 140;
+    // Correct는 각 방향의 일반 동작 게이지가 80% 이하일 때의 전환만 인정합니다.
+    const CORRECT_MAX_GAUGE_RATIO = 0.80;
     // 좌측 '모음'은 일반 좌측 득점을 우선합니다.
     // 모음 상태를 유지한 채 충분히 오래 있으면 좌측 점수로 확정하고,
     // 점수 확정 전에 빠르게 '벌림'으로 전환했을 때만 Correct 후보로 진입합니다.
@@ -1430,7 +1432,8 @@
         if (correctSequenceStage === 0) {
           if (previousSide === 'left' && currentTarget === 'right') {
             const leftElapsed = previousStartTime === null ? Infinity : now - previousStartTime;
-            if (leftElapsed < requiredDurationMs) {
+            const leftGaugeRatio = leftElapsed / requiredDurationMs;
+            if (leftGaugeRatio <= CORRECT_MAX_GAUGE_RATIO) {
               cancelPendingLeftPoint();
               startCorrectSequenceFromTransition(now);
             }
@@ -1475,8 +1478,9 @@
     }
 
     function startCorrectSequenceFromTransition(now) {
-      // 여기까지 왔다는 것은 '모음(좌측) → 벌림(우측)'이
-      // 좌측 점수 확정 전에 빠르게 발생했다는 뜻입니다.
+      // 여기까지 왔다는 것은 '좌측 게이지 80% 이하 → 우측 전환'이
+      // 실제로 발생했다는 뜻입니다. 이후에도 각 방향을 80% 이하에서
+      // 번갈아 전환해야 Correct 단계가 올라갑니다.
       correctSequenceStage = 2;
       correctSequenceState = 'right';
       correctSequenceLastChange = now;
@@ -1503,6 +1507,15 @@
       }
 
       if (now - correctSequenceLastChange < CORRECT_SEQUENCE_DEBOUNCE) return;
+
+      // Correct 진행 중인 각 방향도 게이지가 80%를 넘기면 해당 전환을 인정하지 않습니다.
+      const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+      const currentElapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
+      const currentGaugeRatio = currentElapsed / requiredDurationMs;
+      if (currentGaugeRatio > CORRECT_MAX_GAUGE_RATIO) {
+        resetCorrectSequenceGauge();
+        return;
+      }
 
       correctSequenceStage++;
       correctSequenceState = currentState;
