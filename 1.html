@@ -2215,10 +2215,23 @@
           ? state.completedSetScores.join(', ')
           : `${winnerGames}-${loserGames}`;
 
+        let matchPopupShown = false;
+        const finishMatchPopup = () => {
+          if (matchPopupShown) return;
+          matchPopupShown = true;
+          showMatchResultPopup(team);
+        };
+
+        // 정상적으로 음성 시퀀스가 끝나면 바로 팝업을 표시합니다.
         speakSequence([
           `Game, set and match, ${winnerCall}.`,
           `${matchSetScores}.`
-        ], 650, () => showMatchResultPopup(team));
+        ], 650, finishMatchPopup);
+
+        // 일부 모바일 브라우저에서 SpeechSynthesis가 onend/onerror를 주지 않는
+        // 경우에도 매치 결과 팝업이 영원히 대기하지 않도록 안전망을 둡니다.
+        const popupFallbackMs = Math.max(7000, Number(config.audioDelay || 0) + 6500);
+        setTimeout(finishMatchPopup, popupFallbackMs);
       } else {
         speakSequence([
           `Game, ${winnerCall}.`,
@@ -2318,7 +2331,8 @@
             speechTimer = setTimeout(() => {
               speechTimer = null;
               speechBusy = false;
-              processSpeechQueue(token);
+              // 음성 오류가 나도 시퀀스의 완료 콜백은 반드시 전달합니다.
+              processSpeechQueue(token, onComplete);
             }, Math.max(0, item.gapMs || 0));
           };
 
