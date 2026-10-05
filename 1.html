@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WP Tennis Scoreboard</title>
+  <title>WP Tennis Scoreboard - Server Highlight & Match Call</title>
 
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -309,8 +309,56 @@
       background-color: var(--accent-yellow) !important; color: #000 !important;
       border: 2px solid #000; transform: translate(-50%, -50%) scale(1.1); z-index: 10;
       box-shadow: 0 0 10px var(--accent-yellow);
+      animation: server-player-sparkle 0.9s ease-in-out infinite;
+      will-change: transform, box-shadow, filter;
+    }
+    .player-marker.server::after {
+      content: '✦';
+      position: absolute;
+      top: -11px;
+      right: -9px;
+      color: #ffffff;
+      font-size: 0.78rem;
+      line-height: 1;
+      text-shadow:
+        0 0 3px #ffffff,
+        0 0 7px var(--accent-yellow),
+        0 0 12px var(--accent-yellow);
+      pointer-events: none;
+      animation: server-player-star 0.9s ease-in-out infinite;
     }
     .player-marker.server .role-badge { background: #000; color: var(--accent-yellow); }
+
+    @keyframes server-player-sparkle {
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(1.06);
+        box-shadow:
+          0 0 7px var(--accent-yellow),
+          0 0 13px rgba(204,255,0,.55);
+        filter: brightness(1);
+      }
+      45% {
+        transform: translate(-50%, -50%) scale(1.16);
+        box-shadow:
+          0 0 12px var(--accent-yellow),
+          0 0 24px rgba(204,255,0,.95),
+          0 0 34px rgba(255,255,255,.35);
+        filter: brightness(1.35);
+      }
+      60% {
+        transform: translate(-50%, -50%) scale(1.10);
+        box-shadow:
+          0 0 9px var(--accent-yellow),
+          0 0 18px rgba(204,255,0,.75);
+        filter: brightness(1.12);
+      }
+    }
+
+    @keyframes server-player-star {
+      0%, 100% { opacity: .25; transform: scale(.75) rotate(0deg); }
+      45% { opacity: 1; transform: scale(1.35) rotate(18deg); }
+      65% { opacity: .55; transform: scale(.95) rotate(-8deg); }
+    }
 
     .player-marker.receiver {
       border: 2px solid var(--accent-yellow); transform: translate(-50%, -50%) scale(1.05);
@@ -611,7 +659,8 @@
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
         • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
         • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지<br/>
-        • <strong>Correct:</strong> 좌측(게이지 80% 이하) → 중립 → 1초 이내 우측으로 진입하면 시작. 이후 중립을 거쳐 좌/우 전환을 2회 더 반복하면 Correct 실행
+        • <strong>Correct:</strong> 좌측(게이지 80% 이하) → 중립 → 1초 이내 우측으로 진입하면 시작. 이후 중립을 거쳐 좌/우 전환을 2회 더 반복하면 Correct 실행<br/>
+        • <strong>서브 선수:</strong> 코트 그림의 현재 서브 선수는 반짝이는 효과로 표시
       </div>
 
       <div class="setting-group">
@@ -776,7 +825,9 @@
       isTiebreak: false,
       tiebreakFirstServer: null,
       currentServerTeam: 'A',
-      courtLeftTeam: 'A'
+      courtLeftTeam: 'A',
+      // 실제 매치 종료 콜처럼 최종 매치 스코어(각 세트의 게임 스코어)를 보존합니다.
+      completedSetScores: []
     };
 
     let historyStack = [];
@@ -997,7 +1048,8 @@
       const savedState = localStorage.getItem('tennis_state');
       if (savedState) { 
         try { 
-          state = JSON.parse(savedState); 
+          state = JSON.parse(savedState);
+          if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
         } catch(e) {} 
       }
     }
@@ -1834,7 +1886,8 @@
         ptsA: 0, ptsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
         isTiebreak: false, tiebreakFirstServer: null,
         currentServerTeam: config.firstServeTeam,
-        courtLeftTeam: 'A'
+        courtLeftTeam: 'A',
+        completedSetScores: []
       };
       historyStack = [];
       saveStateToStorage();
@@ -2009,6 +2062,13 @@
       const gameScoreCall = `${finalGamesA} games to ${finalGamesB}`;
       const setScoreCall = `${finalSetsA} sets to ${finalSetsB}`;
 
+      // ITF/ATP chair umpire의 매치 종료 예시처럼 각 세트의 게임 스코어를
+      // 승자 기준으로 보존합니다. 예: 3-6, 7-5, 6-2
+      if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
+      const winnerGames = team === 'A' ? finalGamesA : finalGamesB;
+      const loserGames = team === 'A' ? finalGamesB : finalGamesA;
+      state.completedSetScores.push(`${winnerGames}-${loserGames}`);
+
       state.gamesA = 0;
       state.gamesB = 0;
       state.ptsA = 0;
@@ -2022,15 +2082,18 @@
       saveStateToStorage();
       render();
 
-      // 테니스 경기 종료 규칙에 맞춘 호출:
-      // 마지막 세트의 마지막 게임 → Game → Set → Match 순서.
+      // ITF/ATP chair umpire 방식:
+      // 매치 종료 시 마지막 게임/세트의 중간 콜을 반복하지 않고,
+      // "Game, set and match, Winner; 최종 매치 세트 스코어"로 마무리합니다.
+      // 각 세트 스코어는 매치 승자 기준으로 호출합니다.
       if (matchWon) {
+        const matchSetScores = state.completedSetScores.length
+          ? state.completedSetScores.join(', ')
+          : `${winnerGames}-${loserGames}`;
+
         speakSequence([
-          `Game, ${winnerCall}.`,
-          `${gameScoreCall}.`,
-          `Set, ${winnerCall}.`,
-          `${setScoreCall}.`,
-          `Game, Set and Match, ${winnerCall}.`
+          `Game, set and match, ${winnerCall}.`,
+          `${matchSetScores}.`
         ]);
       } else {
         speakSequence([
