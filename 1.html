@@ -611,7 +611,7 @@
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
         • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
         • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지<br/>
-        • <strong>Correct:</strong> 0.85 이하 좌측 ↔ 0.85 초과 우측으로 전환. 한쪽 게이지 80% 이하 종료 후 1초 이내 반대쪽 진입을 2회 반복하면 Correct
+        • <strong>Correct:</strong> 좌측(게이지 80% 이하) → 중립 → 1초 이내 우측으로 진입하면 시작. 이후 중립을 거쳐 좌/우 전환을 2회 더 반복하면 Correct 실행
       </div>
 
       <div class="setting-group">
@@ -830,33 +830,42 @@
     let cameraGestureLockUntil = 0;
     let cameraGestureNeedsNeutral = false;
     let cameraGestureLockTimer = null;
-
-    // Correct: 한쪽 게이지가 80% 이하인 상태에서 반대쪽으로 전환하는 동작을 2회 연속 인정
-    let correctSequenceStage = 0;
-    let correctSequenceState = null;
-    let correctSequenceLastChange = 0;
-    let correctSequenceStartTime = 0;
-    let correctSequenceBusy = false;
-    let correctSequenceStepStart = 0;
-    let correctSequenceFrozenElapsed = 0;
+    // -----------------------------------------------------------------
+    // Correct 제스처 상태
+    //
+    // 시작 조건:
+    //   LEFT 게이지가 80% 이하
+    //   -> 반드시 NEUTRAL 구간 통과
+    //   -> NEUTRAL 진입 후 1초 이내 RIGHT 진입
+    //   => Correct 게이지 시작
+    //
+    // Correct 진행:
+    //   LEFT -> NEUTRAL -> RIGHT   (시작)
+    //   RIGHT -> NEUTRAL -> LEFT   (1회 반복)
+    //   LEFT  -> NEUTRAL -> RIGHT  (2회 반복)
+    //   총 3회의 방향 전환을 완료하면 Correct 실행.
+    //
+    // Correct 진행 중에는 NEUTRAL 프레임 때문에 상태를 초기화하지 않습니다.
+    // 단, NEUTRAL에서 다음 방향으로 1초 이내 진입하지 못하면 취소합니다.
+    // 또한 Correct 상태에서 좌/우 방향 인식이 2초 동안 전혀 없으면 취소합니다.
+    // -----------------------------------------------------------------
+    let correctSequenceStage = 0;          // 0=대기, 1=LEFT 시작, 2=RIGHT, 3=LEFT, 4=RIGHT 완료
+    let correctSequenceState = null;       // 마지막으로 확정된 방향
+    let correctSequenceWaitingNeutral = false;
     let correctSequenceNeutralSince = 0;
-    let pendingLeftPointTimer = null;
-    let pendingLeftPointDeadline = 0;
+    let correctSequenceLastDirectionAt = 0;
+    let correctSequenceBusy = false;
+
+    // 일반 제스처에서 LEFT -> NEUTRAL -> RIGHT 후보를 보관합니다.
+    let correctCandidateLeft = false;
+    let correctCandidateNeutralSince = 0;
+
     const CORRECT_SEQUENCE_STEPS = 4;
-    const CORRECT_SEQUENCE_TIMEOUT = 10000;
-    // Correct에서 직전 방향이 끝난 뒤 중립 구간이 2초를 넘을 때 취소합니다.
-    const CORRECT_NEXT_GESTURE_TIMEOUT_MS = 1000;
-    // Correct에서는 손동작 속도와 무관하게 방향 전환을 인정합니다.
-    // 80% HOLD 시간 제한은 일반 득점에만 적용하고 Correct 단계에는 적용하지 않습니다.
-    const CORRECT_TRANSITION_STABLE_MS = 100;
-    const CORRECT_SEQUENCE_DEBOUNCE = 120;
-    const CORRECT_SEQUENCE_STABLE_MS = 140;
-    // Correct 단계 전환 시 직전 방향의 HOLD 게이지가 80% 이하인지 확인합니다.
-    // 중립 구간에서는 게이지를 정지시켜 천천히 손을 이동해도 인정합니다.
     const CORRECT_MAX_GAUGE_RATIO = 0.80;
-    // 좌측 '모음'은 일반 좌측 득점을 우선합니다.
-    // 모음 상태를 유지한 채 충분히 오래 있으면 좌측 점수로 확정하고,
-    // 점수 확정 전에 빠르게 '벌림'으로 전환했을 때만 Correct 후보로 진입합니다.
+    const CORRECT_TRANSITION_TIMEOUT_MS = 1000;
+    const CORRECT_IDLE_TIMEOUT_MS = 2000;
+    const CORRECT_TRANSITION_STABLE_MS = 100;
+
 
     // 기존 단일 점수 제스처의 중복 실행 방지용
     let gesturePointLocked = false;
@@ -866,12 +875,6 @@
     let gestureLastRatio = null;
     let gestureRatioChangedAt = 0;
     let gestureWasShort = false;
-    // 중립을 통과하는 동안 직전 방향을 기억합니다.
-    // 일반 HOLD는 리셋하지만, 좌→중립→우 Correct 전환 판정에는 이 값을 사용합니다.
-    let gestureTransitionAnchorSide = null;
-    let gestureTransitionAnchorProgress = 0;
-    let gestureTransitionAnchorAt = 0;
-    const CORRECT_TRANSITION_MEMORY_MS = 1000;
     const GESTURE_IDLE_RESET_MS = 650;
     // 동일한 포즈가 카메라/MediaPipe에 남아 있어도 한 번의 제스처가 무한히 유지되지 않도록 합니다.
     const GESTURE_STALE_RESET_MS = 1250;
@@ -1329,96 +1332,265 @@
       const handRatio = wristsDist / shoulderWidth;
 
       // 좌측 = 양손을 확실히 모음, 우측 = 양손을 확실히 벌림.
-      // 중립 구간은 사용하지 않습니다. 0.85 이하=좌측, 0.85 초과=우측으로 즉시 분류합니다.
+      // 가운데 영역은 '중립'으로 두어 멀리 있는 사람/흔들림으로 인한 오인식을 차단합니다.
       const LEFT_CLOSE_RATIO = 0.85;
-      let currentTarget = handRatio <= LEFT_CLOSE_RATIO ? 'left' : 'right';
+      const RIGHT_OPEN_RATIO = 1.15;
+
+      let currentTarget = null;
+      if (handRatio <= LEFT_CLOSE_RATIO) {
+        currentTarget = 'left';
+      } else if (handRatio >= RIGHT_OPEN_RATIO) {
+        currentTarget = 'right';
+      }
 
       processGestureTarget(currentTarget, now, handRatio);
     }
 
+
     function cancelPendingLeftPoint() {
-      if (pendingLeftPointTimer) {
-        clearTimeout(pendingLeftPointTimer);
-        pendingLeftPointTimer = null;
+      // 이전 버전의 LEFT 지연 득점 타이머와 호환하기 위한 정리 함수.
+      // 현재 Correct 후보는 타이머가 아닌 상태 머신으로 처리합니다.
+    }
+
+    function isCorrectActive() {
+      return correctSequenceStage > 0 && !correctSequenceBusy;
+    }
+
+    function clearCorrectCandidate() {
+      correctCandidateLeft = false;
+      correctCandidateNeutralSince = 0;
+    }
+
+    function startCorrectSequence(now) {
+      correctSequenceStage = 2; // LEFT -> NEUTRAL -> RIGHT가 이미 완료됨
+      correctSequenceState = 'right';
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = now;
+      correctSequenceBusy = false;
+      clearCorrectCandidate();
+
+      detectedTargetSide = 'right';
+      gestureStartTime = now;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gesturePointLocked = false;
+
+      updateCorrectSequenceGauge();
+    }
+
+    function acceptCorrectDirection(direction, now) {
+      const expected = correctSequenceState === 'left' ? 'right' : 'left';
+      if (direction !== expected) return false;
+
+      correctSequenceStage += 1;
+      correctSequenceState = direction;
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = now;
+
+      detectedTargetSide = direction;
+      gestureStartTime = now;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gesturePointLocked = false;
+
+      updateCorrectSequenceGauge();
+
+      if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+        correctSequenceBusy = true;
+
+        const gauge = document.getElementById('correct-gauge');
+        const text = document.getElementById('correct-gauge-step');
+        const fill = document.getElementById('correct-gauge-fill');
+
+        if (gauge) gauge.classList.add('active', 'success');
+        if (fill) fill.style.width = '100%';
+        if (text) text.innerText = 'CORRECT';
+
+        setTimeout(() => {
+          if (!isCameraActive || !correctSequenceBusy) return;
+
+          correctSequenceBusy = false;
+          undo();
+          lockCameraGestureFor3Seconds();
+        }, 180);
       }
-      pendingLeftPointDeadline = 0;
+
+      return true;
     }
 
-    function confirmLeftPointIfStillValid() {
-      pendingLeftPointTimer = null;
-      pendingLeftPointDeadline = 0;
-      if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
-      if (detectedTargetSide !== 'left' || correctSequenceStage > 0 || gesturePointLocked) return;
-      const targetTeam = state.courtLeftTeam;
-      const fill = document.getElementById('gauge-fill-left');
-      if (fill) fill.style.height = '100%';
-
-      setTimeout(() => {
-        if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
-        if (detectedTargetSide !== 'left' || correctSequenceStage > 0 || gesturePointLocked) return;
-        addPoint(targetTeam);
-        lockCameraGestureFor3Seconds();
-      }, 80);
-    }
-
-    function scheduleLeftPointConfirmation(now) {
-      if (pendingLeftPointTimer || correctSequenceStage > 0) return;
-      const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
-      const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
-      const delay = Math.max(0, requiredDurationMs - elapsed);
-      pendingLeftPointDeadline = now + delay;
-      pendingLeftPointTimer = setTimeout(confirmLeftPointIfStillValid, delay);
-    }
-
-    // -----------------------------------------------------------------
-    // 제스처 상태 머신
-    //
-    // 일반 득점:
-    //   방향이 일정 시간 유지되면 득점
-    //   중립(null)이 되면 일반 HOLD 상태는 즉시 초기화
-    //
-    // Correct:
-    //   LEFT -> RIGHT -> LEFT -> RIGHT
-    //   각 단계의 HOLD 진행률이 80% 이하일 때 다음 방향을 인정
-    //   방향 전환 과정에서 잠깐 중립(null)이 되는 것은 정상적인 동작이므로
-    //   Correct 상태에서는 상태를 지우지 않고 다음 제스처를 기다립니다.
-    //   직전 방향 종료 후 중립 구간에서 2초 동안 다음 방향이 없으면 취소합니다.
-    // -----------------------------------------------------------------
     function processGestureTarget(currentTarget, now, handRatio = null) {
       const holdMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
-      const maxGaugeMs = holdMs * CORRECT_MAX_GAUGE_RATIO;
+      const correctMaxMs = holdMs * CORRECT_MAX_GAUGE_RATIO;
 
+      // ---------------------------------------------------------------
+      // Camera cooldown
+      // ---------------------------------------------------------------
       if (cameraGestureLockUntil > 0) {
         if (now < cameraGestureLockUntil) {
-          updateCooldownGaugeDisplay(Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1));
+          updateCooldownGaugeDisplay(
+            Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1)
+          );
           return;
         }
+
         cameraGestureLockUntil = 0;
         cooldownUntilTime = 0;
         cameraGestureNeedsNeutral = false;
         resetAllGestureState(true);
       }
 
+      // ---------------------------------------------------------------
+      // CORRECT 진행 중
+      //
+      // 핵심:
+      // 1) 현재 방향을 유지하는 동안에는 같은 단계로 중복 카운트하지 않습니다.
+      // 2) 방향이 NEUTRAL이 되면 Correct 상태를 절대 초기화하지 않습니다.
+      // 3) NEUTRAL 진입 후 1초 안에 예상 방향이 들어와야 다음 단계입니다.
+      // 4) Correct 상태에서 2초 동안 좌/우 방향이 전혀 없으면 취소합니다.
+      // ---------------------------------------------------------------
+      if (isCorrectActive()) {
+        // 마지막으로 실제 LEFT/RIGHT가 인식된 뒤 2초 동안 방향이 없으면 취소.
+        if (
+          correctSequenceLastDirectionAt > 0 &&
+          now - correctSequenceLastDirectionAt > CORRECT_IDLE_TIMEOUT_MS
+        ) {
+          resetAllGestureState(true);
+          return;
+        }
+
+        // 이미 현재 단계의 방향인 경우 그대로 유지합니다.
+        if (currentTarget === correctSequenceState) {
+          correctSequenceLastDirectionAt = now;
+          correctSequenceWaitingNeutral = false;
+          correctSequenceNeutralSince = 0;
+          gestureCandidateSide = null;
+          gestureCandidateSince = 0;
+          return;
+        }
+
+        // 반드시 중립을 거친 뒤 다음 방향으로 넘어가야 합니다.
+        if (currentTarget === null) {
+          if (!correctSequenceWaitingNeutral) {
+            correctSequenceWaitingNeutral = true;
+            correctSequenceNeutralSince = now;
+            gestureCandidateSide = null;
+            gestureCandidateSince = 0;
+          }
+
+          // 중립 상태에서 1초 안에 다음 방향이 안 나오면 취소.
+          if (
+            correctSequenceNeutralSince > 0 &&
+            now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS
+          ) {
+            resetAllGestureState(true);
+          }
+          return;
+        }
+
+        // 현재 단계와 다른 방향이 들어왔더라도 반드시 NEUTRAL을 먼저 봐야 합니다.
+        if (!correctSequenceWaitingNeutral) {
+          return;
+        }
+
+        if (now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
+          resetAllGestureState(true);
+          return;
+        }
+
+        const expected = correctSequenceState === 'left' ? 'right' : 'left';
+        if (currentTarget !== expected) return;
+
+        // 새 방향이 짧게 안정된 뒤에만 한 번 인정합니다.
+        if (gestureCandidateSide !== currentTarget) {
+          gestureCandidateSide = currentTarget;
+          gestureCandidateSince = now;
+          return;
+        }
+
+        if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) {
+          return;
+        }
+
+        acceptCorrectDirection(currentTarget, now);
+        return;
+      }
+
+      // Correct 완료 애니메이션 중에는 일반 득점을 받지 않습니다.
       if (correctSequenceBusy) return;
 
       // ---------------------------------------------------------------
-      // Correct 전용 규칙
-      // 중립 구간은 존재하지 않습니다.
-      //   좌 <= 0.85 / 우 > 0.85
-      // 방향이 바뀌는 순간 직전 방향의 게이지가 80% 이하였으면
-      // 1회 전환으로 인정합니다. 다음 반대 방향 전환까지 다시 80% 이하로
-      // 끝나면 2회 전환이 완성되어 즉시 Correct를 실행합니다.
-      // 새 방향은 100ms 이상 안정된 경우에만 전환으로 인정합니다.
-      // 예: 좌(<=80%) → 우 → 우(<=80%) → 좌  = 2회 전환 → Correct
+      // 일반 상태에서 NEUTRAL 처리
+      //
+      // LEFT가 80% 이하에서 시작했고, HOLD 100% 전에 NEUTRAL로 빠져나오면
+      // Correct 후보를 준비합니다. 이때 일반 LEFT HOLD 상태는 초기화하되
+      // 'LEFT 후보' 정보만 유지합니다.
       // ---------------------------------------------------------------
+      if (currentTarget === null) {
+        if (detectedTargetSide === 'left' && gestureStartTime !== null) {
+          const leftElapsed = Math.max(0, now - gestureStartTime);
+          const leftProgress = Math.min(leftElapsed / holdMs, 1);
 
+          if (leftProgress <= CORRECT_MAX_GAUGE_RATIO && !gesturePointLocked) {
+            correctCandidateLeft = true;
+            correctCandidateNeutralSince = now;
+          } else {
+            clearCorrectCandidate();
+          }
+        }
+
+        detectedTargetSide = null;
+        gestureStartTime = null;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
+        gesturePointLocked = false;
+        resetGestureGauge();
+        return;
+      }
+
+      // ---------------------------------------------------------------
+      // LEFT -> NEUTRAL -> RIGHT : Correct 시작
+      //
+      // RIGHT는 반드시 NEUTRAL에 들어온 시점부터 1초 이내에 안정적으로
+      // 인식되어야 합니다. 직접 LEFT -> RIGHT로 바뀌는 경우는 Correct가
+      // 시작되지 않습니다.
+      // ---------------------------------------------------------------
+      if (correctCandidateLeft) {
+        if (now - correctCandidateNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
+          clearCorrectCandidate();
+        } else if (currentTarget === 'right') {
+          if (gestureCandidateSide !== 'right') {
+            gestureCandidateSide = 'right';
+            gestureCandidateSince = now;
+            return;
+          }
+
+          if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) {
+            return;
+          }
+
+          startCorrectSequence(now);
+          return;
+        } else {
+          // LEFT가 다시 들어오면 아직 후보 상태이므로 그대로 기다립니다.
+          return;
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // 일반 제스처 시작
+      // ---------------------------------------------------------------
       if (detectedTargetSide === null) {
         if (gestureCandidateSide !== currentTarget) {
           gestureCandidateSide = currentTarget;
           gestureCandidateSince = now;
           return;
         }
-        if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) return;
+
+        if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) {
+          return;
+        }
 
         detectedTargetSide = currentTarget;
         gestureStartTime = now;
@@ -1432,56 +1604,64 @@
         return;
       }
 
-      // 같은 방향 유지: 일반 점수 HOLD 게이지를 진행합니다.
+      // ---------------------------------------------------------------
+      // 같은 방향 유지 -> 일반 득점 HOLD
+      // ---------------------------------------------------------------
       if (detectedTargetSide === currentTarget) {
         gestureLastTargetSeenAt = now;
+
         const elapsed = Math.max(0, now - (gestureStartTime || now));
         const progress = Math.min(elapsed / holdMs, 1);
+
         updateGestureGaugeDisplay(currentTarget, progress);
 
         if (elapsed >= holdMs && !gesturePointLocked) {
           gesturePointLocked = true;
+
           const targetTeam = currentTarget === 'left'
             ? state.courtLeftTeam
             : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+
           const fill = document.getElementById(
             currentTarget === 'left' ? 'gauge-fill-left' : 'gauge-fill-right'
           );
           if (fill) fill.style.height = '100%';
 
           setTimeout(() => {
-            if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) {
+            if (
+              !isCameraActive ||
+              cameraGestureLockUntil > 0 ||
+              cameraGestureNeedsNeutral
+            ) {
               gesturePointLocked = false;
               return;
             }
-            if (detectedTargetSide !== currentTarget || correctSequenceBusy || correctSequenceStage > 0) {
+
+            if (
+              detectedTargetSide !== currentTarget ||
+              isCorrectActive() ||
+              correctSequenceBusy
+            ) {
               gesturePointLocked = false;
               return;
             }
+
             addPoint(targetTeam);
             lockCameraGestureFor3Seconds();
           }, 80);
         }
+
         return;
       }
 
       // ---------------------------------------------------------------
-      // 방향 전환: 중립 없이 좌↔우가 직접 바뀝니다.
-      // 먼저 새 방향이 짧게 안정되는지 확인한 뒤 직전 방향을 종료합니다.
+      // 일반 상태에서 LEFT/RIGHT 직접 전환
+      //
+      // Correct는 반드시 LEFT -> NEUTRAL -> RIGHT일 때만 시작하므로,
+      // 직접 방향 전환은 단순히 새 일반 HOLD로 전환합니다.
       // ---------------------------------------------------------------
-      if (gestureCandidateSide !== currentTarget) {
-        gestureCandidateSide = currentTarget;
-        gestureCandidateSince = now;
-        return;
-      }
-      if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
+      clearCorrectCandidate();
 
-      const previousSide = detectedTargetSide;
-      const previousElapsed = Math.max(0, now - (gestureStartTime || now));
-      const previousProgress = Math.min(previousElapsed / holdMs, 1);
-      const previousEndedAt = now;
-
-      // 새 방향을 먼저 시작시키되, Correct 조건은 직전 방향의 '종료값'으로 판단합니다.
       detectedTargetSide = currentTarget;
       gestureStartTime = now;
       gestureCandidateSide = null;
@@ -1491,82 +1671,11 @@
       gestureLastRatio = Number.isFinite(handRatio) ? handRatio : null;
       gestureRatioChangedAt = now;
       updateGestureGaugeDisplay(currentTarget, 0);
-      cancelPendingLeftPoint();
-
-      // 직전 방향이 80% 이하에서 끝났을 때만 Correct 후보가 됩니다.
-      if (previousProgress <= CORRECT_MAX_GAUGE_RATIO) {
-        // 이전 전환에서 진입한 방향을 기억하고, 다음에는 반드시 그 반대 방향으로 전환해야 합니다.
-        const withinOneSecond =
-          gestureTransitionAnchorSide !== null &&
-          previousEndedAt - gestureTransitionAnchorAt <= CORRECT_TRANSITION_MEMORY_MS;
-
-        const isAlternating =
-          gestureTransitionAnchorSide === null ||
-          gestureTransitionAnchorSide === previousSide;
-
-        if (gestureTransitionAnchorSide === null) {
-          // 첫 번째 전환: 이전 방향 종료 → 반대 방향 진입
-          gestureTransitionAnchorSide = currentTarget;
-          gestureTransitionAnchorProgress = previousProgress;
-          gestureTransitionAnchorAt = previousEndedAt;
-          correctSequenceStage = 1;
-          correctSequenceState = currentTarget;
-          correctSequenceStartTime = now;
-          correctSequenceLastChange = now;
-          updateCorrectSequenceGauge();
-          return;
-        }
-
-        if (withinOneSecond && isAlternating && currentTarget !== previousSide) {
-          // 두 번째 교대 전환까지 성공하면 즉시 Correct 실행.
-          correctSequenceStage = 2;
-          correctSequenceState = currentTarget;
-          correctSequenceLastChange = now;
-          correctSequenceStepStart = now;
-          correctSequenceStartTime = correctSequenceStartTime || now;
-          correctSequenceBusy = true;
-          updateCorrectSequenceGauge();
-
-          const gauge = document.getElementById('correct-gauge');
-          const text = document.getElementById('correct-gauge-step');
-          const fill = document.getElementById('correct-gauge-fill');
-          if (gauge) gauge.classList.add('active', 'success');
-          if (fill) fill.style.width = '100%';
-          if (text) text.innerText = 'CORRECT';
-
-          setTimeout(() => {
-            if (!isCameraActive || !correctSequenceBusy) return;
-            correctSequenceBusy = false;
-            undo();
-            lockCameraGestureFor3Seconds();
-          }, 180);
-          return;
-        }
-
-        // 1초를 넘겼거나 연속 같은 방향 등으로 조건이 끊긴 경우,
-        // 현재 방향을 새로운 Correct 후보의 시작점으로 다시 잡습니다.
-        gestureTransitionAnchorSide = currentTarget;
-        gestureTransitionAnchorProgress = previousProgress;
-        gestureTransitionAnchorAt = previousEndedAt;
-        correctSequenceStage = 1;
-        correctSequenceState = currentTarget;
-        correctSequenceStartTime = now;
-        correctSequenceLastChange = now;
-        updateCorrectSequenceGauge();
-        return;
-      }
-
-      // 직전 방향이 80%를 넘겼다면 Correct 후보를 폐기합니다.
-      gestureTransitionAnchorSide = null;
-      gestureTransitionAnchorProgress = 0;
-      gestureTransitionAnchorAt = 0;
-      correctSequenceStage = 0;
-      correctSequenceState = null;
-      resetCorrectSequenceGauge();
     }
 
     function resetAllGestureState(clearCorrectVisual = true) {
       cancelPendingLeftPoint();
+
       gesturePointLocked = false;
       detectedTargetSide = null;
       gestureCandidateSide = null;
@@ -1576,18 +1685,15 @@
       gestureLastRatio = null;
       gestureRatioChangedAt = 0;
       gestureWasShort = false;
-      gestureTransitionAnchorSide = null;
-      gestureTransitionAnchorProgress = 0;
-      gestureTransitionAnchorAt = 0;
+
+      clearCorrectCandidate();
 
       correctSequenceStage = 0;
       correctSequenceState = null;
-      correctSequenceLastChange = 0;
-      correctSequenceStartTime = 0;
-      correctSequenceBusy = false;
-      correctSequenceStepStart = 0;
-      correctSequenceFrozenElapsed = 0;
+      correctSequenceWaitingNeutral = false;
       correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = 0;
+      correctSequenceBusy = false;
 
       resetGestureGauge();
       if (clearCorrectVisual) resetCorrectSequenceGauge();
@@ -1601,6 +1707,7 @@
 
       gauge.classList.add('active');
       gauge.classList.remove('success');
+
       const ratio = Math.min(correctSequenceStage / CORRECT_SEQUENCE_STEPS, 1);
       fill.style.width = `${ratio * 100}%`;
       text.innerText = `${correctSequenceStage}/${CORRECT_SEQUENCE_STEPS}`;
@@ -1609,16 +1716,17 @@
     function resetCorrectSequenceGauge() {
       correctSequenceStage = 0;
       correctSequenceState = null;
-      correctSequenceLastChange = 0;
-      correctSequenceStartTime = 0;
-      correctSequenceBusy = false;
-      correctSequenceStepStart = 0;
-      correctSequenceFrozenElapsed = 0;
+      correctSequenceWaitingNeutral = false;
       correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = 0;
+      correctSequenceBusy = false;
+
+      clearCorrectCandidate();
 
       const gauge = document.getElementById('correct-gauge');
       const fill = document.getElementById('correct-gauge-fill');
       const text = document.getElementById('correct-gauge-step');
+
       if (gauge) gauge.classList.remove('active', 'success');
       if (fill) fill.style.width = '0%';
       if (text) text.innerText = 'READY';
