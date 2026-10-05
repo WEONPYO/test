@@ -1266,33 +1266,25 @@
       }
 
       const visible =
-        leftWrist.visibility > 0.35 &&
-        rightWrist.visibility > 0.35 &&
-        leftShoulder.visibility > 0.30 &&
-        rightShoulder.visibility > 0.30;
+        leftWrist.visibility > 0.25 &&
+        rightWrist.visibility > 0.25 &&
+        leftShoulder.visibility > 0.25 &&
+        rightShoulder.visibility > 0.25;
 
       if (!visible) {
         processGestureTarget(null, now);
         return;
       }
 
-      // 얼굴 기준선보다 위 + 양쪽 어깨보다 위인 경우만 제스처로 인정합니다.
-      // 눈 랜드마크가 없더라도 nose 기준으로 동작하도록 fallback 합니다.
-      const faceY = Math.min(
-        nose.y,
-        Number.isFinite(leftEye?.y) ? leftEye.y : nose.y,
-        Number.isFinite(rightEye?.y) ? rightEye.y : nose.y
-      );
+      // 손이 어깨보다 위에 있으면 제스처 후보로 인정합니다.
+      // 기존의 '머리보다 반드시 위' 조건은 카메라 각도/신체 비율에 따라
+      // 정상적인 손 동작까지 놓치는 경우가 있어 제거했습니다.
       const shoulderTopY = Math.min(leftShoulder.y, rightShoulder.y);
-
-      const wristsAboveHead =
-        leftWrist.y < faceY + 0.05 &&
-        rightWrist.y < faceY + 0.05;
       const wristsAboveShoulders =
-        leftWrist.y < shoulderTopY - 0.03 &&
-        rightWrist.y < shoulderTopY - 0.03;
+        leftWrist.y < shoulderTopY + 0.08 &&
+        rightWrist.y < shoulderTopY + 0.08;
 
-      if (!wristsAboveHead || !wristsAboveShoulders) {
+      if (!wristsAboveShoulders) {
         processGestureTarget(null, now);
         return;
       }
@@ -1315,8 +1307,8 @@
 
       // 좌측 = 양손을 확실히 모음, 우측 = 양손을 확실히 벌림.
       // 가운데 영역은 '중립'으로 두어 멀리 있는 사람/흔들림으로 인한 오인식을 차단합니다.
-      const LEFT_CLOSE_RATIO = 0.78;
-      const RIGHT_OPEN_RATIO = 1.20;
+      const LEFT_CLOSE_RATIO = 0.85;
+      const RIGHT_OPEN_RATIO = 1.15;
 
       let currentTarget = null;
       if (handRatio <= LEFT_CLOSE_RATIO) {
@@ -1363,12 +1355,11 @@
     }
 
     function processGestureTarget(currentTarget, now) {
-      // 점수/Correct가 확정되면 3초 동안 카메라 입력을 잠급니다.
+      // 점수/Correct 확정 후 3초 잠금
       if (cameraGestureLockUntil > 0) {
         if (currentTarget === null) cameraGestureNeedsNeutral = false;
         if (now < cameraGestureLockUntil) {
-          const remainingCd = Math.max(0, (cameraGestureLockUntil - now) / 1000);
-          updateCooldownGaugeDisplay(remainingCd.toFixed(1));
+          updateCooldownGaugeDisplay(Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1));
           return;
         }
         cameraGestureLockUntil = 0;
@@ -1381,7 +1372,6 @@
         resetGestureGauge();
       }
 
-      // 잠금 해제 후에는 손을 한 번 중립으로 내려야 같은 자세를 다시 인식합니다.
       if (cameraGestureNeedsNeutral) {
         if (currentTarget === null) {
           cameraGestureNeedsNeutral = false;
@@ -1392,20 +1382,10 @@
         }
       }
 
-      // 한두 프레임의 Pose 흔들림은 실제 자세 전환으로 인정하지 않습니다.
-      if (currentTarget !== null && currentTarget !== detectedTargetSide) {
-        if (gestureCandidateSide !== currentTarget) {
-          gestureCandidateSide = currentTarget;
-          gestureCandidateSince = now;
-          return;
-        }
-        if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) return;
-      } else if (currentTarget === null) {
+      // 중립
+      if (currentTarget === null) {
         gestureCandidateSide = null;
         gestureCandidateSince = 0;
-      }
-
-      if (currentTarget === null) {
         resetGestureGauge();
         if (correctSequenceStage > 0 && now - correctSequenceLastChange > CORRECT_SEQUENCE_TIMEOUT) {
           resetCorrectSequenceGauge();
@@ -1414,133 +1394,138 @@
         return;
       }
 
+      // 방향 변경은 짧게 안정된 경우에만 인정
+      if (currentTarget !== detectedTargetSide) {
+        if (gestureCandidateSide !== currentTarget) {
+          gestureCandidateSide = currentTarget;
+          gestureCandidateSince = now;
+          return;
+        }
+        if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) return;
+      }
+
       const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
 
-      if (detectedTargetSide !== currentTarget) {
-        const previousSide = detectedTargetSide;
-        const previousStartTime = gestureStartTime;
-
-        // 실제로 인정된 자세가 바뀐 시점
+      // 최초 방향
+      if (detectedTargetSide === null) {
         detectedTargetSide = currentTarget;
         gestureCandidateSide = null;
         gestureCandidateSince = 0;
         gestureStartTime = now;
+        gesturePointLocked = false;
+        updateGestureGaugeDisplay(currentTarget, 0);
+        return;
+      }
 
-        // 중요: '모음(좌측)' 하나만으로는 Correct를 시작하지 않습니다.
-        // 좌측 모음은 정상 좌측 득점이 최우선이며, 좌측 점수 확정 전에
-        // 빠르게 '벌림(우측)'으로 전환한 경우에만 Correct를 시작합니다.
-        if (correctSequenceStage === 0) {
-          if (previousSide === 'left' && currentTarget === 'right') {
-            const leftElapsed = previousStartTime === null ? Infinity : now - previousStartTime;
-            const leftGaugeRatio = leftElapsed / requiredDurationMs;
-            if (leftGaugeRatio <= CORRECT_MAX_GAUGE_RATIO) {
-              cancelPendingLeftPoint();
-              startCorrectSequenceFromTransition(now);
+      // 실제 방향 전환
+      if (detectedTargetSide !== currentTarget) {
+        const previousSide = detectedTargetSide;
+        const previousStartTime = gestureStartTime;
+        const previousElapsed = previousStartTime === null ? Infinity : now - previousStartTime;
+        const previousGaugeRatio = previousElapsed / requiredDurationMs;
+
+        // Correct: 각 방향의 게이지가 80% 이하일 때만 전환을 인정합니다.
+        // 첫 전환부터 마지막 전환까지 모두 같은 규칙을 적용합니다.
+        if (previousGaugeRatio <= CORRECT_MAX_GAUGE_RATIO) {
+          if (correctSequenceStage === 0) {
+            // 첫 번째 전환: previousSide(1단계) -> currentTarget(2단계)
+            correctSequenceStage = 2;
+            correctSequenceState = currentTarget;
+            correctSequenceStartTime = now;
+            correctSequenceLastChange = now;
+            correctSequenceBusy = false;
+            cancelPendingLeftPoint();
+            gesturePointLocked = false;
+            updateCorrectSequenceGauge();
+          } else {
+            const expected = correctSequenceState === 'left' ? 'right' : 'left';
+            if (currentTarget !== expected || now - correctSequenceLastChange < CORRECT_SEQUENCE_DEBOUNCE) {
+              resetCorrectSequenceGauge();
+            } else {
+              // 현재 방향도 80% 이내에서 다음 방향으로 넘어가야 합니다.
+              correctSequenceStage++;
+              correctSequenceState = currentTarget;
+              correctSequenceLastChange = now;
+              updateCorrectSequenceGauge();
+
+              if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+                correctSequenceBusy = true;
+                const gauge = document.getElementById('correct-gauge');
+                const text = document.getElementById('correct-gauge-step');
+                const fill = document.getElementById('correct-gauge-fill');
+                if (gauge && text && fill) {
+                  gauge.classList.add('active', 'success');
+                  fill.style.width = '100%';
+                  text.innerText = 'CORRECT';
+                }
+                setTimeout(() => {
+                  if (!isCameraActive) return;
+                  undo();
+                  lockCameraGestureFor3Seconds();
+                  resetCorrectSequenceGauge();
+                  correctSequenceBusy = false;
+                }, 220);
+              }
             }
           }
+        }
+
+        // Correct가 시작/진행되지 않았다면 일반 제스처로 새로 시작합니다.
+        if (correctSequenceStage === 0) {
+          detectedTargetSide = currentTarget;
+          gestureCandidateSide = null;
+          gestureCandidateSince = 0;
+          gestureStartTime = now;
+          gesturePointLocked = false;
         } else {
-          updateCorrectSequence(currentTarget, now);
+          detectedTargetSide = currentTarget;
+          gestureCandidateSide = null;
+          gestureCandidateSince = 0;
+          gestureStartTime = now;
+          gesturePointLocked = false;
         }
       }
 
-      const correctPatternRunning = correctSequenceStage > 0;
-
-      if (!correctPatternRunning) {
-        const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
-        const progressRatio = Math.min(elapsed / requiredDurationMs, 1.0);
-        updateGestureGaugeDisplay(currentTarget, progressRatio);
-
-        if (elapsed >= requiredDurationMs && !gesturePointLocked) {
-          if (currentTarget === 'left') {
-            scheduleLeftPointConfirmation(now);
-          } else {
-            const targetTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
-            const fill = document.getElementById('gauge-fill-right');
-            if (fill) fill.style.height = '100%';
-            gesturePointLocked = true;
-            setTimeout(() => {
-              if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
-              if (detectedTargetSide !== 'right' || correctSequenceStage > 0) {
-                gesturePointLocked = false;
-                return;
-              }
-              addPoint(targetTeam);
-              lockCameraGestureFor3Seconds();
-            }, 80);
-          }
-        }
-      } else {
-        // Correct 진행 중에는 일반 점수 확정을 중단합니다.
+      // Correct 진행 중: 일반 점수 금지, 각 방향의 현재 게이지만 표시
+      if (correctSequenceStage > 0) {
         cancelPendingLeftPoint();
-        resetGestureGauge();
-        updateCorrectSequenceGauge();
-      }
-    }
-
-    function startCorrectSequenceFromTransition(now) {
-      // 여기까지 왔다는 것은 '좌측 게이지 80% 이하 → 우측 전환'이
-      // 실제로 발생했다는 뜻입니다. 이후에도 각 방향을 80% 이하에서
-      // 번갈아 전환해야 Correct 단계가 올라갑니다.
-      correctSequenceStage = 2;
-      correctSequenceState = 'right';
-      correctSequenceLastChange = now;
-      correctSequenceStartTime = now;
-      correctSequenceBusy = false;
-      updateCorrectSequenceGauge();
-    }
-
-    function updateCorrectSequence(currentState, now) {
-      if (correctSequenceBusy || correctSequenceStage === 0) return;
-
-      if (now - correctSequenceStartTime > CORRECT_SEQUENCE_TIMEOUT) {
-        resetCorrectSequenceGauge();
-        return;
-      }
-
-      // 같은 자세는 한 번만 카운트합니다.
-      if (currentState === correctSequenceState) return;
-
-      const expected = correctSequenceState === 'left' ? 'right' : 'left';
-      if (currentState !== expected) {
-        resetCorrectSequenceGauge();
-        return;
-      }
-
-      if (now - correctSequenceLastChange < CORRECT_SEQUENCE_DEBOUNCE) return;
-
-      // Correct 진행 중인 각 방향도 게이지가 80%를 넘기면 해당 전환을 인정하지 않습니다.
-      const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
-      const currentElapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
-      const currentGaugeRatio = currentElapsed / requiredDurationMs;
-      if (currentGaugeRatio > CORRECT_MAX_GAUGE_RATIO) {
-        resetCorrectSequenceGauge();
-        return;
-      }
-
-      correctSequenceStage++;
-      correctSequenceState = currentState;
-      correctSequenceLastChange = now;
-      updateCorrectSequenceGauge();
-
-      if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
-        correctSequenceBusy = true;
-
-        const gauge = document.getElementById('correct-gauge');
-        const text = document.getElementById('correct-gauge-step');
-        const fill = document.getElementById('correct-gauge-fill');
-        if (gauge && text && fill) {
-          gauge.classList.add('active', 'success');
-          fill.style.width = '100%';
-          text.innerText = 'CORRECT';
+        const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
+        const ratio = Math.min(elapsed / requiredDurationMs, 1);
+        updateGestureGaugeDisplay(currentTarget, ratio);
+        if (ratio > CORRECT_MAX_GAUGE_RATIO) {
+          resetCorrectSequenceGauge();
+          // 80%를 넘겼으므로 현재 방향을 일반 제스처의 새 시작점으로 유지
+          gestureStartTime = now;
+          gesturePointLocked = false;
         }
+        return;
+      }
+
+      // 일반 득점
+      const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
+      const progressRatio = Math.min(elapsed / requiredDurationMs, 1);
+      updateGestureGaugeDisplay(currentTarget, progressRatio);
+
+      if (elapsed >= requiredDurationMs && !gesturePointLocked) {
+        gesturePointLocked = true;
+        const targetTeam = currentTarget === 'left'
+          ? state.courtLeftTeam
+          : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+        const fill = document.getElementById(currentTarget === 'left' ? 'gauge-fill-left' : 'gauge-fill-right');
+        if (fill) fill.style.height = '100%';
 
         setTimeout(() => {
-          if (!isCameraActive) return;
-          undo();
+          if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) {
+            gesturePointLocked = false;
+            return;
+          }
+          if (detectedTargetSide !== currentTarget || correctSequenceStage > 0) {
+            gesturePointLocked = false;
+            return;
+          }
+          addPoint(targetTeam);
           lockCameraGestureFor3Seconds();
-          resetCorrectSequenceGauge();
-          correctSequenceBusy = false;
-        }, 220);
+        }, 80);
       }
     }
 
