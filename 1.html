@@ -611,7 +611,7 @@
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
         • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
         • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지<br/>
-        • <strong>Correct:</strong> 양손을 머리 위에서 <strong>좌측 게이지 80% 이하 → 우측 게이지 80% 이하를 번갈아 반복</strong> 순서로 반복
+        • <strong>Correct:</strong> 양손을 모음 → 벌림 → 모음 → 벌림 순서로 천천히 반복 (Correct는 동작 속도와 무관)
       </div>
 
       <div class="setting-group">
@@ -842,7 +842,10 @@
     const CORRECT_SEQUENCE_STEPS = 4;
     const CORRECT_SEQUENCE_TIMEOUT = 10000;
     // Correct에서 다음 방향이 1초 안에 들어오지 않으면 즉시 취소합니다.
-    const CORRECT_NEXT_GESTURE_TIMEOUT_MS = 1000;
+    const CORRECT_NEXT_GESTURE_TIMEOUT_MS = 3000;
+    // Correct에서는 손동작 속도와 무관하게 방향 전환을 인정합니다.
+    // 80% HOLD 시간 제한은 일반 득점에만 적용하고 Correct 단계에는 적용하지 않습니다.
+    const CORRECT_TRANSITION_STABLE_MS = 100;
     const CORRECT_SEQUENCE_DEBOUNCE = 120;
     const CORRECT_SEQUENCE_STABLE_MS = 140;
     // Correct는 각 방향의 일반 동작 게이지가 80% 이하일 때의 전환만 인정합니다.
@@ -1429,22 +1432,19 @@
           return;
         }
 
-        // Require a short stable window for the new direction.
+        // Require only a short stable window for the NEW direction.
+        // Do not measure the previous gesture's HOLD time here: Correct must
+        // work even when the user slowly closes/opens the hands.
         if (gestureCandidateSide !== currentTarget) {
           gestureCandidateSide = currentTarget;
           gestureCandidateSince = now;
           return;
         }
-        if (now - gestureCandidateSince < CORRECT_SEQUENCE_STABLE_MS) return;
+        if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
 
-        // The previous gesture must have been completed before 80% of HOLD.
-        const previousElapsed = Math.max(0, now - (gestureStartTime || now));
-        if (previousElapsed > correctMaxMs) {
-          resetAllGestureState(true);
-          return;
-        }
-
-        // Accept the next Correct step.
+        // Accept the next Correct step regardless of how slowly the previous
+        // direction was held. The only timeout is the 3-second wait for the
+        // next direction above.
         correctSequenceStage += 1;
         correctSequenceState = currentTarget;
         correctSequenceLastChange = now;
@@ -1559,8 +1559,7 @@
 
       if (
         previousSide === 'left' &&
-        currentTarget === 'right' &&
-        previousElapsed <= correctMaxMs
+        currentTarget === 'right'
       ) {
         // LEFT + RIGHT are now both confirmed. The next required gesture is LEFT.
         correctSequenceStage = 2;
