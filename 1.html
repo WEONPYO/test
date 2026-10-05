@@ -843,9 +843,9 @@
     const CORRECT_SEQUENCE_TIMEOUT = 10000;
     const CORRECT_SEQUENCE_DEBOUNCE = 120;
     const CORRECT_SEQUENCE_STABLE_MS = 140;
-    // 첫 번째 '모음' 이후 '벌림'으로 넘어갈 시간을 확보합니다.
-    // 일반 득점과 Correct 제스처가 서로 선점하지 않도록 첫 왼쪽 득점만 짧게 유예합니다.
-    const CORRECT_FIRST_TRANSITION_GRACE_MS = 700;
+    // 좌측 '모음'은 일반 좌측 득점을 우선합니다.
+    // 모음 상태를 유지한 채 충분히 오래 있으면 좌측 점수로 확정하고,
+    // 점수 확정 전에 빠르게 '벌림'으로 전환했을 때만 Correct 후보로 진입합니다.
 
     // 기존 단일 점수 제스처의 중복 실행 방지용
     let gesturePointLocked = false;
@@ -1342,7 +1342,7 @@
       const targetTeam = state.courtLeftTeam;
       const fill = document.getElementById('gauge-fill-left');
       if (fill) fill.style.height = '100%';
-      // 게이지가 100%에 도달한 화면 프레임을 먼저 보여준 뒤 점수를 반영합니다.
+
       setTimeout(() => {
         if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
         if (detectedTargetSide !== 'left' || correctSequenceStage > 0 || gesturePointLocked) return;
@@ -1355,7 +1355,7 @@
       if (pendingLeftPointTimer || correctSequenceStage > 0) return;
       const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
       const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
-      const delay = Math.max(0, requiredDurationMs - elapsed) + CORRECT_FIRST_TRANSITION_GRACE_MS;
+      const delay = Math.max(0, requiredDurationMs - elapsed);
       pendingLeftPointDeadline = now + delay;
       pendingLeftPointTimer = setTimeout(confirmLeftPointIfStillValid, delay);
     }
@@ -1413,31 +1413,34 @@
       }
 
       const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
-      let correctPatternRunning = correctSequenceStage > 0;
 
       if (detectedTargetSide !== currentTarget) {
         const previousSide = detectedTargetSide;
+        const previousStartTime = gestureStartTime;
+
+        // 실제로 인정된 자세가 바뀐 시점
         detectedTargetSide = currentTarget;
         gestureCandidateSide = null;
         gestureCandidateSince = 0;
         gestureStartTime = now;
 
-        // Correct는 '모음 -> 벌림 -> 모음 -> 벌림'을 상태 전환으로 추적합니다.
-        // 첫 '모음'을 stage 1로 즉시 기억해 두어, 첫 모음을 오래 유지해도
-        // 일반 좌측 득점이 Correct 동작을 가로채지 않도록 합니다.
-        if (correctSequenceStage === 0 && currentTarget === 'left') {
-          startCorrectSequenceFromLeft(now);
-        } else if (correctSequenceStage > 0) {
+        // 중요: '모음(좌측)' 하나만으로는 Correct를 시작하지 않습니다.
+        // 좌측 모음은 정상 좌측 득점이 최우선이며, 좌측 점수 확정 전에
+        // 빠르게 '벌림(우측)'으로 전환한 경우에만 Correct를 시작합니다.
+        if (correctSequenceStage === 0) {
+          if (previousSide === 'left' && currentTarget === 'right') {
+            const leftElapsed = previousStartTime === null ? Infinity : now - previousStartTime;
+            if (leftElapsed < requiredDurationMs) {
+              cancelPendingLeftPoint();
+              startCorrectSequenceFromTransition(now);
+            }
+          }
+        } else {
           updateCorrectSequence(currentTarget, now);
-        } else if (previousSide === 'left' && currentTarget === 'right') {
-          // 기존 상태가 남아 있는 경우에도 안전하게 Correct를 시작합니다.
-          startCorrectSequenceFromTransition(now);
         }
-      } else if (correctSequenceStage > 0) {
-        updateCorrectSequence(currentTarget, now);
       }
 
-      correctPatternRunning = correctSequenceStage > 0;
+      const correctPatternRunning = correctSequenceStage > 0;
 
       if (!correctPatternRunning) {
         const elapsed = gestureStartTime === null ? 0 : now - gestureStartTime;
@@ -1464,29 +1467,16 @@
           }
         }
       } else {
-        // Correct 1단계(첫 모음)에서는 일반 좌측 득점도 가능해야 합니다.
-        // 다만 바로 확정하지 않고 짧은 유예를 두어 '벌림' 전환이 오면 Correct가 우선합니다.
-        if (correctSequenceStage === 1 && currentTarget === 'left') {
-          scheduleLeftPointConfirmation(now);
-          updateCorrectSequenceGauge();
-        } else {
-          cancelPendingLeftPoint();
-        }
+        // Correct 진행 중에는 일반 점수 확정을 중단합니다.
+        cancelPendingLeftPoint();
         resetGestureGauge();
+        updateCorrectSequenceGauge();
       }
     }
 
-    function startCorrectSequenceFromLeft(now) {
-      correctSequenceStage = 1;
-      correctSequenceState = 'left';
-      correctSequenceLastChange = now;
-      correctSequenceStartTime = now;
-      correctSequenceBusy = false;
-      updateCorrectSequenceGauge();
-    }
-
     function startCorrectSequenceFromTransition(now) {
-      // left -> right까지 확인된 상태
+      // 여기까지 왔다는 것은 '모음(좌측) → 벌림(우측)'이
+      // 좌측 점수 확정 전에 빠르게 발생했다는 뜻입니다.
       correctSequenceStage = 2;
       correctSequenceState = 'right';
       correctSequenceLastChange = now;
