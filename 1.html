@@ -609,10 +609,9 @@
 
       <div class="info-box">
         <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
-        • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위에서 확실하게 모으는 동작 유지<br/>
-        • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위에서 확실하게 넓게 벌리는 동작 유지<br/>
+        • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
+        • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지<br/>
         • <strong>Correct:</strong> 양손을 머리 위에서 <strong>모음 → 벌림 → 모음 → 벌림</strong> 순서로 반복
-        • <strong>중간 자세:</strong> 모음/벌림 어느 쪽도 확실하지 않으면 득점하지 않음 (오인식 방지)
       </div>
 
       <div class="setting-group">
@@ -823,7 +822,7 @@
     const POSE_PRIMARY_WINDOW_MS = 360;
     // 한 번 점수가 인식되면 3초 동안 카메라 제스처 입력을 완전히 잠급니다.
     const GESTURE_COOLDOWN_MS = 3000;
-    const GESTURE_MIN_STABLE_MS = 160;
+    const GESTURE_MIN_STABLE_MS = 140;
 
     let gestureStartTime = null;
     let detectedTargetSide = null;
@@ -842,11 +841,11 @@
     let pendingLeftPointDeadline = 0;
     const CORRECT_SEQUENCE_STEPS = 4;
     const CORRECT_SEQUENCE_TIMEOUT = 10000;
-    const CORRECT_SEQUENCE_DEBOUNCE = 100;
-    const CORRECT_SEQUENCE_STABLE_MS = 100;
+    const CORRECT_SEQUENCE_DEBOUNCE = 120;
+    const CORRECT_SEQUENCE_STABLE_MS = 140;
     // 첫 번째 '모음' 이후 '벌림'으로 넘어갈 시간을 확보합니다.
     // 일반 득점과 Correct 제스처가 서로 선점하지 않도록 첫 왼쪽 득점만 짧게 유예합니다.
-    const CORRECT_FIRST_TRANSITION_GRACE_MS = 450;
+    const CORRECT_FIRST_TRANSITION_GRACE_MS = 700;
 
     // 기존 단일 점수 제스처의 중복 실행 방지용
     let gesturePointLocked = false;
@@ -1241,58 +1240,65 @@
     }
 
     function onPoseResults(results) {
-      // 제스처 인식은 Pose를 단일 기준으로 사용합니다.
-      // 핵심: 화면상의 절대 픽셀/거리 대신 어깨 폭으로 손목 간 거리를 정규화합니다.
-      // 따라서 사람이 카메라에서 멀어져도 '모음/벌림'의 상대적인 차이를 유지합니다.
+      // 카메라 제스처는 양손이 머리 위에 있는 상태에서만 판정합니다.
+      // 손목 간 거리를 어깨 폭으로 정규화하므로 카메라와의 거리가 달라도
+      // '모음(좌측) / 벌림(우측)'의 상대적인 차이를 유지합니다.
       if (!isCameraActive || !results.poseLandmarks) {
         processGestureTarget(null, Date.now());
         return;
       }
 
       const now = Date.now();
-      const landmarks = results.poseLandmarks;
-      const nose = landmarks[0];
-      const leftWrist = landmarks[15];
-      const rightWrist = landmarks[16];
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
+      const lm = results.poseLandmarks;
+      const nose = lm[0];
+      const leftEye = lm[2];
+      const rightEye = lm[5];
+      const leftWrist = lm[15];
+      const rightWrist = lm[16];
+      const leftShoulder = lm[11];
+      const rightShoulder = lm[12];
 
       if (!nose || !leftWrist || !rightWrist || !leftShoulder || !rightShoulder) {
         processGestureTarget(null, now);
         return;
       }
 
-      // 두 손이 모두 머리 위에 충분히 올라온 경우만 제스처 후보로 인정합니다.
-      // '머리 위'라는 조건을 강화하여 몸 옆에서 벌어진 손을 점수 제스처로 오인하지 않습니다.
-      const wristsVisible =
-        leftWrist.visibility > 0.45 &&
-        rightWrist.visibility > 0.45 &&
-        leftShoulder.visibility > 0.40 &&
-        rightShoulder.visibility > 0.40;
+      const visible =
+        leftWrist.visibility > 0.35 &&
+        rightWrist.visibility > 0.35 &&
+        leftShoulder.visibility > 0.30 &&
+        rightShoulder.visibility > 0.30;
 
-      const headTopY = nose.y - 0.18;
-      const shoulderTopY = Math.min(leftShoulder.y, rightShoulder.y);
-
-      const wristsAboveHead =
-        leftWrist.y < headTopY &&
-        rightWrist.y < headTopY;
-
-      const wristsAboveShoulders =
-        leftWrist.y < shoulderTopY - 0.04 &&
-        rightWrist.y < shoulderTopY - 0.04;
-
-      if (!wristsVisible || !wristsAboveHead || !wristsAboveShoulders) {
+      if (!visible) {
         processGestureTarget(null, now);
         return;
       }
 
-      // 손목 간 거리를 어깨 폭으로 정규화합니다.
-      // 이 값은 사람이 카메라에서 가까워지거나 멀어져도 상대적으로 유지됩니다.
+      // 얼굴 기준선보다 위 + 양쪽 어깨보다 위인 경우만 제스처로 인정합니다.
+      // 눈 랜드마크가 없더라도 nose 기준으로 동작하도록 fallback 합니다.
+      const faceY = Math.min(
+        nose.y,
+        Number.isFinite(leftEye?.y) ? leftEye.y : nose.y,
+        Number.isFinite(rightEye?.y) ? rightEye.y : nose.y
+      );
+      const shoulderTopY = Math.min(leftShoulder.y, rightShoulder.y);
+
+      const wristsAboveHead =
+        leftWrist.y < faceY + 0.05 &&
+        rightWrist.y < faceY + 0.05;
+      const wristsAboveShoulders =
+        leftWrist.y < shoulderTopY - 0.03 &&
+        rightWrist.y < shoulderTopY - 0.03;
+
+      if (!wristsAboveHead || !wristsAboveShoulders) {
+        processGestureTarget(null, now);
+        return;
+      }
+
       const wristsDist = Math.hypot(
         leftWrist.x - rightWrist.x,
         leftWrist.y - rightWrist.y
       );
-
       const shoulderWidth = Math.hypot(
         leftShoulder.x - rightShoulder.x,
         leftShoulder.y - rightShoulder.y
@@ -1305,39 +1311,16 @@
 
       const handRatio = wristsDist / shoulderWidth;
 
-      /*
-       * 제스처 판정 기준
-       *
-       * LEFT  = 두 손을 머리 위에서 확실하게 모음
-       * RIGHT = 두 손을 머리 위에서 확실하게 벌림
-       *
-       * 기존:
-       *   left <= 0.95
-       *   right >= 1.15
-       *
-       * 문제:
-       *   두 기준의 간격이 너무 좁아, 먼 거리/포즈 추정 오차에서
-       *   실제 '벌림'이 0.95 이하로 내려가 좌측으로 잘못 판정될 수 있었습니다.
-       *
-       * 수정:
-       *   확실한 모음 <= 0.72
-       *   확실한 벌림 >= 1.35
-       *   0.72~1.35 = NEUTRAL(점수 없음)
-       *
-       * 따라서 '모았을 때와 벌렸을 때의 차이' 자체를 판정 기준으로 사용합니다.
-       */
-      const LEFT_CLOSE_RATIO = 0.72;
-      const RIGHT_OPEN_RATIO = 1.35;
+      // 좌측 = 양손을 확실히 모음, 우측 = 양손을 확실히 벌림.
+      // 가운데 영역은 '중립'으로 두어 멀리 있는 사람/흔들림으로 인한 오인식을 차단합니다.
+      const LEFT_CLOSE_RATIO = 0.78;
+      const RIGHT_OPEN_RATIO = 1.20;
 
       let currentTarget = null;
-
       if (handRatio <= LEFT_CLOSE_RATIO) {
         currentTarget = 'left';
       } else if (handRatio >= RIGHT_OPEN_RATIO) {
         currentTarget = 'right';
-      } else {
-        // 애매한 중간 자세는 어느 쪽도 선택하지 않습니다.
-        currentTarget = null;
       }
 
       processGestureTarget(currentTarget, now);
@@ -1378,12 +1361,9 @@
     }
 
     function processGestureTarget(currentTarget, now) {
-      // 점수/정정이 한 번 확정되면 카메라 입력을 정확히 3초간 잠급니다.
-      // 잠금 중 손을 내려놓은 사실은 기록하여, 잠금 해제 후 새 동작만 인정합니다.
+      // 점수/Correct가 확정되면 3초 동안 카메라 입력을 잠급니다.
       if (cameraGestureLockUntil > 0) {
-        if (currentTarget === null) {
-          cameraGestureNeedsNeutral = false;
-        }
+        if (currentTarget === null) cameraGestureNeedsNeutral = false;
         if (now < cameraGestureLockUntil) {
           const remainingCd = Math.max(0, (cameraGestureLockUntil - now) / 1000);
           updateCooldownGaugeDisplay(remainingCd.toFixed(1));
@@ -1399,7 +1379,7 @@
         resetGestureGauge();
       }
 
-      // 3초 동안 손을 내리지 않았다면 잠금 해제 후에도 같은 자세를 재인식하지 않습니다.
+      // 잠금 해제 후에는 손을 한 번 중립으로 내려야 같은 자세를 다시 인식합니다.
       if (cameraGestureNeedsNeutral) {
         if (currentTarget === null) {
           cameraGestureNeedsNeutral = false;
@@ -1410,8 +1390,7 @@
         }
       }
 
-      // 순간적인 Pose/Hands 흔들림은 후보 상태로만 보관하고,
-      // 같은 방향이 짧게 안정된 뒤에만 실제 제스처 상태로 반영합니다.
+      // 한두 프레임의 Pose 흔들림은 실제 자세 전환으로 인정하지 않습니다.
       if (currentTarget !== null && currentTarget !== detectedTargetSide) {
         if (gestureCandidateSide !== currentTarget) {
           gestureCandidateSide = currentTarget;
@@ -1433,8 +1412,8 @@
         return;
       }
 
-      const requiredDurationMs = (config.gestureHoldDuration || 1.0) * 1000;
-      let correctPatternRunning = false;
+      const requiredDurationMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+      let correctPatternRunning = correctSequenceStage > 0;
 
       if (detectedTargetSide !== currentTarget) {
         const previousSide = detectedTargetSide;
@@ -1443,13 +1422,16 @@
         gestureCandidateSince = 0;
         gestureStartTime = now;
 
-        // Correct는 '모음 -> 벌림 -> 모음 -> 벌림'의 실제 전환을 최우선으로 봅니다.
-        // 첫 모음이 1000ms를 넘어도 바로 득점 확정하지 않고, 잠시 전환을 기다립니다.
-        if (correctSequenceStage === 0 && previousSide === 'left' && currentTarget === 'right') {
-          cancelPendingLeftPoint();
-          startCorrectSequenceFromTransition(now);
+        // Correct는 '모음 -> 벌림 -> 모음 -> 벌림'을 상태 전환으로 추적합니다.
+        // 첫 '모음'을 stage 1로 즉시 기억해 두어, 첫 모음을 오래 유지해도
+        // 일반 좌측 득점이 Correct 동작을 가로채지 않도록 합니다.
+        if (correctSequenceStage === 0 && currentTarget === 'left') {
+          startCorrectSequenceFromLeft(now);
         } else if (correctSequenceStage > 0) {
           updateCorrectSequence(currentTarget, now);
+        } else if (previousSide === 'left' && currentTarget === 'right') {
+          // 기존 상태가 남아 있는 경우에도 안전하게 Correct를 시작합니다.
+          startCorrectSequenceFromTransition(now);
         }
       } else if (correctSequenceStage > 0) {
         updateCorrectSequence(currentTarget, now);
@@ -1464,36 +1446,47 @@
 
         if (elapsed >= requiredDurationMs && !gesturePointLocked) {
           if (currentTarget === 'left') {
-            // 첫 모음은 Correct의 다음 '벌림' 전환을 기다리기 위해 잠시 유예합니다.
             scheduleLeftPointConfirmation(now);
           } else {
             const targetTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
-            // 오른쪽도 동일하게 게이지 100%를 먼저 화면에 반영한 후 점수를 처리합니다.
             const fill = document.getElementById('gauge-fill-right');
             if (fill) fill.style.height = '100%';
-            if (!gesturePointLocked) {
-              gesturePointLocked = true;
-              setTimeout(() => {
-                if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
-                if (detectedTargetSide !== 'right' || correctSequenceStage > 0) {
-                  gesturePointLocked = false;
-                  return;
-                }
-                addPoint(targetTeam);
-                lockCameraGestureFor3Seconds();
-              }, 80);
-            }
+            gesturePointLocked = true;
+            setTimeout(() => {
+              if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) return;
+              if (detectedTargetSide !== 'right' || correctSequenceStage > 0) {
+                gesturePointLocked = false;
+                return;
+              }
+              addPoint(targetTeam);
+              lockCameraGestureFor3Seconds();
+            }, 80);
           }
         }
       } else {
-        cancelPendingLeftPoint();
+        // Correct 1단계(첫 모음)에서는 일반 좌측 득점도 가능해야 합니다.
+        // 다만 바로 확정하지 않고 짧은 유예를 두어 '벌림' 전환이 오면 Correct가 우선합니다.
+        if (correctSequenceStage === 1 && currentTarget === 'left') {
+          scheduleLeftPointConfirmation(now);
+          updateCorrectSequenceGauge();
+        } else {
+          cancelPendingLeftPoint();
+        }
         resetGestureGauge();
       }
     }
 
-    // 손 모음(left) -> 손 벌림(right) 전환이 실제로 발생한 순간부터
-    // Correct 게이지를 표시한다. 초기 손 모음 상태에서는 게이지를 표시하지 않는다.
+    function startCorrectSequenceFromLeft(now) {
+      correctSequenceStage = 1;
+      correctSequenceState = 'left';
+      correctSequenceLastChange = now;
+      correctSequenceStartTime = now;
+      correctSequenceBusy = false;
+      updateCorrectSequenceGauge();
+    }
+
     function startCorrectSequenceFromTransition(now) {
+      // left -> right까지 확인된 상태
       correctSequenceStage = 2;
       correctSequenceState = 'right';
       correctSequenceLastChange = now;
@@ -1505,16 +1498,15 @@
     function updateCorrectSequence(currentState, now) {
       if (correctSequenceBusy || correctSequenceStage === 0) return;
 
-      // Correct 패턴은 반드시 left -> right -> left -> right.
       if (now - correctSequenceStartTime > CORRECT_SEQUENCE_TIMEOUT) {
         resetCorrectSequenceGauge();
         return;
       }
 
-      // 같은 자세가 계속되는 동안 단계 증가 금지.
+      // 같은 자세는 한 번만 카운트합니다.
       if (currentState === correctSequenceState) return;
 
-      const expected = (correctSequenceStage % 2 === 0) ? 'left' : 'right';
+      const expected = correctSequenceState === 'left' ? 'right' : 'left';
       if (currentState !== expected) {
         resetCorrectSequenceGauge();
         return;
@@ -1539,8 +1531,8 @@
           text.innerText = 'CORRECT';
         }
 
-        // 완성된 경우에만 기존 Correction(Undo) 실행.
         setTimeout(() => {
+          if (!isCameraActive) return;
           undo();
           lockCameraGestureFor3Seconds();
           resetCorrectSequenceGauge();
@@ -1645,9 +1637,6 @@
 
     function resetGestureGauge() {
       gestureStartTime = null;
-      detectedTargetSide = null;
-      gestureCandidateSide = null;
-      gestureCandidateSince = 0;
 
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
