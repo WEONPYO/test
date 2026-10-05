@@ -475,6 +475,78 @@
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
     .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid var(--panel-border) !important; }
 
+    /* 경기 종료 승리 팀 팝업 */
+    .match-result-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 400;
+      background: rgba(0,0,0,.88);
+      justify-content: center;
+      align-items: center;
+      padding: 18px;
+    }
+    .match-result-box {
+      width: 100%;
+      max-width: 430px;
+      background: linear-gradient(180deg, #102419 0%, #08130d 100%);
+      border: 2px solid var(--accent-yellow);
+      border-radius: 16px;
+      padding: 24px 18px 18px;
+      text-align: center;
+      box-shadow:
+        0 0 20px rgba(204,255,0,.35),
+        0 0 55px rgba(204,255,0,.15);
+      animation: match-result-pop .35s ease-out;
+    }
+    .match-result-title {
+      color: var(--accent-yellow);
+      font-size: 1.05rem;
+      font-weight: 900;
+      letter-spacing: .08em;
+      margin-bottom: 10px;
+    }
+    .match-result-winner {
+      color: #fff;
+      font-size: clamp(1.8rem, 7vw, 2.8rem);
+      font-weight: 900;
+      line-height: 1.05;
+      margin: 8px 0 12px;
+      text-shadow: 0 0 16px rgba(204,255,0,.45);
+    }
+    .match-result-score {
+      color: #dce8df;
+      font-size: .9rem;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .match-result-notice {
+      background: rgba(204,255,0,.08);
+      border: 1px solid rgba(204,255,0,.28);
+      border-radius: 9px;
+      color: #fff;
+      font-size: .8rem;
+      line-height: 1.5;
+      padding: 10px 9px;
+      margin-bottom: 14px;
+    }
+    .match-result-notice strong { color: var(--accent-yellow); }
+    .match-result-start {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 10px;
+      background: var(--accent-yellow);
+      color: #000;
+      font-size: .9rem;
+      font-weight: 900;
+      cursor: pointer;
+    }
+    @keyframes match-result-pop {
+      from { opacity: 0; transform: scale(.92) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
     #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
     #keep-awake-canvas { display: none; width: 1px; height: 1px; position: absolute; pointer-events: none; }
   </style>
@@ -789,6 +861,21 @@
     </div>
   </div>
 
+  <div class="match-result-modal" id="match-result-modal">
+    <div class="match-result-box">
+      <div class="match-result-title">MATCH OVER</div>
+      <div class="match-result-winner" id="match-result-winner">TEAM A</div>
+      <div class="match-result-score" id="match-result-score"></div>
+      <div class="match-result-notice">
+        <strong>새 경기 시작</strong><br/>
+        새로 시작하면 점수, 게임, 세트, 타이브레이크, 서브권, 코트 위치 등
+        <strong>경기 상태가 전체 초기화</strong>됩니다.<br/>
+        선수명과 경기 설정은 유지됩니다.
+      </div>
+      <button class="match-result-start" id="btn-match-new-game">새 경기 시작 — 전체 초기화</button>
+    </div>
+  </div>
+
   <script>
     function checkDomainAuth() {
       const allowedHost = "weonpyo.github.io";
@@ -1092,6 +1179,13 @@
         saveSettings();
         modal.style.display = 'none';
       };
+
+      const newGameBtn = document.getElementById('btn-match-new-game');
+      if (newGameBtn) {
+        newGameBtn.onclick = () => {
+          resetMatch();
+        };
+      }
     }
 
 
@@ -1108,13 +1202,13 @@
 
     function setupSwipeEvents() {
       window.addEventListener('touchstart', (e) => {
-        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal')) return;
+        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal')) return;
         touchStartX = e.changedTouches[0].screenX;
         touchStartY = e.changedTouches[0].screenY;
       }, { passive: true });
 
       window.addEventListener('touchend', (e) => {
-        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal')) return;
+        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal')) return;
         touchEndX = e.changedTouches[0].screenX;
         touchEndY = e.changedTouches[0].screenY;
         handleSwipeGesture();
@@ -1875,6 +1969,34 @@
       speakCall("Correction, ");
     }
 
+    function showMatchResultPopup(team) {
+      const modal = document.getElementById('match-result-modal');
+      const winner = document.getElementById('match-result-winner');
+      const score = document.getElementById('match-result-score');
+
+      if (!modal || !winner || !score) return;
+
+      const winnerName = getTeamDisplayName(team);
+      const setsA = state.setsA;
+      const setsB = state.setsB;
+      const matchSetScores = Array.isArray(state.completedSetScores)
+        ? state.completedSetScores.join(' / ')
+        : '';
+
+      winner.textContent = winnerName || `TEAM ${team}`;
+      score.innerHTML =
+        `Winner: <strong>Team ${team}</strong><br/>` +
+        `Match score: ${setsA} sets to ${setsB}` +
+        (matchSetScores ? `<br/>Sets: ${matchSetScores}` : '');
+
+      modal.style.display = 'flex';
+    }
+
+    function hideMatchResultPopup() {
+      const modal = document.getElementById('match-result-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
     function confirmResetMatch() {
       showCustomConfirm("정말로 경기를 초기화하시겠습니까?", () => { resetMatch(); });
     }
@@ -1890,9 +2012,11 @@
         completedSetScores: []
       };
       historyStack = [];
+      resetAllGestureState(true);
       saveStateToStorage();
+      hideMatchResultPopup();
       render();
-      speak("Reset.");
+      speak("New match. All match scores have been reset.");
     }
 
     function toggleServeTeam() {
@@ -2094,7 +2218,7 @@
         speakSequence([
           `Game, set and match, ${winnerCall}.`,
           `${matchSetScores}.`
-        ]);
+        ], 650, () => showMatchResultPopup(team));
       } else {
         speakSequence([
           `Game, ${winnerCall}.`,
