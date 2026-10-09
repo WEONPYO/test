@@ -957,14 +957,12 @@
     let poseInstanceLeft = null;
     let poseInstanceRight = null;
 
-    // 분할 크롭 캔버스 (좌/우 선수 독립 추적)
     let cropCanvasLeft = null;
     let ctxCropLeft = null;
     let cropCanvasRight = null;
     let ctxCropRight = null;
-    let frameToggle = 0; // 0: 좌측 영역, 1: 우측 영역
+    let frameToggle = 0;
 
-    // 2인 상태 캐시
     let personStatusLeft = null;
     let personStatusRight = null;
 
@@ -978,25 +976,19 @@
     let cameraGestureNeedsNeutral = false;
     let cameraGestureLockTimer = null;
 
-    let correctSequenceStage = 0;
-    let correctSequenceState = null;
-    let correctSequenceWaitingNeutral = false;
-    let correctSequenceNeutralSince = 0;
-    let correctSequenceLastDirectionAt = 0;
-    let correctSequenceBusy = false;
-
-    let correctCandidateLeft = false;
-    let correctCandidateNeutralSince = 0;
-
-    const CORRECT_SEQUENCE_STEPS = 4;
-    const CORRECT_MAX_GAUGE_RATIO = 0.80;
-    const CORRECT_TRANSITION_TIMEOUT_MS = 1000;
-    const CORRECT_IDLE_TIMEOUT_MS = 2000;
-    const CORRECT_TRANSITION_STABLE_MS = 100;
-
     let gesturePointLocked = false;
     let gestureCandidateSide = null;
     let gestureCandidateSince = 0;
+
+    // --- Correct 동작을 위한 상태 머신 변수 ---
+    let correctSequenceStage = 0;
+    let correctLastSide = null;
+    let correctLastSideTime = 0;
+    let correctSequenceBusy = false;
+
+    const CORRECT_SEQUENCE_STEPS = 4;
+    const CORRECT_MAX_GAUGE_RATIO = 0.90; // 90% 이하 홀드 제한
+    const CORRECT_TRANSITION_TIMEOUT_MS = 1000; // 1초 이내 상태 전환
 
     // 최소 크기 기준 강화: 어깨 너비 최소 5.2% 이상 (원거리 배경 점 차단)
     const MIN_SHOULDER_WIDTH = 0.052;
@@ -1366,11 +1358,9 @@
               const vh = videoElement.videoHeight;
               if (vw === 0 || vh === 0) return;
 
-              // 좌/우 분할 크롭 해상도 (효율적인 성능을 위해 480px 기준 조정)
               const cropW = 480;
               const cropH = Math.round(cropW * (vh / (vw * 0.65)));
 
-              // 짝수/홀수 프레임 스위칭: 좌측(0~65%)과 우측(35~100%)을 번갈아 분석
               if (frameToggle === 0) {
                 if (cropCanvasLeft.width !== cropW) { cropCanvasLeft.width = cropW; cropCanvasLeft.height = cropH; }
                 ctxCropLeft.drawImage(videoElement, 0, 0, vw * 0.65, vh, 0, 0, cropW, cropH);
@@ -1409,29 +1399,18 @@
       cameraGestureLockUntil = 0;
       cooldownUntilTime = 0;
       cameraGestureNeedsNeutral = false;
-      gesturePointLocked = false;
       personStatusLeft = null;
       personStatusRight = null;
       render();
-      resetGestureGauge();
-      resetCorrectSequenceGauge();
+      resetAllGestureState(true);
     }
 
     /* =========================================================================
-       개별 인물 골격 및 제스처 정밀 판정 엔진 (머리·양손 필수 & 원거리 차단)
+       개별 인물 골격 및 제스처 정밀 판정 엔진
        ========================================================================= */
     function evaluatePersonPose(results, xOffsetRate, xSpanRate) {
       if (!results || !results.poseLandmarks) {
-        return {
-          valid: false,
-          reason: '신체 미감지',
-          landmarks: null,
-          globalLandmarks: null,
-          handsUp: false,
-          gesture: null,
-          scale: 0,
-          ratio: null
-        };
+        return { valid: false, reason: '신체 미감지', landmarks: null, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
       }
 
       const lm = results.poseLandmarks;
@@ -1445,7 +1424,6 @@
       const leftHip = lm[23];
       const rightHip = lm[24];
 
-      // 1. 머리 핵심 부위 신뢰도 검사
       const noseOk = nose && (nose.visibility || 0) >= MIN_VISIBILITY_THRESHOLD;
       const eyesOk = (leftEye && (leftEye.visibility || 0) >= MIN_VISIBILITY_THRESHOLD) ||
                      (rightEye && (rightEye.visibility || 0) >= MIN_VISIBILITY_THRESHOLD);
@@ -1453,14 +1431,12 @@
         return { valid: false, reason: '머리(얼굴) 미감지', landmarks: lm, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
       }
 
-      // 2. 어깨 부위 및 최소 크기 검사 (원거리 점 차단)
       if (!leftShoulder || !rightShoulder ||
           (leftShoulder.visibility || 0) < MIN_VISIBILITY_THRESHOLD ||
           (rightShoulder.visibility || 0) < MIN_VISIBILITY_THRESHOLD) {
         return { valid: false, reason: '어깨 미감지', landmarks: lm, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
       }
 
-      // 전역 정규화 좌표계로 환산 (0.0 ~ 1.0)
       const globalLM = lm.map(pt => ({
         x: xOffsetRate + pt.x * xSpanRate,
         y: pt.y,
@@ -1480,12 +1456,10 @@
       }
       const bodyScale = Math.max(shoulderWidth, torsoHeight * 0.55);
 
-      // 원거리 필터: 어깨 너비 또는 신체 크기가 기준치 미만이면 노이즈로 간주하고 무시
       if (shoulderWidth < MIN_SHOULDER_WIDTH || bodyScale < MIN_BODY_SCALE) {
         return { valid: false, reason: '원거리 노이즈 (크기 미달)', landmarks: lm, globalLandmarks: globalLM, handsUp: false, gesture: null, scale: bodyScale, ratio: null };
       }
 
-      // 3. 양 손목 직접 검출 필수 확인 (가상 연장 제거)
       if (!leftWrist || !rightWrist ||
           (leftWrist.visibility || 0) < MIN_VISIBILITY_THRESHOLD ||
           (rightWrist.visibility || 0) < MIN_VISIBILITY_THRESHOLD) {
@@ -1495,28 +1469,16 @@
       const gLWrist = globalLM[15];
       const gRWrist = globalLM[16];
 
-      // 4. 머리 최상단 판정: 양 손목 모두 머리 최상단보다 확실히 위에 위치해야 함
       let headTopY = 0;
       if (noseOk) headTopY = globalLM[0].y;
       else headTopY = Math.min(globalLM[2].y, globalLM[5].y);
 
-      // 양손 모두 머리보다 일정 마진(0.015) 이상 높이 들었는지 검사
       const handsAboveHead = (gLWrist.y < (headTopY - 0.015)) && (gRWrist.y < (headTopY - 0.015));
 
       if (!handsAboveHead) {
-        return {
-          valid: true,
-          reason: '중립 (손 내림)',
-          landmarks: lm,
-          globalLandmarks: globalLM,
-          handsUp: false,
-          gesture: null,
-          scale: bodyScale,
-          ratio: null
-        };
+        return { valid: true, reason: '중립 (손 내림)', landmarks: lm, globalLandmarks: globalLM, handsUp: false, gesture: null, scale: bodyScale, ratio: null };
       }
 
-      // 5. 머리 위에서 양손 거리 비율(Ratio) 계산: 모음(Left) vs 벌림(Right)
       const rawWristsDist = Math.hypot(gLWrist.x - gRWrist.x, gLWrist.y - gRWrist.y);
       const ratio = rawWristsDist / Math.max(shoulderWidth, 0.01);
 
@@ -1556,16 +1518,12 @@
       coordinateDualPoses();
     }
 
-    /* =========================================================================
-       2인 감지 종합 및 우선순위 중재 (한 사람이라도 동작 시 우선 인식)
-       ========================================================================= */
     function coordinateDualPoses() {
       const now = Date.now();
       const p1 = personStatusLeft;
       const p2 = personStatusRight;
 
       let chosenTarget = null;
-      let chosenRatio = null;
       let finalDescription = '대기 중';
       let finalColor = '#ff6b6b';
 
@@ -1573,27 +1531,20 @@
       const p2HasGesture = p2 && p2.valid && p2.handsUp && (p2.gesture === 'left' || p2.gesture === 'right');
 
       if (p1HasGesture && !p2HasGesture) {
-        // P1만 손을 들어 동작을 취한 경우: P1 즉시 채택
         chosenTarget = p1.gesture;
-        chosenRatio = p1.ratio;
         finalDescription = `P1 우선 인식 (${p1.gesture.toUpperCase()})`;
         finalColor = p1.gesture === 'left' ? '#ccff00' : '#00d4ff';
       } else if (!p1HasGesture && p2HasGesture) {
-        // P2만 손을 들어 동작을 취한 경우: P2 즉시 채택
         chosenTarget = p2.gesture;
-        chosenRatio = p2.ratio;
         finalDescription = `P2 우선 인식 (${p2.gesture.toUpperCase()})`;
         finalColor = p2.gesture === 'left' ? '#ccff00' : '#00d4ff';
       } else if (p1HasGesture && p2HasGesture) {
-        // 둘 다 동작을 취한 경우: 화면에 더 크게 보이는 사람(더 가까운 선수) 우선
         const activeP = (p1.scale >= p2.scale) ? p1 : p2;
         const pName = (p1.scale >= p2.scale) ? 'P1' : 'P2';
         chosenTarget = activeP.gesture;
-        chosenRatio = activeP.ratio;
         finalDescription = `${pName} 우선 인식 (더 큼: ${activeP.gesture.toUpperCase()})`;
         finalColor = activeP.gesture === 'left' ? '#ccff00' : '#00d4ff';
       } else {
-        // 둘 다 동작 없음
         if ((p1 && p1.valid && p1.handsUp) || (p2 && p2.valid && p2.handsUp)) {
           finalDescription = '머리 위 중립 대기';
           finalColor = '#ffff00';
@@ -1611,7 +1562,7 @@
         updateCameraTestHUD(finalDescription, finalColor, p1, p2);
         renderCameraTestOverlay(p1, p2);
       } else {
-        processGestureTarget(chosenTarget, now, chosenRatio);
+        processGestureTarget(chosenTarget, now);
       }
     }
 
@@ -1684,7 +1635,6 @@
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 분할 구역 가이드 라인 표시
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
       ctx.setLineDash([6, 6]);
       ctx.beginPath();
@@ -1731,7 +1681,6 @@
           }
         });
 
-        // 인물 헤드 라벨
         const nosePt = glm[0] || glm[11];
         if (nosePt) {
           ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1750,54 +1699,148 @@
     }
 
     /* =========================================================================
-       제스처 홀드 카운트 & Correction 머신
+       제스처 홀드 카운트 & Correct 동작 상태 머신 엔진
        ========================================================================= */
-    function isCorrectActive() {
-      return correctSequenceStage > 0 && !correctSequenceBusy;
+    function processGestureTarget(currentTarget, now) {
+      const holdMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+
+      // 쿨다운 잠금 확인
+      if (cameraGestureLockUntil > 0) {
+        if (now < cameraGestureLockUntil) {
+          updateCooldownGaugeDisplay(Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1));
+          return;
+        }
+        cameraGestureLockUntil = 0;
+        cooldownUntilTime = 0;
+        cameraGestureNeedsNeutral = false;
+        resetAllGestureState(true);
+      }
+
+      if (correctSequenceBusy) return;
+
+      // 제스처가 변경되거나 감지 해제되었을 때
+      if (detectedTargetSide !== currentTarget) {
+        if (gestureCandidateSide !== currentTarget) {
+          gestureCandidateSide = currentTarget;
+          gestureCandidateSince = now;
+          return;
+        }
+        if (currentTarget !== null && now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) {
+          return; // 안정화(Debounce) 대기
+        }
+
+        // --- 이전 타겟의 홀드 시간 및 Correct 조건 검사 ---
+        if (detectedTargetSide !== null) {
+          const elapsed = now - gestureStartTime;
+          const progress = elapsed / holdMs;
+          
+          // 90% 게이지 이상 홀드 시 Correct 동작 취소
+          if (progress > CORRECT_MAX_GAUGE_RATIO && correctSequenceStage > 0) {
+             correctSequenceStage = 0;
+             correctLastSide = null;
+             updateCorrectSequenceGauge();
+          }
+          // 이전 타겟이 종료된 시간 기록 (1초 이내 검사용)
+          correctLastSideTime = now;
+        }
+
+        // 새로운 타겟 적용
+        detectedTargetSide = currentTarget;
+        gestureStartTime = currentTarget !== null ? now : null;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
+        gesturePointLocked = false;
+        
+        if (currentTarget === null) {
+            resetGestureGauge();
+        } else {
+            // 새로운 제스처 획득!
+            updateGestureGaugeDisplay(currentTarget, 0);
+            
+            // Correct 동작 상태 머신 진행
+            if (correctSequenceStage === 0) {
+                // 반드시 좌측(left)부터 시작해야 함
+                if (currentTarget === 'left') {
+                    correctSequenceStage = 1;
+                    correctLastSide = 'left';
+                    correctLastSideTime = now;
+                }
+            } else {
+                const expectedSide = correctLastSide === 'left' ? 'right' : 'left';
+                // 이전 타겟 종료 시간(또는 전환 시간)으로부터 1초 이내인지, 올바른 반대편인지 검사
+                if (currentTarget === expectedSide && (now - correctLastSideTime) <= CORRECT_TRANSITION_TIMEOUT_MS) {
+                    correctSequenceStage++;
+                    correctLastSide = expectedSide;
+                    correctLastSideTime = now;
+                } else {
+                    // 조건 위반 시 시퀀스 초기화 (단, 새로운 시작이 좌측이면 1단계로 시작)
+                    if (currentTarget === 'left') {
+                        correctSequenceStage = 1;
+                        correctLastSide = 'left';
+                        correctLastSideTime = now;
+                    } else {
+                        correctSequenceStage = 0;
+                        correctLastSide = null;
+                    }
+                }
+            }
+            
+            updateCorrectSequenceGauge();
+            
+            // 좌-우-좌-우 (4단계) 완료 시 실행
+            if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+                 triggerCorrectAction();
+                 return;
+            }
+        }
+        return;
+      }
+
+      // 현재 타겟이 유지되고 있는 경우 (홀드 중)
+      if (detectedTargetSide !== null) {
+        const elapsed = Math.max(0, now - gestureStartTime);
+        const progress = Math.min(elapsed / holdMs, 1);
+        updateGestureGaugeDisplay(detectedTargetSide, progress);
+
+        // 홀드 중 90%가 넘어가면 Correct 시퀀스 강제 종료
+        if (progress > CORRECT_MAX_GAUGE_RATIO && correctSequenceStage > 0) {
+            correctSequenceStage = 0;
+            correctLastSide = null;
+            updateCorrectSequenceGauge();
+        }
+
+        // 지정된 시간(100%) 도달 시 점수 반영
+        if (elapsed >= holdMs && !gesturePointLocked) {
+          gesturePointLocked = true;
+          const targetTeam = detectedTargetSide === 'left'
+            ? state.courtLeftTeam
+            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+
+          const fill = document.getElementById(detectedTargetSide === 'left' ? 'gauge-fill-left' : 'gauge-fill-right');
+          if (fill) fill.style.height = '100%';
+
+          setTimeout(() => {
+            if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) {
+              gesturePointLocked = false;
+              return;
+            }
+            if (detectedTargetSide !== null) {
+              addPoint(targetTeam);
+              lockCameraGestureFor3Seconds();
+            }
+          }, 80);
+        }
+      } else {
+         // 중립(null) 상태가 너무 길어지면 Correct 시퀀스 초기화
+         if (correctSequenceStage > 0 && (now - correctLastSideTime) > CORRECT_TRANSITION_TIMEOUT_MS) {
+             correctSequenceStage = 0;
+             correctLastSide = null;
+             updateCorrectSequenceGauge();
+         }
+      }
     }
 
-    function clearCorrectCandidate() {
-      correctCandidateLeft = false;
-      correctCandidateNeutralSince = 0;
-    }
-
-    function startCorrectSequence(now) {
-      correctSequenceStage = 2;
-      correctSequenceState = 'right';
-      correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0;
-      correctSequenceLastDirectionAt = now;
-      correctSequenceBusy = false;
-      clearCorrectCandidate();
-
-      detectedTargetSide = 'right';
-      gestureStartTime = now;
-      gestureCandidateSide = null;
-      gestureCandidateSince = 0;
-      gesturePointLocked = false;
-
-      updateCorrectSequenceGauge();
-    }
-
-    function acceptCorrectDirection(direction, now) {
-      const expected = correctSequenceState === 'left' ? 'right' : 'left';
-      if (direction !== expected) return false;
-
-      correctSequenceStage += 1;
-      correctSequenceState = direction;
-      correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0;
-      correctSequenceLastDirectionAt = now;
-
-      detectedTargetSide = direction;
-      gestureStartTime = now;
-      gestureCandidateSide = null;
-      gestureCandidateSince = 0;
-      gesturePointLocked = false;
-
-      updateCorrectSequenceGauge();
-
-      if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+    function triggerCorrectAction() {
         correctSequenceBusy = true;
         const gauge = document.getElementById('correct-gauge');
         const text = document.getElementById('correct-gauge-step');
@@ -1808,178 +1851,11 @@
         if (text) text.innerText = 'CORRECT';
 
         setTimeout(() => {
-          if (!isCameraActive || !correctSequenceBusy) return;
+          if (!isCameraActive) return;
           correctSequenceBusy = false;
-          undo();
+          undo(); // Undo(Correction) 함수 실행
           lockCameraGestureFor3Seconds();
         }, 180);
-      }
-      return true;
-    }
-
-    function processGestureTarget(currentTarget, now, handRatio = null) {
-      const holdMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
-
-      if (cameraGestureLockUntil > 0) {
-        if (now < cameraGestureLockUntil) {
-          updateCooldownGaugeDisplay(
-            Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1)
-          );
-          return;
-        }
-        cameraGestureLockUntil = 0;
-        cooldownUntilTime = 0;
-        cameraGestureNeedsNeutral = false;
-        resetAllGestureState(true);
-      }
-
-      if (isCorrectActive()) {
-        if (correctSequenceLastDirectionAt > 0 && now - correctSequenceLastDirectionAt > CORRECT_IDLE_TIMEOUT_MS) {
-          resetAllGestureState(true);
-          return;
-        }
-
-        if (currentTarget === correctSequenceState) {
-          correctSequenceLastDirectionAt = now;
-          correctSequenceWaitingNeutral = false;
-          correctSequenceNeutralSince = 0;
-          gestureCandidateSide = null;
-          gestureCandidateSince = 0;
-          return;
-        }
-
-        if (currentTarget === null) {
-          if (!correctSequenceWaitingNeutral) {
-            correctSequenceWaitingNeutral = true;
-            correctSequenceNeutralSince = now;
-            gestureCandidateSide = null;
-            gestureCandidateSince = 0;
-          }
-          if (correctSequenceNeutralSince > 0 && now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
-            resetAllGestureState(true);
-          }
-          return;
-        }
-
-        if (!correctSequenceWaitingNeutral) return;
-
-        if (now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
-          resetAllGestureState(true);
-          return;
-        }
-
-        const expected = correctSequenceState === 'left' ? 'right' : 'left';
-        if (currentTarget !== expected) return;
-
-        if (gestureCandidateSide !== currentTarget) {
-          gestureCandidateSide = currentTarget;
-          gestureCandidateSince = now;
-          return;
-        }
-
-        if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
-
-        acceptCorrectDirection(currentTarget, now);
-        return;
-      }
-
-      if (correctSequenceBusy) return;
-
-      if (currentTarget === null) {
-        if (detectedTargetSide === 'left' && gestureStartTime !== null) {
-          const leftElapsed = Math.max(0, now - gestureStartTime);
-          const leftProgress = Math.min(leftElapsed / holdMs, 1);
-          if (leftProgress <= CORRECT_MAX_GAUGE_RATIO && !gesturePointLocked) {
-            correctCandidateLeft = true;
-            correctCandidateNeutralSince = now;
-          } else {
-            clearCorrectCandidate();
-          }
-        }
-
-        detectedTargetSide = null;
-        gestureStartTime = null;
-        gestureCandidateSide = null;
-        gestureCandidateSince = 0;
-        gesturePointLocked = false;
-        resetGestureGauge();
-        return;
-      }
-
-      if (correctCandidateLeft) {
-        if (now - correctCandidateNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
-          clearCorrectCandidate();
-        } else if (currentTarget === 'right') {
-          if (gestureCandidateSide !== 'right') {
-            gestureCandidateSide = 'right';
-            gestureCandidateSince = now;
-            return;
-          }
-          if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
-          startCorrectSequence(now);
-          return;
-        } else {
-          return;
-        }
-      }
-
-      if (detectedTargetSide === null) {
-        if (gestureCandidateSide !== currentTarget) {
-          gestureCandidateSide = currentTarget;
-          gestureCandidateSince = now;
-          return;
-        }
-        if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) return;
-
-        detectedTargetSide = currentTarget;
-        gestureStartTime = now;
-        gesturePointLocked = false;
-        gestureCandidateSide = null;
-        gestureCandidateSince = 0;
-        updateGestureGaugeDisplay(currentTarget, 0);
-        return;
-      }
-
-      if (detectedTargetSide === currentTarget) {
-        const elapsed = Math.max(0, now - (gestureStartTime || now));
-        const progress = Math.min(elapsed / holdMs, 1);
-
-        updateGestureGaugeDisplay(currentTarget, progress);
-
-        if (elapsed >= holdMs && !gesturePointLocked) {
-          gesturePointLocked = true;
-          const targetTeam = currentTarget === 'left'
-            ? state.courtLeftTeam
-            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-
-          const fill = document.getElementById(
-            currentTarget === 'left' ? 'gauge-fill-left' : 'gauge-fill-right'
-          );
-          if (fill) fill.style.height = '100%';
-
-          setTimeout(() => {
-            if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) {
-              gesturePointLocked = false;
-              return;
-            }
-            if (detectedTargetSide !== currentTarget || isCorrectActive() || correctSequenceBusy) {
-              gesturePointLocked = false;
-              return;
-            }
-            addPoint(targetTeam);
-            lockCameraGestureFor3Seconds();
-          }, 80);
-        }
-        return;
-      }
-
-      clearCorrectCandidate();
-      detectedTargetSide = currentTarget;
-      gestureStartTime = now;
-      gestureCandidateSide = null;
-      gestureCandidateSince = 0;
-      gesturePointLocked = false;
-      updateGestureGaugeDisplay(currentTarget, 0);
     }
 
     function resetAllGestureState(clearCorrectVisual = true) {
@@ -1989,13 +1865,9 @@
       gestureCandidateSince = 0;
       gestureStartTime = null;
 
-      clearCorrectCandidate();
-
       correctSequenceStage = 0;
-      correctSequenceState = null;
-      correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0;
-      correctSequenceLastDirectionAt = 0;
+      correctLastSide = null;
+      correctLastSideTime = 0;
       correctSequenceBusy = false;
 
       resetGestureGauge();
@@ -2008,28 +1880,29 @@
       const text = document.getElementById('correct-gauge-step');
       if (!gauge || !fill || !text) return;
 
-      gauge.classList.add('active');
-      gauge.classList.remove('success');
-
-      const ratio = Math.min(correctSequenceStage / CORRECT_SEQUENCE_STEPS, 1);
-      fill.style.width = `${ratio * 100}%`;
-      text.innerText = `${correctSequenceStage}/${CORRECT_SEQUENCE_STEPS}`;
+      if (correctSequenceStage > 0) {
+        gauge.classList.add('active');
+        gauge.classList.remove('success');
+        const ratio = Math.min(correctSequenceStage / CORRECT_SEQUENCE_STEPS, 1);
+        fill.style.width = `${ratio * 100}%`;
+        text.innerText = `${correctSequenceStage}/${CORRECT_SEQUENCE_STEPS}`;
+      } else {
+        gauge.classList.remove('active', 'success');
+        fill.style.width = '0%';
+        text.innerText = 'READY';
+      }
     }
 
     function resetCorrectSequenceGauge() {
       correctSequenceStage = 0;
-      correctSequenceState = null;
-      correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0;
-      correctSequenceLastDirectionAt = 0;
+      correctLastSide = null;
+      correctLastSideTime = 0;
       correctSequenceBusy = false;
-
-      clearCorrectCandidate();
-
+      
       const gauge = document.getElementById('correct-gauge');
       const fill = document.getElementById('correct-gauge-fill');
       const text = document.getElementById('correct-gauge-step');
-
+      
       if (gauge) gauge.classList.remove('active', 'success');
       if (fill) fill.style.width = '0%';
       if (text) text.innerText = 'READY';
