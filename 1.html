@@ -991,7 +991,7 @@
     // Correct 단일 제스처: 가슴 앞에서 양팔을 X자로 교차
     let correctCrossedArmsSince = 0;
     let correctCrossedArmsLatched = false;
-    const CORRECT_CROSSED_ARMS_HOLD_MS = 450;
+    // Correct는 config.gestureHoldDuration 설정값을 사용합니다.
 
     const CORRECT_SEQUENCE_STEPS = 4;
     const CORRECT_MAX_GAUGE_RATIO = 0.92;
@@ -1609,12 +1609,32 @@
            (p2 && p2.valid && p2.crossedArms));
 
       if (crossedArmsDetected) {
+        if (correctCrossedArmsLatched) return;
         if (!correctCrossedArmsSince) correctCrossedArmsSince = now;
-        if (!correctCrossedArmsLatched &&
-            now - correctCrossedArmsSince >= CORRECT_CROSSED_ARMS_HOLD_MS) {
+
+        // Correct도 다른 제스처와 동일하게 설정된 유지 시간 동안 지속되어야 적용됩니다.
+        const correctHoldMs = Math.max(100, Number(config.gestureHoldDuration || 1.0) * 1000);
+        const correctElapsed = Math.max(0, now - correctCrossedArmsSince);
+        const correctRatio = Math.min(correctElapsed / correctHoldMs, 1);
+        const correctGauge = document.getElementById('correct-gauge');
+        const correctFill = document.getElementById('correct-gauge-fill');
+        const correctText = document.getElementById('correct-gauge-step');
+
+        if (correctGauge && correctFill && correctText) {
+          correctGauge.classList.add('active');
+          correctGauge.classList.remove('success');
+          correctFill.style.width = `${correctRatio * 100}%`;
+          correctText.textContent = `유지 ${(correctElapsed / 1000).toFixed(1)} / ${(correctHoldMs / 1000).toFixed(1)}초`;
+        }
+
+        if (!correctCrossedArmsLatched && correctElapsed >= correctHoldMs) {
           correctCrossedArmsSince = 0;
-          resetAllGestureState(true);
-          // resetAllGestureState가 상태를 초기화하므로, 팔을 풀 때까지 래치를 다시 고정합니다.
+          if (correctGauge) correctGauge.classList.add('success');
+          if (correctText) correctText.textContent = 'CORRECT 적용';
+          if (correctFill) correctFill.style.width = '100%';
+
+          // 일반 제스처 상태만 초기화하고, 팔을 풀 때까지 래치를 유지합니다.
+          resetAllGestureState(false);
           correctCrossedArmsLatched = true;
           if (!isCameraTesting && isCameraActive && cameraGestureLockUntil <= now) {
             undo();
@@ -1625,6 +1645,12 @@
       } else {
         correctCrossedArmsSince = 0;
         correctCrossedArmsLatched = false;
+        const correctGauge = document.getElementById('correct-gauge');
+        const correctFill = document.getElementById('correct-gauge-fill');
+        const correctText = document.getElementById('correct-gauge-step');
+        if (correctGauge) correctGauge.classList.remove('active', 'success');
+        if (correctFill) correctFill.style.width = '0%';
+        if (correctText) correctText.textContent = 'READY';
       }
 
       let chosenTarget = null;
