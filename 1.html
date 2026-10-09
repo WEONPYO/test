@@ -1960,10 +1960,16 @@
         gestureCandidateSide = null;
         gestureCandidateSince = 0;
         gesturePointLocked = false;
+        cameraGestureNeedsNeutral = false; // [추가] 사용자가 손을 내리면 Neutral 락 상태를 정상적으로 해제합니다.
         resetGestureGauge();
         return;
       }
 
+      // [추가] 사용자가 아직 손을 내리지 않아 락이 풀리지 않은 상태라면, 
+      // 아예 게이지가 차오르지 않도록 무시하여 시각적 오류를 방지합니다.
+      if (cameraGestureNeedsNeutral) {
+        return;
+      }
 
       if (detectedTargetSide === null) {
         if (gestureCandidateSide !== currentTarget) {
