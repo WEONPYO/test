@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WP Tennis Scoreboard</title>
+  <title>WP Tennis Scoreboard - Dual Person Vision Engine</title>
 
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -44,7 +44,7 @@
 
     @media (orientation: portrait) {
       body {
-        flex-direction: column-reverse; /* 세로모드 시 상단에 메뉴 배치 */
+        flex-direction: column-reverse;
       }
     }
 
@@ -111,8 +111,11 @@
     }
 
     .games-score {
-      font-size: 0.8rem; font-weight: 700; opacity: 0.95; position: absolute; left: 10px; bottom: 8px;
-      background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px; z-index: 4;
+      font-size: 1.6rem; font-weight: 900; opacity: 0.98; position: absolute;
+      left: 12px; bottom: 10px; background: rgba(0,0,0,0.55);
+      padding: 4px 10px; border-radius: 6px; z-index: 4;
+      line-height: 1.05; text-shadow: 2px 2px 6px rgba(0,0,0,0.9);
+      white-space: nowrap;
     }
 
     .point-score {
@@ -127,11 +130,34 @@
     }
 
     .serve-ball {
-      display: inline-block; width: 10px; height: 10px;
-      background-color: var(--accent-yellow); border-radius: 50%;
-      box-shadow: 0 0 8px var(--accent-yellow); visibility: hidden;
+      position: relative; flex: 0 0 18px; width: 18px; height: 18px;
+      border-radius: 50%; visibility: hidden; opacity: 0;
+      background: #12351f; border: 2px solid #2f8f4e;
+      box-shadow: inset 0 0 3px rgba(0,0,0,.8);
+      transition: opacity .15s ease, transform .15s ease;
+      margin-right: 7px;
     }
-    .serve-ball.active { visibility: visible; }
+    .serve-ball::before {
+      content: ''; position: absolute; inset: 3px; border-radius: 50%;
+      background: #39ff68; box-shadow: 0 0 6px #39ff68, 0 0 14px rgba(57,255,104,.95);
+    }
+    .serve-ball::after {
+      content: ''; position: absolute; inset: -5px; border-radius: 50%;
+      border: 2px solid rgba(57,255,104,.45); opacity: 0;
+    }
+    .serve-ball.active {
+      visibility: visible; opacity: 1; transform: scale(1.08);
+      animation: serve-led-blink .75s steps(1, end) infinite;
+    }
+    .serve-ball.active::after { animation: serve-led-ring .75s ease-out infinite; }
+    @keyframes serve-led-blink {
+      0%, 45% { filter: brightness(1.0); }
+      46%, 100% { filter: brightness(1.85); }
+    }
+    @keyframes serve-led-ring {
+      0% { transform: scale(.72); opacity: .9; }
+      100% { transform: scale(1.45); opacity: 0; }
+    }
 
     .btn-score-up {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -149,7 +175,6 @@
       display: flex; flex-direction: column; gap: 4px; width: 100%; align-items: center;
     }
 
-    /* 컴팩트 아이콘 버튼 기본 스타일 */
     .btn-icon-menu {
       width: 100%; height: 44px; background: #14261c; border: 1px solid #2e5941;
       border-radius: 8px; color: #d0d0d0; display: flex; flex-direction: column;
@@ -157,9 +182,8 @@
       transition: all 0.15s ease; position: relative; padding: 2px 0;
     }
 
-    .btn-icon-menu svg { width: 17px; height: 17px; fill: currentColor; }
+    .btn-icon-menu svg { width: 17px; height: 17px; fill: #ffffff; color: #ffffff; }
     .btn-icon-menu span { font-size: 0.55rem; font-weight: 700; letter-spacing: -0.2px; }
-
     .btn-icon-menu:active { transform: scale(0.94); background: #1c3829; }
 
     .btn-icon-menu.active-toggle {
@@ -167,7 +191,7 @@
       color: var(--accent-yellow);
       background: #183321;
     }
-
+    .btn-icon-menu.active-toggle svg { fill: #ffffff; color: #ffffff; }
     .btn-icon-menu.active-toggle::after {
       content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px;
       background-color: var(--accent-yellow); border-radius: 50%;
@@ -181,21 +205,17 @@
       100% { transform: scale(0.8); opacity: 1; }
     }
 
-    /* CORRECT(정정) 버튼 하늘색 강조 스타일 */
     .btn-icon-menu.highlight-correct {
       background: #062a36;
       border: 1px solid var(--accent-cyan);
       color: var(--accent-cyan);
     }
-    .btn-icon-menu.highlight-correct:active {
-      background: #0a4154;
-    }
+    .btn-icon-menu.highlight-correct:active { background: #0a4154; }
 
     .btn-icon-menu.danger {
       color: #ff6b6b; border-color: #592e2e; background: #261414;
     }
 
-    /* 세로 모드 대응: 상단 메뉴 배치 */
     @media (orientation: portrait) {
       .sidebar-controls {
         width: 100%; height: 56px; border-left: none; border-bottom: 1px solid var(--panel-border);
@@ -206,7 +226,6 @@
       }
       .menu-group-main { flex: 5; }
       .menu-group-bottom { flex: 3; }
-      
       .btn-icon-menu { height: 46px; flex: 1.2; }
       .btn-icon-menu.btn-compact { flex: 0.7; }
     }
@@ -279,8 +298,46 @@
       background-color: var(--accent-yellow) !important; color: #000 !important;
       border: 2px solid #000; transform: translate(-50%, -50%) scale(1.1); z-index: 10;
       box-shadow: 0 0 10px var(--accent-yellow);
+      animation: server-player-sparkle 0.9s ease-in-out infinite;
+      will-change: transform, box-shadow, filter;
+    }
+    .player-marker.server::after {
+      content: '✦';
+      position: absolute;
+      top: -11px;
+      right: -9px;
+      color: #ffffff;
+      font-size: 0.78rem;
+      line-height: 1;
+      text-shadow: 0 0 3px #ffffff, 0 0 7px var(--accent-yellow), 0 0 12px var(--accent-yellow);
+      pointer-events: none;
+      animation: server-player-star 0.9s ease-in-out infinite;
     }
     .player-marker.server .role-badge { background: #000; color: var(--accent-yellow); }
+
+    @keyframes server-player-sparkle {
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(1.06);
+        box-shadow: 0 0 7px var(--accent-yellow), 0 0 13px rgba(204,255,0,.55);
+        filter: brightness(1);
+      }
+      45% {
+        transform: translate(-50%, -50%) scale(1.16);
+        box-shadow: 0 0 12px var(--accent-yellow), 0 0 24px rgba(204,255,0,.95), 0 0 34px rgba(255,255,255,.35);
+        filter: brightness(1.35);
+      }
+      60% {
+        transform: translate(-50%, -50%) scale(1.10);
+        box-shadow: 0 0 9px var(--accent-yellow), 0 0 18px rgba(204,255,0,.75);
+        filter: brightness(1.12);
+      }
+    }
+
+    @keyframes server-player-star {
+      0%, 100% { opacity: .25; transform: scale(.75) rotate(0deg); }
+      45% { opacity: 1; transform: scale(1.35) rotate(18deg); }
+      65% { opacity: .55; transform: scale(.95) rotate(-8deg); }
+    }
 
     .player-marker.receiver {
       border: 2px solid var(--accent-yellow); transform: translate(-50%, -50%) scale(1.05);
@@ -299,6 +356,33 @@
     .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(204,255,0,0.4); }
     .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(204,255,0,0.4); }
 
+    .correct-gauge-container {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: min(62vw, 520px); height: 34px;
+      background: rgba(0,0,0,0.72); border: 2px solid rgba(204,255,0,0.55);
+      border-top: none; border-radius: 0 0 10px 10px;
+      z-index: 155; pointer-events: none; opacity: 0;
+      transition: opacity .15s ease, transform .15s ease; overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,.45);
+    }
+    .correct-gauge-container.active { opacity: 1; }
+    .correct-gauge-fill {
+      position: absolute; left: 0; bottom: 0; height: 5px; width: 0%;
+      background: linear-gradient(90deg, #ccff00, #00ffaa);
+      box-shadow: 0 0 12px rgba(204,255,0,.9);
+      transition: width .08s linear;
+    }
+    .correct-gauge-text {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: .72rem; font-weight: 900; letter-spacing: 1px;
+      text-shadow: 0 2px 5px #000;
+    }
+    .correct-gauge-text .step { color: var(--accent-yellow); margin-left: 7px; }
+    .correct-gauge-container.success {
+      border-color: #00ffaa; box-shadow: 0 0 20px rgba(0,255,170,.65);
+    }
+    .correct-gauge-container.success .correct-gauge-fill { background: #00ffaa; }
+
     .gesture-gauge-container.active { opacity: 1; }
 
     .gauge-fill {
@@ -313,10 +397,15 @@
     }
 
     .gesture-gauge-container.cooldown .gauge-fill {
-      height: 100% !important; background: #ff4d4d !important; opacity: 0.6;
+      height: 100% !important;
+      background: linear-gradient(to top, #ccff00, #00ffaa) !important;
+      opacity: 0.55;
+      box-shadow: 0 0 10px rgba(0,255,170,.55);
     }
-    .gesture-gauge-container.cooldown .gauge-status-text {
-      color: #ffffff;
+    .gesture-gauge-container.cooldown .gauge-status-text { color: #ffffff; }
+
+    .serve-menu, .serve-menu.active-toggle, .serve-menu svg, .serve-menu.active-toggle svg {
+      color: #ffffff !important;
     }
 
     /* 설정 및 공통 모달 UI */
@@ -348,6 +437,13 @@
 
     .btn-save { width: 100%; padding: 10px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 10px; font-size: 0.85rem; }
 
+    .btn-cam-test {
+      width: 100%; padding: 9px; background: #06394c; border: 1px solid var(--accent-cyan);
+      border-radius: 6px; font-weight: bold; color: var(--accent-cyan); cursor: pointer;
+      margin-top: 8px; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .btn-cam-test:active { background: #0a4f6a; }
+
     .confirm-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.85); z-index: 250; justify-content: center; align-items: center; padding: 15px; }
     .confirm-box { background: var(--card-bg); border: 1px solid var(--panel-border); border-radius: 10px; padding: 16px; width: 100%; max-width: 300px; text-align: center; }
     .confirm-box p { font-size: 0.85rem; line-height: 1.3; color: #fff; margin-bottom: 14px; }
@@ -356,6 +452,70 @@
 
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
     .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid var(--panel-border) !important; }
+
+    /* 경기 종료 승리 팀 팝업 */
+    .match-result-modal {
+      display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.88);
+      justify-content: center; align-items: center; padding: 18px;
+    }
+    .match-result-box {
+      width: 100%; max-width: 430px; background: linear-gradient(180deg, #102419 0%, #08130d 100%);
+      border: 2px solid var(--accent-yellow); border-radius: 16px; padding: 24px 18px 18px; text-align: center;
+      box-shadow: 0 0 20px rgba(204,255,0,.35), 0 0 55px rgba(204,255,0,.15);
+      animation: match-result-pop .35s ease-out;
+    }
+    .match-result-title { color: var(--accent-yellow); font-size: 1.05rem; font-weight: 900; letter-spacing: .08em; margin-bottom: 10px; }
+    .match-result-winner {
+      color: #fff; font-size: clamp(1.8rem, 7vw, 2.8rem); font-weight: 900; line-height: 1.05;
+      margin: 8px 0 12px; text-shadow: 0 0 16px rgba(204,255,0,.45);
+    }
+    .match-result-score { color: #dce8df; font-size: .9rem; line-height: 1.5; margin-bottom: 16px; }
+    .match-result-start {
+      width: 100%; border: 0; border-radius: 8px; padding: 12px 10px;
+      background: var(--accent-yellow); color: #000; font-size: .9rem; font-weight: 900; cursor: pointer;
+    }
+    @keyframes match-result-pop {
+      from { opacity: 0; transform: scale(.92) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    /* 카메라 테스트 전용 뷰 */
+    #cam-test-modal {
+      display: none; position: fixed; inset: 0; z-index: 500;
+      background: #000; flex-direction: column;
+    }
+    .cam-test-header {
+      height: 44px; background: #0c1811; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--panel-border);
+      z-index: 25; flex-shrink: 0;
+    }
+    .cam-test-title { color: var(--accent-cyan); font-weight: bold; font-size: 0.85rem; letter-spacing: 0.5px; }
+    .btn-close-camtest {
+      background: #e63946; border: none; color: #fff; font-weight: bold;
+      padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 0.75rem;
+    }
+
+    /* 듀얼 HUD 바 */
+    .cam-test-hud-bar {
+      width: 100%; background: rgba(5, 15, 10, 0.88); backdrop-filter: blur(6px);
+      border-bottom: 1px solid rgba(0, 212, 255, 0.35); padding: 6px 12px;
+      z-index: 20; display: flex; flex-direction: column; gap: 4px;
+      font-size: 0.72rem; color: #e0e0e0; flex-shrink: 0;
+    }
+    .hud-row-main {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .hud-col { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .hud-col strong { color: var(--accent-cyan); font-weight: 600; }
+    .hud-val-target { font-size: 0.82rem; font-weight: 900; }
+
+    .cam-test-body {
+      flex: 1; position: relative; width: 100%; height: 100%;
+      background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;
+    }
+    #cam-test-canvas {
+      position: absolute; width: 100%; height: 100%; object-fit: contain;
+    }
 
     #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
     #keep-awake-canvas { display: none; width: 1px; height: 1px; position: absolute; pointer-events: none; }
@@ -376,6 +536,37 @@
   <video id="hidden-video" playsinline webkit-playsinline muted></video>
   <canvas id="keep-awake-canvas"></canvas>
 
+  <!-- 카메라 테스트 전용 뷰 모달 -->
+  <div id="cam-test-modal">
+    <div class="cam-test-header">
+      <div class="cam-test-title">📷 듀얼 타깃 골격 & 머리 위 제스처 진단 (카운트 중지됨)</div>
+      <button class="btn-close-camtest" onclick="closeCameraTest()">테스트 종료</button>
+    </div>
+    <div class="cam-test-hud-bar" id="cam-test-hud-bar">
+      <div class="hud-row-main">
+        <div class="hud-col">
+          <strong>최종 선택:</strong> <span class="hud-val-target" id="hud-final" style="color:#ff6b6b;">대기 중</span>
+        </div>
+        <div class="hud-col">
+          <span style="font-size:0.65rem; color:#aaa;">(모음 ≤ 0.88 | 벌림 ≥ 1.15 | 머리·양손 필수)</span>
+        </div>
+      </div>
+      <div class="hud-row-main" style="border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 3px;">
+        <div class="hud-col">
+          <strong style="color:#ccff00;">P1 (좌측 선수):</strong>
+          <span id="hud-p1-desc" style="color:#ffffff;">미감지</span>
+        </div>
+        <div class="hud-col">
+          <strong style="color:#00d4ff;">P2 (우측 선수):</strong>
+          <span id="hud-p2-desc" style="color:#ffffff;">미감지</span>
+        </div>
+      </div>
+    </div>
+    <div class="cam-test-body">
+      <canvas id="cam-test-canvas"></canvas>
+    </div>
+  </div>
+
   <div class="gesture-gauge-container left" id="gauge-left">
     <div class="gauge-fill" id="gauge-fill-left"></div>
     <div class="gauge-status-text" id="gauge-text-left">1.0s HOLD</div>
@@ -384,6 +575,11 @@
   <div class="gesture-gauge-container right" id="gauge-right">
     <div class="gauge-fill" id="gauge-fill-right"></div>
     <div class="gauge-status-text" id="gauge-text-right">1.0s HOLD</div>
+  </div>
+
+  <div class="correct-gauge-container" id="correct-gauge">
+    <div class="correct-gauge-text">CORRECT <span class="step" id="correct-gauge-step">READY</span></div>
+    <div class="correct-gauge-fill" id="correct-gauge-fill"></div>
   </div>
 
   <div class="main-app">
@@ -460,7 +656,7 @@
     </div>
   </div>
 
-  <!-- 아이콘 패널 메인 메뉴 -->
+  <!-- 사이드바 메뉴 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
       <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
@@ -473,8 +669,13 @@
         <span>SWIPE</span>
       </button>
 
-      <button class="btn-icon-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
-        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 16h-2v-2h2v2zm1.07-7.75l-.9.92C12.45 11.9 12 12.5 12 14h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.04-.42 1.99-1.07 2.75z"/></svg>
+      <button class="btn-icon-menu serve-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
+        <svg viewBox="0 0 32 32" aria-hidden="true">
+          <circle cx="15" cy="18" r="7.5" fill="none" stroke="currentColor" stroke-width="2.2"/>
+          <path d="M10.3 12.8c2.1 1.2 4.8 1.6 7.7.7 1.9-.6 3.4-1.7 4.6-3.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M22.5 4.5v6.2h-6.2" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M22.5 4.5l-3.3 3.3" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+        </svg>
         <span>SERVE</span>
       </button>
 
@@ -483,7 +684,6 @@
         <span>COURT</span>
       </button>
 
-      <!-- CORRECT(정정) 버튼 하늘색 강조 적용 -->
       <button class="btn-icon-menu highlight-correct" onclick="undo()" title="Undo Last Point">
         <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 6v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
         <span>CORRECT</span>
@@ -527,28 +727,30 @@
       </div>
 
       <div class="info-box">
-        <strong>📷 카메라 인식 모드 제스처 안내</strong><br/>
-        • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
-        • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지
+        <strong>📷 듀얼 타깃 모션 인식 안내</strong><br/>
+        • <strong>가장 큰 2명 감지:</strong> 화면에 여러 사람이 있어도 전면에 크게 잡힌 최대 2명을 각각 독립 추적합니다.<br/>
+        • <strong>우선 인식 원칙:</strong> 두 사람 중 한 명이라도 손을 모으거나 벌리면 즉시 우선 감지합니다.<br/>
+        • <strong>원거리 노이즈 완벽 차단:</strong> 어깨 폭 5% 미만, 얼굴/손목 미감지 시 완전 무시.<br/>
+        • <strong>머리/손 엄격 조건:</strong> 머리(코·눈)와 양 손목이 모두 정확히 감지되고, 두 손이 머리 위로 올라가야만 카운트됩니다.
       </div>
 
       <div class="setting-group">
-        <label>제스처 인식 유지 시간 (Gesture Hold Duration)</label>
+        <label>제스처 인식 유지 시간 (Gesture Hold Duration, 기본 1000ms)</label>
         <select id="set-gesture-hold">
-          <option value="0.5">0.5초 (빠름)</option>
-          <option value="1.0" selected>1.0초 (기본)</option>
-          <option value="1.5">1.5초 (안정적)</option>
-          <option value="2.0">2.0초 (느림)</option>
+          <option value="0.5">500ms</option>
+          <option value="1.0" selected>1000ms (기본)</option>
+          <option value="1.5">1500ms</option>
+          <option value="2.0">2000ms</option>
         </select>
       </div>
 
       <div class="setting-group">
-        <label>오디오 지연 시간 (Audio Delay for Speaker)</label>
+        <label>오디오 지연 시간 (Audio Delay for Speaker, 기본 600ms)</label>
         <select id="set-audio-delay">
           <option value="0">0ms (지연 없음)</option>
-          <option value="200" selected>200ms (권장 - 스피커 깨우기)</option>
+          <option value="200">200ms</option>
           <option value="400">400ms</option>
-          <option value="600">600ms</option>
+          <option value="600" selected>600ms (기본 / 권장)</option>
           <option value="1000">1000ms (1초)</option>
         </select>
       </div>
@@ -644,6 +846,13 @@
         <div class="setting-group"><label>Swipe Right</label><select id="swipe-right"><option value="undo" selected>Correction</option><option value="right_score">우측팀 득점</option></select></div>
       </div>
 
+      <div class="setting-group" style="margin-top: 14px; border-top: 1px dashed var(--panel-border); padding-top: 10px;">
+        <label>카메라 실시간 테스트 & 듀얼 골격 진단</label>
+        <button type="button" class="btn-cam-test" onclick="openCameraTest()">
+          <span>📷 카메라 테스트 실행 (2인 감지 & 골격 확인)</span>
+        </button>
+      </div>
+
       <button class="btn-save" id="btn-save-settings">Apply & Update Settings</button>
     </div>
   </div>
@@ -658,10 +867,20 @@
     </div>
   </div>
 
+  <div class="match-result-modal" id="match-result-modal">
+    <div class="match-result-box">
+      <div class="match-result-title">MATCH OVER</div>
+      <div class="match-result-winner" id="match-result-winner">TEAM A</div>
+      <div class="match-result-score" id="match-result-score"></div>
+      <button class="match-result-start" id="btn-match-new-game">새 경기 시작 — 전체 초기화</button>
+    </div>
+  </div>
+
   <script>
     function checkDomainAuth() {
       const allowedHost = "weonpyo.github.io";
-      if (window.location.hostname !== allowedHost && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      const h = window.location.hostname;
+      if (h && h !== allowedHost && h !== "localhost" && h !== "127.0.0.1") {
         const authDiv = document.getElementById('unauthorized-access');
         if (authDiv) authDiv.style.display = 'flex';
         return false;
@@ -672,7 +891,7 @@
     let config = {
       cameraRes: 'max',
       gestureHoldDuration: 1.0,
-      audioDelay: 200,
+      audioDelay: 600,
       swipeEnabled: true,
       type: 'doubles',
       voiceLang: 'en-GB',
@@ -694,7 +913,8 @@
       isTiebreak: false,
       tiebreakFirstServer: null,
       currentServerTeam: 'A',
-      courtLeftTeam: 'A'
+      courtLeftTeam: 'A',
+      completedSetScores: []
     };
 
     let historyStack = [];
@@ -705,7 +925,6 @@
     let keepAwakeInterval = null;
     let serverAnnounceTimer = null;
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
-
     let audioCtx = null;
 
     function playSilentWakeAudio() {
@@ -715,9 +934,7 @@
           if (AudioContext) audioCtx = new AudioContext();
         }
         if (audioCtx) {
-          if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-          }
+          if (audioCtx.state === 'suspended') audioCtx.resume();
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'sine';
@@ -731,13 +948,64 @@
       } catch(e) {}
     }
 
+    /* =========================================================================
+       카메라 & 듀얼 타깃 비전 파이프라인 엔진
+       ========================================================================= */
     let isCameraActive = false;
+    let isCameraTesting = false;
     let cameraInstance = null;
-    let poseInstance = null;
+    let poseInstanceLeft = null;
+    let poseInstanceRight = null;
+
+    // 분할 크롭 캔버스 (좌/우 선수 독립 추적)
+    let cropCanvasLeft = null;
+    let ctxCropLeft = null;
+    let cropCanvasRight = null;
+    let ctxCropRight = null;
+    let frameToggle = 0; // 0: 좌측 영역, 1: 우측 영역
+
+    // 2인 상태 캐시
+    let personStatusLeft = null;
+    let personStatusRight = null;
+
+    const GESTURE_COOLDOWN_MS = 3000;
+    const GESTURE_MIN_STABLE_MS = 140;
 
     let gestureStartTime = null;
     let detectedTargetSide = null;
     let cooldownUntilTime = 0;
+    let cameraGestureLockUntil = 0;
+    let cameraGestureNeedsNeutral = false;
+    let cameraGestureLockTimer = null;
+
+    let correctSequenceStage = 0;
+    let correctSequenceState = null;
+    let correctSequenceWaitingNeutral = false;
+    let correctSequenceNeutralSince = 0;
+    let correctSequenceLastDirectionAt = 0;
+    let correctSequenceBusy = false;
+
+    let correctCandidateLeft = false;
+    let correctCandidateNeutralSince = 0;
+
+    // Correct 단일 제스처: 한 손만 머리 위로 들기
+    let correctSingleHandSince = 0;
+    let correctSingleHandLatched = false;
+
+    const CORRECT_SEQUENCE_STEPS = 4;
+    const CORRECT_MAX_GAUGE_RATIO = 0.92;
+    const CORRECT_TRANSITION_TIMEOUT_MS = 1800;
+    const CORRECT_IDLE_TIMEOUT_MS = 3200;
+    const CORRECT_TRANSITION_STABLE_MS = 80;
+
+    let gesturePointLocked = false;
+    let gestureCandidateSide = null;
+    let gestureCandidateSince = 0;
+
+    // 최소 크기 기준 강화: 어깨 너비 최소 5.2% 이상 (원거리 배경 점 차단)
+    const MIN_SHOULDER_WIDTH = 0.052;
+    const MIN_BODY_SCALE = 0.065;
+    const MIN_VISIBILITY_THRESHOLD = 0.50; // 머리 및 손목 필수 신뢰도
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
@@ -746,6 +1014,24 @@
         serverIdxA: cycle % 2,
         serverIdxB: cycle % 2
       };
+    }
+
+    let speechQueue = [];
+    let speechBusy = false;
+    let speechSequenceToken = 0;
+    let speechTimer = null;
+
+    function cancelSpeechQueue() {
+      speechSequenceToken++;
+      speechQueue = [];
+      speechBusy = false;
+      if (speechTimer) {
+        clearTimeout(speechTimer);
+        speechTimer = null;
+      }
+      try {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      } catch (e) {}
     }
 
     function cancelServerAnnouncement() {
@@ -775,12 +1061,10 @@
       try {
         if ('wakeLock' in navigator) {
           wakeLock = await navigator.wakeLock.request('screen');
-          wakeLock.addEventListener('release', () => {
-            wakeLock = null;
-          });
+          wakeLock.addEventListener('release', () => { wakeLock = null; });
         }
       } catch (err) {
-        console.warn("Screen Wake Lock unavailable or denied:", err);
+        console.warn("Screen Wake Lock unavailable:", err);
       }
       startCanvasHeartbeatFallback();
     }
@@ -801,10 +1085,8 @@
     }
 
     document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState === 'visible') {
-        if (!wakeLock) {
-          await requestWakeLock();
-        }
+      if (document.visibilityState === 'visible' && !wakeLock) {
+        await requestWakeLock();
       }
     });
 
@@ -829,13 +1111,16 @@
       const savedConfig = localStorage.getItem('tennis_config');
       if (savedConfig) { 
         try { 
-          config = { ...config, ...JSON.parse(savedConfig) }; 
+          config = { ...config, ...JSON.parse(savedConfig) };
+          if (!Number.isFinite(Number(config.gestureHoldDuration)) || Number(config.gestureHoldDuration) <= 0) config.gestureHoldDuration = 1.0;
+          if (!Number.isFinite(Number(config.audioDelay)) || Number(config.audioDelay) < 0) config.audioDelay = 600; 
         } catch(e) {} 
       }
       const savedState = localStorage.getItem('tennis_state');
       if (savedState) { 
         try { 
-          state = JSON.parse(savedState); 
+          state = JSON.parse(savedState);
+          if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
         } catch(e) {} 
       }
     }
@@ -878,24 +1163,31 @@
         saveSettings();
         modal.style.display = 'none';
       };
+
+      const newGameBtn = document.getElementById('btn-match-new-game');
+      if (newGameBtn) {
+        newGameBtn.onclick = () => { resetMatch(); };
+      }
     }
+
+    function speakWithConfiguredDelay(text) { speak(text); }
 
     function toggleSwipeMode() {
       config.swipeEnabled = !config.swipeEnabled;
       saveConfigToStorage();
       render();
-      speak(config.swipeEnabled ? "Swipe enabled." : "Swipe disabled.");
+      speakWithConfiguredDelay(config.swipeEnabled ? "Swipe enabled." : "Swipe disabled.");
     }
 
     function setupSwipeEvents() {
       window.addEventListener('touchstart', (e) => {
-        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal')) return;
+        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal') || e.target.closest('#cam-test-modal')) return;
         touchStartX = e.changedTouches[0].screenX;
         touchStartY = e.changedTouches[0].screenY;
       }, { passive: true });
 
       window.addEventListener('touchend', (e) => {
-        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal')) return;
+        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal') || e.target.closest('#cam-test-modal')) return;
         touchEndX = e.changedTouches[0].screenX;
         touchEndY = e.changedTouches[0].screenY;
         handleSwipeGesture();
@@ -919,7 +1211,6 @@
     function executeControlAction(action) {
       const leftTeam = state.courtLeftTeam;
       const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
-
       switch (action) {
         case 'left_score': addPoint(leftTeam); break;
         case 'right_score': addPoint(rightTeam); break;
@@ -930,8 +1221,16 @@
 
     function populateSettingsModal() {
       document.getElementById('set-camera-res').value = config.cameraRes || 'max';
-      document.getElementById('set-gesture-hold').value = (config.gestureHoldDuration || 1.0).toString();
-      document.getElementById('set-audio-delay').value = (config.audioDelay !== undefined ? config.audioDelay : 200).toString();
+      const gestureHold = Number(config.gestureHoldDuration);
+      const gestureHoldSelect = document.getElementById('set-gesture-hold');
+      gestureHoldSelect.value = (Number.isFinite(gestureHold) && gestureHold > 0) ? gestureHold.toFixed(1) : '1.0';
+      if (!gestureHoldSelect.value) gestureHoldSelect.value = '1.0';
+
+      const audioDelay = Number(config.audioDelay);
+      const audioDelaySelect = document.getElementById('set-audio-delay');
+      audioDelaySelect.value = (Number.isFinite(audioDelay) && audioDelay >= 0) ? String(Math.trunc(audioDelay)) : '600';
+      if (!audioDelaySelect.value) audioDelaySelect.value = '600';
+
       document.getElementById('set-type').value = config.type;
       document.getElementById('set-voice-lang').value = config.voiceLang || 'en-GB';
       document.getElementById('set-first-serve').value = config.firstServeTeam;
@@ -961,11 +1260,15 @@
 
     function saveSettings() {
       cancelServerAnnouncement();
-
       const prevCameraRes = config.cameraRes;
       config.cameraRes = document.getElementById('set-camera-res').value;
-      config.gestureHoldDuration = parseFloat(document.getElementById('set-gesture-hold').value) || 1.0;
-      config.audioDelay = parseInt(document.getElementById('set-audio-delay').value, 10);
+      const gestureHoldValue = document.getElementById('set-gesture-hold').value;
+      config.gestureHoldDuration = Number.isFinite(parseFloat(gestureHoldValue)) && parseFloat(gestureHoldValue) > 0
+        ? parseFloat(gestureHoldValue) : 1.0;
+      const audioDelayValue = document.getElementById('set-audio-delay').value;
+      config.audioDelay = Number.isFinite(parseInt(audioDelayValue, 10))
+        ? parseInt(audioDelayValue, 10) : 600;
+
       config.type = document.getElementById('set-type').value;
       config.voiceLang = document.getElementById('set-voice-lang').value;
       config.firstServeTeam = document.getElementById('set-first-serve').value;
@@ -991,7 +1294,6 @@
         stopCameraRecognition();
         startCameraRecognition();
       }
-
       render();
     }
 
@@ -1009,10 +1311,48 @@
     function toggleCameraRecognition() {
       if (isCameraActive) {
         stopCameraRecognition();
-        speak("Camera disabled.");
+        speakWithConfiguredDelay("Camera disabled.");
       } else {
         startCameraRecognition();
-        speak("Camera enabled.");
+        speakWithConfiguredDelay("Camera enabled.");
+      }
+    }
+
+    /* =========================================================================
+       MediaPipe Pose 인스턴스 초기화 및 프레임 분할 전송
+       ========================================================================= */
+    function initPoseEngines() {
+      const options = {
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      };
+
+      if (!poseInstanceLeft) {
+        poseInstanceLeft = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseInstanceLeft.setOptions(options);
+        poseInstanceLeft.onResults(onPoseResultsLeft);
+      }
+
+      if (!poseInstanceRight) {
+        poseInstanceRight = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseInstanceRight.setOptions(options);
+        poseInstanceRight.onResults(onPoseResultsRight);
+      }
+
+      if (!cropCanvasLeft) {
+        cropCanvasLeft = document.createElement('canvas');
+        ctxCropLeft = cropCanvasLeft.getContext('2d');
+      }
+      if (!cropCanvasRight) {
+        cropCanvasRight = document.createElement('canvas');
+        ctxCropRight = cropCanvasRight.getContext('2d');
       }
     }
 
@@ -1020,26 +1360,32 @@
       const videoElement = document.getElementById('hidden-video');
 
       try {
-        if (!poseInstance) {
-          poseInstance = new Pose({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
-          });
-          poseInstance.setOptions({
-            modelComplexity: 1,
-            smoothLandmarks: true,
-            enableSegmentation: false,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-          });
-          poseInstance.onResults(onPoseResults);
-        }
-
+        initPoseEngines();
         const res = getCameraResolution(config.cameraRes);
 
         cameraInstance = new Camera(videoElement, {
           onFrame: async () => {
-            if (isCameraActive && videoElement && videoElement.readyState >= 2) {
-              await poseInstance.send({ image: videoElement });
+            if ((isCameraActive || isCameraTesting) && videoElement && videoElement.readyState >= 2) {
+              const vw = videoElement.videoWidth;
+              const vh = videoElement.videoHeight;
+              if (vw === 0 || vh === 0) return;
+
+              // 좌/우 분할 크롭 해상도 (효율적인 성능을 위해 480px 기준 조정)
+              const cropW = 480;
+              const cropH = Math.round(cropW * (vh / (vw * 0.65)));
+
+              // 짝수/홀수 프레임 스위칭: 좌측(0~65%)과 우측(35~100%)을 번갈아 분석
+              if (frameToggle === 0) {
+                if (cropCanvasLeft.width !== cropW) { cropCanvasLeft.width = cropW; cropCanvasLeft.height = cropH; }
+                ctxCropLeft.drawImage(videoElement, 0, 0, vw * 0.65, vh, 0, 0, cropW, cropH);
+                if (poseInstanceLeft) await poseInstanceLeft.send({ image: cropCanvasLeft });
+                frameToggle = 1;
+              } else {
+                if (cropCanvasRight.width !== cropW) { cropCanvasRight.width = cropW; cropCanvasRight.height = cropH; }
+                ctxCropRight.drawImage(videoElement, vw * 0.35, 0, vw * 0.65, vh, 0, 0, cropW, cropH);
+                if (poseInstanceRight) await poseInstanceRight.send({ image: cropCanvasRight });
+                frameToggle = 0;
+              }
             }
           },
           width: res.width,
@@ -1063,86 +1409,674 @@
         cameraInstance = null;
       }
       isCameraActive = false;
+      if (cameraGestureLockTimer) { clearTimeout(cameraGestureLockTimer); cameraGestureLockTimer = null; }
+      cameraGestureLockUntil = 0;
+      cooldownUntilTime = 0;
+      cameraGestureNeedsNeutral = false;
+      gesturePointLocked = false;
+      personStatusLeft = null;
+      personStatusRight = null;
       render();
       resetGestureGauge();
+      resetCorrectSequenceGauge();
     }
 
-    function onPoseResults(results) {
-      if (!isCameraActive || !results.poseLandmarks) {
-        resetGestureGauge();
-        return;
+    /* =========================================================================
+       개별 인물 골격 및 제스처 정밀 판정 엔진 (머리·양손 필수 & 원거리 차단)
+       ========================================================================= */
+    function evaluatePersonPose(results, xOffsetRate, xSpanRate) {
+      if (!results || !results.poseLandmarks) {
+        return {
+          valid: false,
+          reason: '신체 미감지',
+          landmarks: null,
+          globalLandmarks: null,
+          handsUp: false,
+          gesture: null,
+          scale: 0,
+          ratio: null
+        };
       }
 
+      const lm = results.poseLandmarks;
+      const nose = lm[0];
+      const leftEye = lm[2];
+      const rightEye = lm[5];
+      const leftShoulder = lm[11];
+      const rightShoulder = lm[12];
+      const leftElbow = lm[13];
+      const rightElbow = lm[14];
+      const leftWrist = lm[15];
+      const rightWrist = lm[16];
+      const leftHip = lm[23];
+      const rightHip = lm[24];
+
+      // 1. 머리 핵심 부위 신뢰도 검사
+      const noseOk = nose && (nose.visibility || 0) >= MIN_VISIBILITY_THRESHOLD;
+      const eyesOk = (leftEye && (leftEye.visibility || 0) >= MIN_VISIBILITY_THRESHOLD) ||
+                     (rightEye && (rightEye.visibility || 0) >= MIN_VISIBILITY_THRESHOLD);
+      if (!noseOk && !eyesOk) {
+        return { valid: false, reason: '머리(얼굴) 미감지', landmarks: lm, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
+      }
+
+      // 2. 어깨 부위 및 최소 크기 검사 (원거리 점 차단)
+      if (!leftShoulder || !rightShoulder ||
+          (leftShoulder.visibility || 0) < MIN_VISIBILITY_THRESHOLD ||
+          (rightShoulder.visibility || 0) < MIN_VISIBILITY_THRESHOLD) {
+        return { valid: false, reason: '어깨 미감지', landmarks: lm, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
+      }
+
+      // 전역 정규화 좌표계로 환산 (0.0 ~ 1.0)
+      const globalLM = lm.map(pt => ({
+        x: xOffsetRate + pt.x * xSpanRate,
+        y: pt.y,
+        z: pt.z,
+        visibility: pt.visibility
+      }));
+
+      const gLShoulder = globalLM[11];
+      const gRShoulder = globalLM[12];
+      const shoulderWidth = Math.hypot(gLShoulder.x - gRShoulder.x, gLShoulder.y - gRShoulder.y);
+
+      let torsoHeight = 0;
+      if (leftHip && rightHip && (leftHip.visibility || 0) > 0.3 && (rightHip.visibility || 0) > 0.3) {
+        const midShoulderY = (gLShoulder.y + gRShoulder.y) / 2;
+        const midHipY = (globalLM[23].y + globalLM[24].y) / 2;
+        torsoHeight = Math.abs(midHipY - midShoulderY);
+      }
+      const bodyScale = Math.max(shoulderWidth, torsoHeight * 0.55);
+
+      // 원거리 필터: 어깨 너비 또는 신체 크기가 기준치 미만이면 노이즈로 간주하고 무시
+      if (shoulderWidth < MIN_SHOULDER_WIDTH || bodyScale < MIN_BODY_SCALE) {
+        return { valid: false, reason: '원거리 노이즈 (크기 미달)', landmarks: lm, globalLandmarks: globalLM, handsUp: false, gesture: null, scale: bodyScale, ratio: null };
+      }
+
+      // 3. 양 손목 직접 검출 필수 확인 (가상 연장 제거)
+      if (!leftWrist || !rightWrist ||
+          (leftWrist.visibility || 0) < MIN_VISIBILITY_THRESHOLD ||
+          (rightWrist.visibility || 0) < MIN_VISIBILITY_THRESHOLD) {
+        return { valid: true, reason: '손목 미인식 (대기)', landmarks: lm, globalLandmarks: globalLM, handsUp: false, gesture: null, scale: bodyScale, ratio: null };
+      }
+
+      const gLWrist = globalLM[15];
+      const gRWrist = globalLM[16];
+      const gLElbow = globalLM[13];
+      const gRElbow = globalLM[14];
+
+      // 4. 머리 최상단 판정: 양 손목 모두 머리 최상단보다 확실히 위에 위치해야 함
+      let headTopY = 0;
+      if (noseOk) headTopY = globalLM[0].y;
+      else headTopY = Math.min(globalLM[2].y, globalLM[5].y);
+
+      // 양손 모두 머리보다 일정 마진(0.015) 이상 높이 들었는지 검사
+      const headMargin = Math.max(0.008, Math.min(0.015, bodyScale * 0.12));
+      const leftHandAboveHead = gLWrist.y < (headTopY - headMargin);
+      const rightHandAboveHead = gRWrist.y < (headTopY - headMargin);
+      const handsAboveHead = leftHandAboveHead && rightHandAboveHead;
+      // Correct는 한 손만 머리 위에 있는 경우에만 후보로 인정합니다.
+      const singleHandAboveHead = leftHandAboveHead !== rightHandAboveHead;
+
+      if (!handsAboveHead) {
+        return {
+          valid: true,
+          reason: '중립 (손 내림)',
+          landmarks: lm,
+          globalLandmarks: globalLM,
+          handsUp: false,
+          gesture: null,
+          singleHandAboveHead: singleHandAboveHead,
+          scale: bodyScale,
+          ratio: null
+        };
+      }
+
+      // 5. 머리 위에서 양손 거리 비율(Ratio) 계산: 모음(Left) vs 벌림(Right)
+      const rawWristsDist = Math.hypot(gLWrist.x - gRWrist.x, gLWrist.y - gRWrist.y);
+      const ratio = rawWristsDist / Math.max(shoulderWidth, 0.01);
+
+      const LEFT_CLOSE_RATIO = 0.88;
+      const RIGHT_OPEN_RATIO = 1.15;
+
+      let gesture = null;
+      let reason = '머리 위 중립폭';
+
+      if (ratio <= LEFT_CLOSE_RATIO) {
+        gesture = 'left';
+        reason = '양손 모음 (LEFT)';
+      } else if (ratio >= RIGHT_OPEN_RATIO) {
+        gesture = 'right';
+        reason = '양손 벌림 (RIGHT)';
+      }
+
+      return {
+        valid: true,
+        reason: reason,
+        landmarks: lm,
+        globalLandmarks: globalLM,
+        handsUp: true,
+        gesture: gesture,
+        singleHandAboveHead: false,
+        scale: bodyScale,
+        ratio: ratio
+      };
+    }
+
+    function onPoseResultsLeft(results) {
+      personStatusLeft = evaluatePersonPose(results, 0.0, 0.65);
+      coordinateDualPoses();
+    }
+
+    function onPoseResultsRight(results) {
+      personStatusRight = evaluatePersonPose(results, 0.35, 0.65);
+      coordinateDualPoses();
+    }
+
+    /* =========================================================================
+       2인 감지 종합 및 우선순위 중재 (한 사람이라도 동작 시 우선 인식)
+       ========================================================================= */
+    function coordinateDualPoses() {
       const now = Date.now();
+      const p1 = personStatusLeft;
+      const p2 = personStatusRight;
 
-      if (now < cooldownUntilTime) {
-        const remainingCd = ((cooldownUntilTime - now) / 1000).toFixed(1);
-        updateCooldownGaugeDisplay(remainingCd);
+      // Correct: 한 손만 머리 위에 든 상태를 설정 유지시간의 2배 동안 유지해야 실행합니다.
+      // 설정 유지시간이 지난 뒤에만 게이지를 표시해 우발적인 감지를 줄입니다.
+      const singleHandDetected = !!(
+        (p1 && p1.valid && p1.singleHandAboveHead) ||
+        (p2 && p2.valid && p2.singleHandAboveHead)
+      );
+      const correctHoldMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+      const correctGauge = document.getElementById('correct-gauge');
+      const correctFill = document.getElementById('correct-gauge-fill');
+      const correctText = document.getElementById('correct-gauge-step');
+
+      if (singleHandDetected) {
+        if (correctSingleHandLatched) return;
+        if (!correctSingleHandSince) correctSingleHandSince = now;
+        const elapsed = Math.max(0, now - correctSingleHandSince);
+
+        // 게이지는 설정 유지시간에 도달한 이후부터 표시하고,
+        // 그 다음 설정 유지시간 동안 채워져 총 2배 시간에 실행됩니다.
+        if (elapsed >= correctHoldMs) {
+          const extraElapsed = elapsed - correctHoldMs;
+          const ratio = Math.min(extraElapsed / correctHoldMs, 1);
+          if (correctGauge && correctFill && correctText) {
+            correctGauge.classList.add('active');
+            correctGauge.classList.remove('success');
+            correctFill.style.width = `${ratio * 100}%`;
+            correctText.textContent = `CORRECT ${Math.min(extraElapsed / 1000, correctHoldMs / 1000).toFixed(1)} / ${(correctHoldMs / 1000).toFixed(1)}초`;
+          }
+        }
+
+        if (elapsed >= correctHoldMs * 2) {
+          correctSingleHandLatched = true;
+          if (correctGauge) correctGauge.classList.add('active', 'success');
+          if (correctFill) correctFill.style.width = '100%';
+          if (correctText) correctText.textContent = 'CORRECT 적용';
+          if (!isCameraTesting && isCameraActive && cameraGestureLockUntil <= now) {
+            undo();
+            lockCameraGestureFor3Seconds();
+          }
+        }
         return;
-      }
-
-      const landmarks = results.poseLandmarks;
-      const nose = landmarks[0];
-      const leftWrist = landmarks[15];
-      const rightWrist = landmarks[16];
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
-
-      if (!nose || !leftWrist || !rightWrist) {
-        resetGestureGauge();
-        return;
-      }
-
-      // 두 손 모두 코보다 위로 위치하고 감지 신뢰도가 높은지 판별
-      const isLeftUp = (leftWrist.y < nose.y) && (leftWrist.visibility > 0.35);
-      const isRightUp = (rightWrist.y < nose.y) && (rightWrist.visibility > 0.35);
-
-      let currentTarget = null;
-
-      if (isLeftUp && isRightUp) {
-        // 2D 피타고라스 정리를 사용하여 두 손목 간 및 어깨 간 유클리드 거리 계산
-        const wristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
-        
-        let shoulderWidth = 0.2; // 기본 어깨 너비 대치값
-        if (leftShoulder && rightShoulder && leftShoulder.visibility > 0.35 && rightShoulder.visibility > 0.35) {
-          shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
-        }
-
-        // 어깨 너비 대비 손목 사이의 거리 비율 계산
-        const handRatio = wristsDist / (shoulderWidth || 0.2);
-
-        // 손을 모았을 때(어깨너비 이하, 비율 < 1.0) -> 왼쪽 스코어
-        // 손을 넓게 벌렸을 때(어깨너비 초과, 비율 >= 1.0) -> 오른쪽 스코어
-        if (handRatio < 1.0) {
-          currentTarget = 'left';
-        } else {
-          currentTarget = 'right';
-        }
-      }
-
-      if (currentTarget) {
-        if (detectedTargetSide !== currentTarget) {
-          detectedTargetSide = currentTarget;
-          gestureStartTime = now;
-        }
-
-        const requiredDurationMs = (config.gestureHoldDuration || 1.0) * 1000;
-        const elapsed = now - gestureStartTime;
-        const progressRatio = Math.min(elapsed / requiredDurationMs, 1.0);
-
-        updateGestureGaugeDisplay(currentTarget, progressRatio);
-
-        if (elapsed >= requiredDurationMs) {
-          const targetTeam = (currentTarget === 'left') ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-          addPoint(targetTeam);
-
-          cooldownUntilTime = Date.now() + 3000;
-          gestureStartTime = null;
-          detectedTargetSide = null;
-        }
       } else {
-        resetGestureGauge();
+        correctSingleHandSince = 0;
+        correctSingleHandLatched = false;
+        if (correctGauge) correctGauge.classList.remove('active', 'success');
+        if (correctFill) correctFill.style.width = '0%';
+        if (correctText) correctText.textContent = 'READY';
       }
+
+      let chosenTarget = null;
+      let chosenRatio = null;
+      let finalDescription = '대기 중';
+      let finalColor = '#ff6b6b';
+
+      const p1HasGesture = p1 && p1.valid && p1.handsUp && (p1.gesture === 'left' || p1.gesture === 'right');
+      const p2HasGesture = p2 && p2.valid && p2.handsUp && (p2.gesture === 'left' || p2.gesture === 'right');
+
+      if (p1HasGesture && !p2HasGesture) {
+        // P1만 손을 들어 동작을 취한 경우: P1 즉시 채택
+        chosenTarget = p1.gesture;
+        chosenRatio = p1.ratio;
+        finalDescription = `P1 우선 인식 (${p1.gesture.toUpperCase()})`;
+        finalColor = p1.gesture === 'left' ? '#ccff00' : '#00d4ff';
+      } else if (!p1HasGesture && p2HasGesture) {
+        // P2만 손을 들어 동작을 취한 경우: P2 즉시 채택
+        chosenTarget = p2.gesture;
+        chosenRatio = p2.ratio;
+        finalDescription = `P2 우선 인식 (${p2.gesture.toUpperCase()})`;
+        finalColor = p2.gesture === 'left' ? '#ccff00' : '#00d4ff';
+      } else if (p1HasGesture && p2HasGesture) {
+        // 둘 다 동작을 취한 경우: 화면에 더 크게 보이는 사람(더 가까운 선수) 우선
+        const activeP = (p1.scale >= p2.scale) ? p1 : p2;
+        const pName = (p1.scale >= p2.scale) ? 'P1' : 'P2';
+        chosenTarget = activeP.gesture;
+        chosenRatio = activeP.ratio;
+        finalDescription = `${pName} 우선 인식 (더 큼: ${activeP.gesture.toUpperCase()})`;
+        finalColor = activeP.gesture === 'left' ? '#ccff00' : '#00d4ff';
+      } else {
+        // 둘 다 동작 없음
+        if ((p1 && p1.valid && p1.handsUp) || (p2 && p2.valid && p2.handsUp)) {
+          finalDescription = '머리 위 중립 대기';
+          finalColor = '#ffff00';
+        } else if ((p1 && p1.valid) || (p2 && p2.valid)) {
+          finalDescription = '선수 인식됨 (손 내림)';
+          finalColor = '#888888';
+        } else {
+          finalDescription = '선수 감지 대기';
+          finalColor = '#ff6b6b';
+        }
+        chosenTarget = null;
+      }
+
+      if (isCameraTesting) {
+        updateCameraTestHUD(finalDescription, finalColor, p1, p2);
+        renderCameraTestOverlay(p1, p2);
+      } else {
+        processGestureTarget(chosenTarget, now, chosenRatio);
+      }
+    }
+
+    /* =========================================================================
+       카메라 테스트 모드 (실시간 영상 & 듀얼 골격 HUD)
+       ========================================================================= */
+    async function openCameraTest() {
+      document.getElementById('settings-modal').style.display = 'none';
+      const testModal = document.getElementById('cam-test-modal');
+      testModal.style.display = 'flex';
+      isCameraTesting = true;
+
+      resetAllGestureState(true);
+
+      if (!cameraInstance) {
+        await startCameraRecognition();
+      }
+    }
+
+    function closeCameraTest() {
+      const testModal = document.getElementById('cam-test-modal');
+      testModal.style.display = 'none';
+      isCameraTesting = false;
+      document.getElementById('settings-modal').style.display = 'block';
+    }
+
+    function updateCameraTestHUD(finalDesc, finalColor, p1, p2) {
+      if (!isCameraTesting) return;
+      const elFinal = document.getElementById('hud-final');
+      const elP1 = document.getElementById('hud-p1-desc');
+      const elP2 = document.getElementById('hud-p2-desc');
+
+      if (elFinal) {
+        elFinal.innerText = finalDesc;
+        elFinal.style.color = finalColor;
+      }
+      if (elP1) {
+        if (p1 && p1.valid) {
+          elP1.innerText = `${p1.reason} | Scale: ${p1.scale.toFixed(2)} | Ratio: ${p1.ratio ? p1.ratio.toFixed(2) : '-'}`;
+          elP1.style.color = p1.handsUp ? '#ccff00' : '#ffffff';
+        } else {
+          elP1.innerText = p1 ? p1.reason : '미감지';
+          elP1.style.color = '#777777';
+        }
+      }
+      if (elP2) {
+        if (p2 && p2.valid) {
+          elP2.innerText = `${p2.reason} | Scale: ${p2.scale.toFixed(2)} | Ratio: ${p2.ratio ? p2.ratio.toFixed(2) : '-'}`;
+          elP2.style.color = p2.handsUp ? '#00d4ff' : '#ffffff';
+        } else {
+          elP2.innerText = p2 ? p2.reason : '미감지';
+          elP2.style.color = '#777777';
+        }
+      }
+    }
+
+    function renderCameraTestOverlay(p1, p2) {
+      if (!isCameraTesting) return;
+      const canvas = document.getElementById('cam-test-canvas');
+      if (!canvas) return;
+
+      const video = document.getElementById('hidden-video');
+      if (!video || video.videoWidth === 0) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // 분할 구역 가이드 라인 표시
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width * 0.35, 0); ctx.lineTo(canvas.width * 0.35, canvas.height);
+      ctx.moveTo(canvas.width * 0.65, 0); ctx.lineTo(canvas.width * 0.65, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const drawSkeleton = (pStatus, baseColor, label) => {
+        if (!pStatus || !pStatus.globalLandmarks) return;
+        const glm = pStatus.globalLandmarks;
+
+        const drawBone = (idx1, idx2, color) => {
+          const pt1 = glm[idx1];
+          const pt2 = glm[idx2];
+          if (pt1 && pt2 && (pt1.visibility || 0) > 0.3 && (pt2.visibility || 0) > 0.3) {
+            ctx.beginPath();
+            ctx.moveTo(pt1.x * canvas.width, pt1.y * canvas.height);
+            ctx.lineTo(pt2.x * canvas.width, pt2.y * canvas.height);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+          }
+        };
+
+        drawBone(11, 12, '#ffffff');
+        drawBone(11, 13, baseColor);
+        drawBone(13, 15, baseColor);
+        drawBone(12, 14, baseColor);
+        drawBone(14, 16, baseColor);
+        drawBone(11, 23, '#888888');
+        drawBone(12, 24, '#888888');
+
+        [0, 11, 12, 15, 16].forEach(idx => {
+          const pt = glm[idx];
+          if (pt && (pt.visibility || 0) > 0.3) {
+            ctx.beginPath();
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = idx === 15 || idx === 16 ? baseColor : '#ffffff';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#000000';
+            ctx.stroke();
+          }
+        });
+
+        // 인물 헤드 라벨
+        const nosePt = glm[0] || glm[11];
+        if (nosePt) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(nosePt.x * canvas.width - 45, (nosePt.y * canvas.height) - 36, 90, 20);
+          ctx.fillStyle = baseColor;
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${label}: ${pStatus.reason.split(' ')[0]}`, nosePt.x * canvas.width, (nosePt.y * canvas.height) - 22);
+        }
+      };
+
+      drawSkeleton(p1, '#ccff00', 'P1(좌)');
+      drawSkeleton(p2, '#00d4ff', 'P2(우)');
+
+      ctx.restore();
+    }
+
+    /* =========================================================================
+       제스처 홀드 카운트 & Correction 머신
+       ========================================================================= */
+    function isCorrectActive() {
+      return correctSequenceStage > 0 && !correctSequenceBusy;
+    }
+
+    function clearCorrectCandidate() {
+      correctCandidateLeft = false;
+      correctCandidateNeutralSince = 0;
+    }
+
+    function startCorrectSequence(now) {
+      correctSequenceStage = 2;
+      correctSequenceState = 'right';
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = now;
+      correctSequenceBusy = false;
+      clearCorrectCandidate();
+
+      detectedTargetSide = 'right';
+      gestureStartTime = now;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gesturePointLocked = false;
+
+      updateCorrectSequenceGauge();
+    }
+
+    function acceptCorrectDirection(direction, now) {
+      const expected = correctSequenceState === 'left' ? 'right' : 'left';
+      if (direction !== expected) return false;
+
+      correctSequenceStage += 1;
+      correctSequenceState = direction;
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = now;
+
+      detectedTargetSide = direction;
+      gestureStartTime = now;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gesturePointLocked = false;
+
+      updateCorrectSequenceGauge();
+
+      if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
+        correctSequenceBusy = true;
+        const gauge = document.getElementById('correct-gauge');
+        const text = document.getElementById('correct-gauge-step');
+        const fill = document.getElementById('correct-gauge-fill');
+
+        if (gauge) gauge.classList.add('active', 'success');
+        if (fill) fill.style.width = '100%';
+        if (text) text.innerText = 'CORRECT';
+
+        setTimeout(() => {
+          if (!isCameraActive || !correctSequenceBusy) return;
+          correctSequenceBusy = false;
+          undo();
+          lockCameraGestureFor3Seconds();
+        }, 180);
+      }
+      return true;
+    }
+
+    function processGestureTarget(currentTarget, now, handRatio = null) {
+      const holdMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+
+      if (cameraGestureLockUntil > 0) {
+        if (now < cameraGestureLockUntil) {
+          updateCooldownGaugeDisplay(
+            Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1)
+          );
+          return;
+        }
+        cameraGestureLockUntil = 0;
+        cooldownUntilTime = 0;
+        cameraGestureNeedsNeutral = false;
+        resetAllGestureState(true);
+      }
+
+      if (isCorrectActive()) {
+        if (correctSequenceLastDirectionAt > 0 && now - correctSequenceLastDirectionAt > CORRECT_IDLE_TIMEOUT_MS) {
+          resetAllGestureState(true);
+          return;
+        }
+
+        if (currentTarget === correctSequenceState) {
+          correctSequenceLastDirectionAt = now;
+          correctSequenceWaitingNeutral = false;
+          correctSequenceNeutralSince = 0;
+          gestureCandidateSide = null;
+          gestureCandidateSince = 0;
+          return;
+        }
+
+        if (currentTarget === null) {
+          if (!correctSequenceWaitingNeutral) {
+            correctSequenceWaitingNeutral = true;
+            correctSequenceNeutralSince = now;
+            gestureCandidateSide = null;
+            gestureCandidateSince = 0;
+          }
+          if (correctSequenceNeutralSince > 0 && now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
+            resetAllGestureState(true);
+          }
+          return;
+        }
+
+        if (!correctSequenceWaitingNeutral) return;
+
+        if (now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
+          resetAllGestureState(true);
+          return;
+        }
+
+        const expected = correctSequenceState === 'left' ? 'right' : 'left';
+        if (currentTarget !== expected) return;
+
+        if (gestureCandidateSide !== currentTarget) {
+          gestureCandidateSide = currentTarget;
+          gestureCandidateSince = now;
+          return;
+        }
+
+        if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
+
+        acceptCorrectDirection(currentTarget, now);
+        return;
+      }
+
+      if (correctSequenceBusy) return;
+
+      if (currentTarget === null) {
+        if (detectedTargetSide === 'left' && gestureStartTime !== null) {
+          const leftElapsed = Math.max(0, now - gestureStartTime);
+          const leftProgress = Math.min(leftElapsed / holdMs, 1);
+          clearCorrectCandidate();
+        }
+
+        detectedTargetSide = null;
+        gestureStartTime = null;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
+        gesturePointLocked = false;
+        resetGestureGauge();
+        return;
+      }
+
+
+      if (detectedTargetSide === null) {
+        if (gestureCandidateSide !== currentTarget) {
+          gestureCandidateSide = currentTarget;
+          gestureCandidateSince = now;
+          return;
+        }
+        if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) return;
+
+        detectedTargetSide = currentTarget;
+        gestureStartTime = now;
+        gesturePointLocked = false;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
+        updateGestureGaugeDisplay(currentTarget, 0);
+        return;
+      }
+
+      if (detectedTargetSide === currentTarget) {
+        const elapsed = Math.max(0, now - (gestureStartTime || now));
+        const progress = Math.min(elapsed / holdMs, 1);
+
+        updateGestureGaugeDisplay(currentTarget, progress);
+
+        if (elapsed >= holdMs && !gesturePointLocked) {
+          gesturePointLocked = true;
+          const targetTeam = currentTarget === 'left'
+            ? state.courtLeftTeam
+            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+
+          const fill = document.getElementById(
+            currentTarget === 'left' ? 'gauge-fill-left' : 'gauge-fill-right'
+          );
+          if (fill) fill.style.height = '100%';
+
+          setTimeout(() => {
+            if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) {
+              gesturePointLocked = false;
+              return;
+            }
+            if (detectedTargetSide !== currentTarget || isCorrectActive() || correctSequenceBusy) {
+              gesturePointLocked = false;
+              return;
+            }
+            addPoint(targetTeam);
+            lockCameraGestureFor3Seconds();
+          }, 80);
+        }
+        return;
+      }
+
+      clearCorrectCandidate();
+      detectedTargetSide = currentTarget;
+      gestureStartTime = now;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gesturePointLocked = false;
+      updateGestureGaugeDisplay(currentTarget, 0);
+    }
+
+    function resetAllGestureState(clearCorrectVisual = true) {
+      gesturePointLocked = false;
+      detectedTargetSide = null;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gestureStartTime = null;
+
+      clearCorrectCandidate();
+      correctSingleHandSince = 0;
+      correctSingleHandLatched = false;
+
+      correctSequenceStage = 0;
+      correctSequenceState = null;
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = 0;
+      correctSequenceBusy = false;
+
+      resetGestureGauge();
+      if (clearCorrectVisual) resetCorrectSequenceGauge();
+    }
+
+    function updateCorrectSequenceGauge() {
+      const gauge = document.getElementById('correct-gauge');
+      const fill = document.getElementById('correct-gauge-fill');
+      const text = document.getElementById('correct-gauge-step');
+      if (!gauge || !fill || !text) return;
+
+      gauge.classList.add('active');
+      gauge.classList.remove('success');
+
+      const ratio = Math.min(correctSequenceStage / CORRECT_SEQUENCE_STEPS, 1);
+      fill.style.width = `${ratio * 100}%`;
+      text.innerText = `${correctSequenceStage}/${CORRECT_SEQUENCE_STEPS}`;
+    }
+
+    function resetCorrectSequenceGauge() {
+      correctSequenceStage = 0;
+      correctSequenceState = null;
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = 0;
+      correctSequenceBusy = false;
+
+      clearCorrectCandidate();
+
+      const gauge = document.getElementById('correct-gauge');
+      const fill = document.getElementById('correct-gauge-fill');
+      const text = document.getElementById('correct-gauge-step');
+
+      if (gauge) gauge.classList.remove('active', 'success');
+      if (fill) fill.style.width = '0%';
+      if (text) text.innerText = 'READY';
     }
 
     function updateGestureGaugeDisplay(side, ratio) {
@@ -1170,6 +2104,30 @@
       }
     }
 
+    function lockCameraGestureFor3Seconds() {
+      const now = Date.now();
+      cameraGestureLockUntil = now + GESTURE_COOLDOWN_MS;
+      cooldownUntilTime = cameraGestureLockUntil;
+      gesturePointLocked = true;
+      cameraGestureNeedsNeutral = true;
+      gestureStartTime = null;
+      detectedTargetSide = null;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      resetCorrectSequenceGauge();
+
+      if (cameraGestureLockTimer) clearTimeout(cameraGestureLockTimer);
+      cameraGestureLockTimer = setTimeout(() => {
+        cameraGestureLockTimer = null;
+        if (Date.now() >= cameraGestureLockUntil) {
+          cameraGestureLockUntil = 0;
+          cooldownUntilTime = 0;
+          gesturePointLocked = false;
+          resetGestureGauge();
+        }
+      }, GESTURE_COOLDOWN_MS + 80);
+    }
+
     function updateCooldownGaugeDisplay(remainingSec) {
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
@@ -1180,14 +2138,13 @@
       document.getElementById('gauge-fill-left').style.height = '100%';
       document.getElementById('gauge-fill-right').style.height = '100%';
 
-      document.getElementById('gauge-text-left').innerText = `COOL ${remainingSec}s`;
-      document.getElementById('gauge-text-right').innerText = `COOL ${remainingSec}s`;
+      const label = remainingSec === 'WAIT' ? 'WAIT' : `LOCK ${remainingSec}s`;
+      document.getElementById('gauge-text-left').innerText = label;
+      document.getElementById('gauge-text-right').innerText = label;
     }
 
     function resetGestureGauge() {
       gestureStartTime = null;
-      detectedTargetSide = null;
-
       const leftGauge = document.getElementById('gauge-left');
       const rightGauge = document.getElementById('gauge-right');
 
@@ -1198,6 +2155,9 @@
       document.getElementById('gauge-fill-right').style.height = '0%';
     }
 
+    /* =========================================================================
+       테니스 경기 규칙 및 스코어보드 제어 엔진
+       ========================================================================= */
     function saveState() {
       historyStack.push(JSON.parse(JSON.stringify(state)));
       if (historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -1212,36 +2172,70 @@
       speakCall("Correction, ");
     }
 
+    function showMatchResultPopup(team) {
+      const modal = document.getElementById('match-result-modal');
+      const winner = document.getElementById('match-result-winner');
+      const score = document.getElementById('match-result-score');
+
+      if (!modal || !winner || !score) return;
+
+      const winnerName = getTeamDisplayName(team);
+      const setsA = state.setsA;
+      const setsB = state.setsB;
+      const matchSetScores = Array.isArray(state.completedSetScores)
+        ? state.completedSetScores.join(' / ')
+        : '';
+
+      winner.textContent = winnerName || `TEAM ${team}`;
+      score.innerHTML =
+        `Winner: <strong>Team ${team}</strong><br/>` +
+        `Match score: ${setsA} sets to ${setsB}` +
+        (matchSetScores ? `<br/>Sets: ${matchSetScores}` : '');
+
+      modal.style.display = 'flex';
+    }
+
+    function hideMatchResultPopup() {
+      const modal = document.getElementById('match-result-modal');
+      if (modal) modal.style.display = 'none';
+    }
+
     function confirmResetMatch() {
       showCustomConfirm("정말로 경기를 초기화하시겠습니까?", () => { resetMatch(); });
     }
 
     function resetMatch() {
       cancelServerAnnouncement();
+      cancelSpeechQueue();
       state = {
         ptsA: 0, ptsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
         isTiebreak: false, tiebreakFirstServer: null,
         currentServerTeam: config.firstServeTeam,
-        courtLeftTeam: 'A'
+        courtLeftTeam: 'A',
+        completedSetScores: []
       };
       historyStack = [];
+      resetAllGestureState(true);
       saveStateToStorage();
+      hideMatchResultPopup();
       render();
-      speak("Reset.");
+      speak("New match. All match scores have been reset.");
     }
 
     function toggleServeTeam() {
       cancelServerAnnouncement();
+      cancelSpeechQueue();
       saveState();
       state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A';
       saveStateToStorage();
       render();
-      speak(`Service Team ${state.currentServerTeam}.`);
+      speakWithConfiguredDelay(`Service Team ${state.currentServerTeam}.`);
       scheduleServerAnnouncement();
     }
 
     function addPoint(team) {
       cancelServerAnnouncement();
+      cancelSpeechQueue();
       saveState();
       if (state.isTiebreak) handleTiebreakPoint(team);
       else handleStandardPoint(team);
@@ -1298,59 +2292,139 @@
       return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
     }
 
+    function getGameScoreForServer(serverTeam, gamesA = state.gamesA, gamesB = state.gamesB) {
+      return serverTeam === 'A' ? `${gamesA} to ${gamesB}` : `${gamesB} to ${gamesA}`;
+    }
+
     function winGame(team) {
       cancelServerAnnouncement();
       const winnerCall = getTeamDisplayName(team);
+
       if (team === 'A') state.gamesA++; else state.gamesB++;
-      state.ptsA = 0; state.ptsB = 0;
 
-      const gWin = team === 'A' ? state.gamesA : state.gamesB;
-      const gLose = team === 'A' ? state.gamesB : state.gamesA;
-      let gameAnnouncement = `Game ${winnerCall}. ${state.gamesA} games to ${state.gamesB}.`;
+      const finalGamesA = state.gamesA;
+      const finalGamesB = state.gamesB;
+      const gWin = team === 'A' ? finalGamesA : finalGamesB;
+      const gLose = team === 'A' ? finalGamesB : finalGamesA;
+      const wasTiebreak = state.isTiebreak;
 
-      const totalGames = state.gamesA + state.gamesB;
-      const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !state.isTiebreak);
+      state.ptsA = 0;
+      state.ptsB = 0;
 
-      if (isAutoCourtChange) manualCourtChange(true, false);
+      const totalGames = finalGamesA + finalGamesB;
+      const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !wasTiebreak);
 
-      if (state.isTiebreak) {
-        winSet(team, true);
-      } else if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
-        winSet(team, false);
-      } else if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
-        state.isTiebreak = true;
-        if (!isAutoCourtChange) speak(`${gameAnnouncement} Tiebreak.`);
-        switchServer();
-        scheduleServerAnnouncement();
-      } else {
-        if (!isAutoCourtChange) speak(gameAnnouncement);
-        switchServer();
-        scheduleServerAnnouncement();
+      if (wasTiebreak) {
+        winSet(team, true, { gamesA: finalGamesA, gamesB: finalGamesB });
+        return;
       }
+
+      if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
+        winSet(team, false, { gamesA: finalGamesA, gamesB: finalGamesB });
+        return;
+      }
+
+      if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
+        state.isTiebreak = true;
+        state.tiebreakFirstServer = state.currentServerTeam === 'A' ? 'B' : 'A';
+        state.currentServerTeam = state.tiebreakFirstServer;
+
+        if (isAutoCourtChange) {
+          state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+          saveStateToStorage();
+          render();
+        }
+
+        speakSequence([
+          `Game, ${winnerCall}.`,
+          `${finalGamesA} games all.`,
+          `Tiebreak.`
+        ], 650, () => scheduleServerAnnouncement());
+        return;
+      }
+
+      switchServer();
+      if (isAutoCourtChange) {
+        state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+        saveStateToStorage();
+        render();
+      }
+
+      speakSequence([
+        `Game, ${winnerCall}.`,
+        `${getGameScoreForServer(state.currentServerTeam, finalGamesA, finalGamesB)}.`
+      ], 650, () => scheduleServerAnnouncement());
     }
 
-    function winSet(team, viaTiebreak = false) {
+    function winSet(team, viaTiebreak = false, gameInfo = null) {
       cancelServerAnnouncement();
       const winnerCall = getTeamDisplayName(team);
+
+      const finalGamesA = gameInfo && Number.isFinite(gameInfo.gamesA) ? gameInfo.gamesA : state.gamesA;
+      const finalGamesB = gameInfo && Number.isFinite(gameInfo.gamesB) ? gameInfo.gamesB : state.gamesB;
+      const tiebreakFirstServer = state.tiebreakFirstServer;
+
       if (team === 'A') state.setsA++; else state.setsB++;
 
-      const tiebreakFirstServer = state.tiebreakFirstServer;
-      state.gamesA = 0; state.gamesB = 0;
-      state.isTiebreak = false;
-      state.tiebreakFirstServer = null;
+      const finalSetsA = state.setsA;
+      const finalSetsB = state.setsB;
+      const matchWon = (team === 'A' ? finalSetsA : finalSetsB) >= config.setsToWin;
 
-      const sWin = team === 'A' ? state.setsA : state.setsB;
-      if (sWin >= config.setsToWin) {
-        speak(`Game, set and match, ${winnerCall}. ${state.setsA} sets to ${state.setsB}.`);
-      } else {
-        speak(`Set, ${winnerCall}. ${state.setsA} sets to ${state.setsB}.`);
+      if (!matchWon) {
         if (viaTiebreak && tiebreakFirstServer) {
-          state.currentServerTeam = (tiebreakFirstServer === 'A') ? 'B' : 'A';
-          if (config.courtChange === 'auto') manualCourtChange(true, false);
+          state.currentServerTeam = tiebreakFirstServer === 'A' ? 'B' : 'A';
         } else {
           switchServer();
         }
-        scheduleServerAnnouncement();
+      }
+
+      const gameScoreCall = `${finalGamesA} games to ${finalGamesB}`;
+      const setScoreCall = `${finalSetsA} sets to ${finalSetsB}`;
+
+      if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
+      const winnerGames = team === 'A' ? finalGamesA : finalGamesB;
+      const loserGames = team === 'A' ? finalGamesB : finalGamesA;
+      state.completedSetScores.push(`${winnerGames}-${loserGames}`);
+
+      state.gamesA = 0;
+      state.gamesB = 0;
+      state.ptsA = 0;
+      state.ptsB = 0;
+      state.isTiebreak = false;
+      state.tiebreakFirstServer = null;
+
+      if (!matchWon && config.courtChange === 'auto') {
+        state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+      }
+      saveStateToStorage();
+      render();
+
+      if (matchWon) {
+        const matchSetScores = state.completedSetScores.length
+          ? state.completedSetScores.join(', ')
+          : `${winnerGames}-${loserGames}`;
+
+        let matchPopupShown = false;
+        const finishMatchPopup = () => {
+          if (matchPopupShown) return;
+          matchPopupShown = true;
+          showMatchResultPopup(team);
+        };
+
+        speakSequence([
+          `Game, set and match, ${winnerCall}.`,
+          `${matchSetScores}.`
+        ], 650, finishMatchPopup);
+
+        const popupFallbackMs = Math.max(7000, Number(config.audioDelay || 0) + 6500);
+        setTimeout(finishMatchPopup, popupFallbackMs);
+      } else {
+        speakSequence([
+          `Game, ${winnerCall}.`,
+          `${gameScoreCall}.`,
+          `Set, ${winnerCall}.`,
+          `${setScoreCall}.`
+        ], 650, () => scheduleServerAnnouncement());
       }
     }
 
@@ -1372,59 +2446,102 @@
 
     function getSpokenText(text) {
       return text
-        .replace(/ 15 /g, "Fifteen")
-        .replace(/ 30 /g, "Thirty")
-        .replace(/ 40 /g, "Forty")
-        .replace(/ 0 /g, "Love")
+        .replace(/ 15 /g, " Fifteen ")
+        .replace(/ 30 /g, " Thirty ")
+        .replace(/ 40 /g, " Forty ")
+        .replace(/ 0 /g, " Love ")
         .replace(/,\s*,+/g, ".")
         .replace(/\s+/g, " ")
         .trim();
     }
 
     function speak(text) {
-      if ('speechSynthesis' in window) {
-        try {
-          window.speechSynthesis.cancel();
+      cancelSpeechQueue();
+      enqueueSpeech(text, speechSequenceToken);
+    }
 
-          playSilentWakeAudio();
+    function speakSequence(texts, gapMs = 650, onComplete = null) {
+      cancelSpeechQueue();
+      const token = speechSequenceToken;
+      speechQueue = texts.filter(Boolean).map(text => ({ text, gapMs, token }));
+      processSpeechQueue(token, onComplete);
+    }
 
-          const delay = config.audioDelay !== undefined ? config.audioDelay : 200;
+    function enqueueSpeech(text, token = speechSequenceToken) {
+      speechQueue.push({ text, gapMs: 0, token });
+      processSpeechQueue(token);
+    }
 
-          setTimeout(() => {
-            const spokenText = getSpokenText(text);
-            const utterance = new SpeechSynthesisUtterance(spokenText);
-            const selectedLang = config.voiceLang || 'en-GB';
-            utterance.lang = selectedLang;
-            utterance.rate = 0.92;
-            utterance.pitch = 1.0;
-
-            const voices = window.speechSynthesis.getVoices();
-            if (voices && voices.length > 0) {
-              const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
-                                   voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
-              if (matchedVoice) {
-                utterance.voice = matchedVoice;
-              }
-            }
-
-            window.speechSynthesis.speak(utterance);
-          }, delay);
-        } catch (e) {}
+    function processSpeechQueue(token, onComplete = null) {
+      if (speechBusy || !speechQueue.length || token !== speechSequenceToken) {
+        if (!speechBusy && !speechQueue.length && token === speechSequenceToken && onComplete) onComplete();
+        return;
       }
+      const item = speechQueue.shift();
+      speechBusy = true;
+
+      const startUtterance = () => {
+        if (token !== speechSequenceToken) {
+          speechBusy = false;
+          return;
+        }
+
+        try {
+          playSilentWakeAudio();
+          const spokenText = getSpokenText(item.text);
+          const utterance = new SpeechSynthesisUtterance(spokenText);
+          const selectedLang = config.voiceLang || 'en-GB';
+          utterance.lang = selectedLang;
+          utterance.rate = 0.92;
+          utterance.pitch = 1.0;
+
+          const voices = window.speechSynthesis.getVoices();
+          if (voices && voices.length > 0) {
+            const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
+                                 voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
+            if (matchedVoice) utterance.voice = matchedVoice;
+          }
+
+          utterance.onend = () => {
+            if (token !== speechSequenceToken) { speechBusy = false; return; }
+            const wait = Math.max(0, item.gapMs || 0);
+            speechTimer = setTimeout(() => {
+              speechTimer = null;
+              speechBusy = false;
+              processSpeechQueue(token, onComplete);
+            }, wait);
+          };
+          utterance.onerror = () => {
+            if (token !== speechSequenceToken) { speechBusy = false; return; }
+            speechTimer = setTimeout(() => {
+              speechTimer = null;
+              speechBusy = false;
+              processSpeechQueue(token, onComplete);
+            }, Math.max(0, item.gapMs || 0));
+          };
+
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {
+          speechBusy = false;
+          processSpeechQueue(token, onComplete);
+        }
+      };
+
+      const delay = config.audioDelay !== undefined ? Math.max(0, Number(config.audioDelay) || 0) : 200;
+      speechTimer = setTimeout(() => {
+        speechTimer = null;
+        startUtterance();
+      }, delay);
     }
 
     function speakCall(prefix = "") {
       let callText = "";
       if (state.isTiebreak) {
-        if (state.ptsA === state.ptsB) {
-          callText = `${state.ptsA} all.`;
-        } else {
-          callText = `${state.ptsA}, ${state.ptsB}.`;
-        }
+        if (state.ptsA === state.ptsB) callText = `${state.ptsA} all.`;
+        else callText = `${state.ptsA}, ${state.ptsB}.`;
       } else {
         const pA = state.ptsA;
         const pB = state.ptsB;
-
         if (pA >= 3 && pB >= 3) {
           if (pA === pB) callText = "Deuce.";
           else if (pA > pB) callText = `Advantage, ${getTeamDisplayName('A')}.`;
@@ -1452,14 +2569,10 @@
 
     function render() {
       const camBtn = document.getElementById('btn-camera-toggle');
-      if (camBtn) {
-        camBtn.classList.toggle('active-toggle', isCameraActive);
-      }
+      if (camBtn) camBtn.classList.toggle('active-toggle', isCameraActive);
 
       const swipeBtn = document.getElementById('btn-swipe-toggle');
-      if (swipeBtn) {
-        swipeBtn.classList.toggle('active-toggle', !!config.swipeEnabled);
-      }
+      if (swipeBtn) swipeBtn.classList.toggle('active-toggle', !!config.swipeEnabled);
 
       document.getElementById('disp-players-a').innerText = config.type === 'doubles' 
         ? `${config.playersA[0]} / ${config.playersA[1]}` : config.playersA[0];
@@ -1474,8 +2587,16 @@
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
 
-      document.getElementById('serve-a').classList.toggle('active', state.currentServerTeam === 'A');
-      document.getElementById('serve-b').classList.toggle('active', state.currentServerTeam === 'B');
+      const serveAActive = state.currentServerTeam === 'A';
+      const serveBActive = state.currentServerTeam === 'B';
+      document.getElementById('serve-a').classList.toggle('active', serveAActive);
+      document.getElementById('serve-b').classList.toggle('active', serveBActive);
+      const serveMenu = document.getElementById('btn-toggle-serve-s');
+      if (serveMenu) {
+        serveMenu.classList.toggle('active-toggle', true);
+        serveMenu.dataset.serverTeam = state.currentServerTeam;
+        serveMenu.title = `Switch Serve Team (current: Team ${state.currentServerTeam})`;
+      }
 
       const leftTeam = state.courtLeftTeam;
       const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
