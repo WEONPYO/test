@@ -437,10 +437,11 @@
 
     .btn-save { width: 100%; padding: 10px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 10px; font-size: 0.85rem; }
 
+    /* 맨 하단 위치용 카메라 테스트 버튼 */
     .btn-cam-test {
       width: 100%; padding: 9px; background: #06394c; border: 1px solid var(--accent-cyan);
       border-radius: 6px; font-weight: bold; color: var(--accent-cyan); cursor: pointer;
-      margin-top: 4px; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin-top: 8px; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 6px;
     }
     .btn-cam-test:active { background: #0a4f6a; }
 
@@ -479,35 +480,40 @@
       to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
-    /* 카메라 테스트 전용 전체화면 모달 */
+    /* 카메라 테스트 전용 뷰 */
     #cam-test-modal {
       display: none; position: fixed; inset: 0; z-index: 500;
       background: #000; flex-direction: column;
     }
     .cam-test-header {
-      height: 48px; background: #102017; display: flex; align-items: center;
-      justify-content: space-between; padding: 0 16px; border-bottom: 1px solid var(--panel-border);
-      z-index: 10;
+      height: 44px; background: #0c1811; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 14px; border-bottom: 1px solid var(--panel-border);
+      z-index: 25; flex-shrink: 0;
     }
-    .cam-test-title { color: var(--accent-cyan); font-weight: bold; font-size: 0.95rem; }
+    .cam-test-title { color: var(--accent-cyan); font-weight: bold; font-size: 0.85rem; letter-spacing: 0.5px; }
     .btn-close-camtest {
-      background: #ff4d4d; border: none; color: #fff; font-weight: bold;
-      padding: 6px 14px; border-radius: 5px; cursor: pointer; font-size: 0.8rem;
+      background: #e63946; border: none; color: #fff; font-weight: bold;
+      padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 0.75rem;
     }
+
+    /* 영상을 가리지 않도록 상단 헤더 바로 밑에 얇고 투명한 띠(HUD)로 배치 */
+    .cam-test-hud-bar {
+      width: 100%; background: rgba(5, 15, 10, 0.78); backdrop-filter: blur(6px);
+      border-bottom: 1px solid rgba(0, 212, 255, 0.35); padding: 5px 12px;
+      z-index: 20; display: flex; flex-wrap: wrap; justify-content: space-between;
+      align-items: center; gap: 6px; font-size: 0.72rem; color: #e0e0e0; flex-shrink: 0;
+    }
+    .hud-col { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .hud-col strong { color: var(--accent-cyan); font-weight: 600; }
+    .hud-val-target { font-size: 0.82rem; font-weight: 900; }
+
     .cam-test-body {
-      flex: 1; position: relative; width: 100%; height: calc(100% - 48px);
-      background: #050b07; overflow: hidden; display: flex; justify-content: center; align-items: center;
+      flex: 1; position: relative; width: 100%; height: 100%;
+      background: #000; overflow: hidden; display: flex; justify-content: center; align-items: center;
     }
     #cam-test-canvas {
       position: absolute; width: 100%; height: 100%; object-fit: contain;
     }
-    .cam-test-hud {
-      position: absolute; top: 12px; left: 12px; z-index: 15;
-      background: rgba(0, 0, 0, 0.78); border: 1px solid var(--panel-border);
-      border-radius: 8px; padding: 10px 14px; font-family: monospace; font-size: 0.78rem;
-      color: #00ffaa; pointer-events: none; line-height: 1.5; max-width: 85vw;
-    }
-    .cam-test-hud strong { color: var(--accent-yellow); font-size: 0.85rem; }
 
     #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
     #keep-awake-canvas { display: none; width: 1px; height: 1px; position: absolute; pointer-events: none; }
@@ -528,17 +534,33 @@
   <video id="hidden-video" playsinline webkit-playsinline muted></video>
   <canvas id="keep-awake-canvas"></canvas>
 
-  <!-- 카메라 테스트 뷰 모달 -->
+  <!-- 카메라 테스트 전용 뷰 모달 -->
   <div id="cam-test-modal">
     <div class="cam-test-header">
-      <div class="cam-test-title">📷 카메라 & 랜드마크 인식 테스트 모드</div>
+      <div class="cam-test-title">📷 카메라 & 랜드마크 인식 테스트 모드 (점수 계산 안 함)</div>
       <button class="btn-close-camtest" onclick="closeCameraTest()">테스트 종료</button>
+    </div>
+    <!-- 카메라 영상을 가리지 않는 상단 HUD 바 -->
+    <div class="cam-test-hud-bar" id="cam-test-hud-bar">
+      <div class="hud-col">
+        <strong>감지:</strong> <span class="hud-val-target" id="hud-target" style="color:#ff6b6b;">대기 중</span>
+      </div>
+      <div class="hud-col">
+        <strong>거리비율(Ratio):</strong> <span id="hud-ratio" style="color:var(--accent-yellow);">N/A</span>
+        <span style="font-size:0.62rem; color:#888;">(모음 ≤ 0.88 | 벌림 ≥ 1.15)</span>
+      </div>
+      <div class="hud-col">
+        <strong>높이:</strong> <span id="hud-height">미감지</span>
+      </div>
+      <div class="hud-col">
+        <strong>손목 신뢰도:</strong> <span id="hud-conf">L: 0.00 / R: 0.00</span>
+      </div>
+      <div class="hud-col">
+        <strong>어깨폭:</strong> <span id="hud-shoulder">0.000</span>
+      </div>
     </div>
     <div class="cam-test-body">
       <canvas id="cam-test-canvas"></canvas>
-      <div class="cam-test-hud" id="cam-test-hud">
-        카메라 영상 초기화 중...
-      </div>
     </div>
   </div>
 
@@ -692,13 +714,6 @@
       </div>
 
       <div class="setting-group">
-        <label>카메라 실시간 테스트 & 상태 진단</label>
-        <button type="button" class="btn-cam-test" onclick="openCameraTest()">
-          <span>📷 카메라 테스트 실행 (골격 및 인식률 보기)</span>
-        </button>
-      </div>
-
-      <div class="setting-group">
         <label>카메라 해상도 (Camera Resolution)</label>
         <select id="set-camera-res">
           <option value="max" selected>최대 해상도 (Max / Ultra HD)</option>
@@ -826,6 +841,14 @@
         <div class="setting-group"><label>Swipe Down</label><select id="swipe-down"><option value="left_score">좌측팀 득점</option><option value="right_score">우측팀 득점</option><option value="court_change">코트 체인지</option><option value="undo">Correction</option></select></div>
         <div class="setting-group"><label>Swipe Left</label><select id="swipe-left"><option value="court_change" selected>코트 체인지</option><option value="left_score">좌측팀 득점</option></select></div>
         <div class="setting-group"><label>Swipe Right</label><select id="swipe-right"><option value="undo" selected>Correction</option><option value="right_score">우측팀 득점</option></select></div>
+      </div>
+
+      <!-- 요청하신 카메라 테스트 버튼: 설정의 가장 맨 하단 배치 -->
+      <div class="setting-group" style="margin-top: 14px; border-top: 1px dashed var(--panel-border); padding-top: 10px;">
+        <label>카메라 실시간 테스트 & 골격 진단</label>
+        <button type="button" class="btn-cam-test" onclick="openCameraTest()">
+          <span>📷 카메라 테스트 실행 (골격 및 인식률 보기)</span>
+        </button>
       </div>
 
       <button class="btn-save" id="btn-save-settings">Apply & Update Settings</button>
@@ -1279,12 +1302,11 @@
           poseInstance = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
           });
-          // 원거리 인식 강화를 위해 modelComplexity를 1로 유지하고 threshold를 유연하게 설정
           poseInstance.setOptions({
             modelComplexity: 1,
             smoothLandmarks: true,
             enableSegmentation: false,
-            minDetectionConfidence: 0.35, // 기존 0.5 -> 0.35로 완화하여 원거리 검출력 상승
+            minDetectionConfidence: 0.35,
             minTrackingConfidence: 0.35
           });
           poseInstance.onResults(onPoseResults);
@@ -1332,13 +1354,16 @@
     }
 
     /* =========================================================================
-       카메라 테스트 모드 (실시간 영상 & 골격 랜드마크 & 상태 진단 UI)
+       카메라 테스트 모드 (실시간 영상 & 골격 랜드마크 & 상단 전광판 HUD)
        ========================================================================= */
     async function openCameraTest() {
       document.getElementById('settings-modal').style.display = 'none';
       const testModal = document.getElementById('cam-test-modal');
       testModal.style.display = 'flex';
       isCameraTesting = true;
+
+      // 테스트 도중 기존 게이지/득점 상태 리셋
+      resetAllGestureState(true);
 
       if (!cameraInstance) {
         await startCameraRecognition();
@@ -1352,11 +1377,31 @@
       document.getElementById('settings-modal').style.display = 'block';
     }
 
-    function renderCameraTestOverlay(results, statusInfo) {
+    function updateCameraTestHUD(statusInfo) {
+      if (!isCameraTesting) return;
+      const elTarget = document.getElementById('hud-target');
+      const elRatio = document.getElementById('hud-ratio');
+      const elHeight = document.getElementById('hud-height');
+      const elConf = document.getElementById('hud-conf');
+      const elShoulder = document.getElementById('hud-shoulder');
+
+      if (elTarget) {
+        elTarget.innerText = statusInfo.targetText;
+        elTarget.style.color = statusInfo.targetColor;
+      }
+      if (elRatio) elRatio.innerText = statusInfo.ratioText;
+      if (elHeight) {
+        elHeight.innerText = statusInfo.heightStatus;
+        elHeight.style.color = statusInfo.heightOk ? '#00ffaa' : '#ffaa00';
+      }
+      if (elConf) elConf.innerText = `L: ${statusInfo.lWristConf} / R: ${statusInfo.rWristConf}`;
+      if (elShoulder) elShoulder.innerText = statusInfo.shoulderSpan;
+    }
+
+    function renderCameraTestOverlay(results) {
       if (!isCameraTesting) return;
       const canvas = document.getElementById('cam-test-canvas');
-      const hud = document.getElementById('cam-test-hud');
-      if (!canvas || !hud) return;
+      if (!canvas) return;
 
       const video = document.getElementById('hidden-video');
       if (!video || video.videoWidth === 0) return;
@@ -1367,14 +1412,13 @@
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 1. 카메라 영상 그리기
+      // 1. 카메라 영상 그리기 (화면 중앙 전체에 비가림 없이 표시)
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 2. 랜드마크 및 스켈레톤 라인 그리기
+      // 2. 랜드마크 및 스켈레톤 라인 오버레이
       if (results && results.poseLandmarks) {
         const lm = results.poseLandmarks;
 
-        // 주요 연결선 그리기
         const drawLine = (idx1, idx2, color = '#00ffaa') => {
           const p1 = lm[idx1];
           const p2 = lm[idx2];
@@ -1397,7 +1441,7 @@
         drawLine(11, 23, '#ffffff'); // 왼쪽 몸통
         drawLine(12, 24, '#ffffff'); // 오른쪽 몸통
 
-        // 관절 포인트 그리기
+        // 관절 포인트
         [0, 11, 12, 13, 14, 15, 16].forEach(idx => {
           const pt = lm[idx];
           if (pt) {
@@ -1412,17 +1456,6 @@
         });
       }
       ctx.restore();
-
-      // HUD 정보 갱신
-      hud.innerHTML = `
-        <strong>[카메라 & 인식 분석 상태]</strong><br/>
-        • <strong>감지 대상:</strong> <span style="color:${statusInfo.targetColor}; font-size:1rem; font-weight:bold;">${statusInfo.targetText}</span><br/>
-        • <strong>손목 간 거리 비율 (Ratio):</strong> ${statusInfo.ratioText}<br/>
-        • <strong>기준값:</strong> 모음(Left) ≤ 0.88 | 벌림(Right) ≥ 1.15<br/>
-        • <strong>어깨 높이 기준 통과 여부:</strong> ${statusInfo.heightStatus}<br/>
-        • <strong>랜드마크 신뢰도:</strong> L-손목(${statusInfo.lWristConf}) / R-손목(${statusInfo.rWristConf})<br/>
-        • <strong>어깨 폭(정규화):</strong> ${statusInfo.shoulderSpan} (최소 0.02 필요)
-      `;
     }
 
     /* =========================================================================
@@ -1431,19 +1464,21 @@
     function onPoseResults(results) {
       const now = Date.now();
       let statusInfo = {
-        targetText: '인물 감지 대기 중',
+        targetText: '대기 중',
         targetColor: '#ff6b6b',
         ratioText: 'N/A',
         heightStatus: '미감지',
+        heightOk: false,
         lWristConf: '0.00',
         rWristConf: '0.00',
-        shoulderSpan: '0.00'
+        shoulderSpan: '0.000'
       };
 
       if (!results || !results.poseLandmarks) {
         if (!isCameraTesting && !isCameraActive) return;
-        processGestureTarget(null, now);
-        renderCameraTestOverlay(results, statusInfo);
+        if (!isCameraTesting) processGestureTarget(null, now);
+        updateCameraTestHUD(statusInfo);
+        renderCameraTestOverlay(results);
         return;
       }
 
@@ -1456,17 +1491,16 @@
       const rightShoulder = lm[12];
 
       if (!leftWrist || !rightWrist || !leftShoulder || !rightShoulder) {
-        statusInfo.targetText = '관절 검출 불충분';
-        processGestureTarget(null, now);
-        renderCameraTestOverlay(results, statusInfo);
+        statusInfo.targetText = '관절 감지 부족';
+        if (!isCameraTesting) processGestureTarget(null, now);
+        updateCameraTestHUD(statusInfo);
+        renderCameraTestOverlay(results);
         return;
       }
 
       statusInfo.lWristConf = (leftWrist.visibility || 0).toFixed(2);
       statusInfo.rWristConf = (rightWrist.visibility || 0).toFixed(2);
 
-      // [원거리 개선 1]: 신뢰도 임계값 완화 (0.25 -> 0.10)
-      // 만약 손목 신뢰도가 낮고 팔꿈치가 감지되면 팔꿈치 벡터를 통해 손목 위치 보완 추정
       let effectiveLWrist = { x: leftWrist.x, y: leftWrist.y };
       let effectiveRWrist = { x: rightWrist.x, y: rightWrist.y };
 
@@ -1488,29 +1522,32 @@
       );
       statusInfo.shoulderSpan = shoulderWidth.toFixed(3);
 
-      // [원거리 개선 2]: 원거리 환경에서는 어깨 너비가 0.08 미만으로 떨어짐. 0.02까지 완화
       if (!Number.isFinite(shoulderWidth) || shoulderWidth < 0.02) {
-        statusInfo.targetText = '어깨 너비 불충분 (거리 초과 또는 가림)';
-        processGestureTarget(null, now);
-        renderCameraTestOverlay(results, statusInfo);
+        statusInfo.targetText = '어깨폭 미달 (거리초과)';
+        if (!isCameraTesting) processGestureTarget(null, now);
+        updateCameraTestHUD(statusInfo);
+        renderCameraTestOverlay(results);
         return;
       }
 
-      // [원거리 개선 3]: 머리/어깨 상단 기준 오차 한계(margin)를 0.08 -> 0.12로 유연화
       const shoulderTopY = Math.min(leftShoulder.y, rightShoulder.y);
       const wristsAboveShoulders =
         effectiveLWrist.y < shoulderTopY + 0.12 &&
         effectiveRWrist.y < shoulderTopY + 0.12;
 
       if (!wristsAboveShoulders) {
-        statusInfo.heightStatus = '양손이 어깨 기준보다 낮음';
+        statusInfo.heightStatus = '어깨 아래';
+        statusInfo.heightOk = false;
         statusInfo.targetText = '중립 (손 내림)';
         statusInfo.targetColor = '#888888';
-        processGestureTarget(null, now);
-        renderCameraTestOverlay(results, statusInfo);
+        if (!isCameraTesting) processGestureTarget(null, now);
+        updateCameraTestHUD(statusInfo);
+        renderCameraTestOverlay(results);
         return;
       }
-      statusInfo.heightStatus = '통과 (어깨 위 포즈 감지)';
+
+      statusInfo.heightStatus = '통과 (어깨 위)';
+      statusInfo.heightOk = true;
 
       const wristsDist = Math.hypot(
         effectiveLWrist.x - effectiveRWrist.x,
@@ -1520,7 +1557,6 @@
       const handRatio = wristsDist / shoulderWidth;
       statusInfo.ratioText = handRatio.toFixed(2);
 
-      // 원거리 노이즈 방지 마진을 유지하면서 살짝 넓힘 (모음 0.88, 벌림 1.15)
       const LEFT_CLOSE_RATIO = 0.88;
       const RIGHT_OPEN_RATIO = 1.15;
 
@@ -1534,12 +1570,17 @@
         statusInfo.targetText = 'RIGHT (양손 벌림)';
         statusInfo.targetColor = '#00d4ff';
       } else {
-        statusInfo.targetText = '중립 (중간 폭 유지)';
+        statusInfo.targetText = '중립 (중간 폭)';
         statusInfo.targetColor = '#ffff00';
       }
 
-      processGestureTarget(currentTarget, now, handRatio);
-      renderCameraTestOverlay(results, statusInfo);
+      // [핵심 변경]: 카메라 테스트 중에는 점수 카운트 동작(processGestureTarget)을 건너뜁니다!
+      if (!isCameraTesting) {
+        processGestureTarget(currentTarget, now, handRatio);
+      }
+
+      updateCameraTestHUD(statusInfo);
+      renderCameraTestOverlay(results);
     }
 
     function isCorrectActive() {
