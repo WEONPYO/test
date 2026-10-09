@@ -989,10 +989,10 @@
     let correctCandidateNeutralSince = 0;
 
     const CORRECT_SEQUENCE_STEPS = 4;
-    const CORRECT_MAX_GAUGE_RATIO = 0.80;
-    const CORRECT_TRANSITION_TIMEOUT_MS = 1000;
-    const CORRECT_IDLE_TIMEOUT_MS = 2000;
-    const CORRECT_TRANSITION_STABLE_MS = 100;
+    const CORRECT_MAX_GAUGE_RATIO = 0.92;
+    const CORRECT_TRANSITION_TIMEOUT_MS = 1800;
+    const CORRECT_IDLE_TIMEOUT_MS = 3200;
+    const CORRECT_TRANSITION_STABLE_MS = 80;
 
     let gesturePointLocked = false;
     let gestureCandidateSide = null;
@@ -1501,7 +1501,8 @@
       else headTopY = Math.min(globalLM[2].y, globalLM[5].y);
 
       // 양손 모두 머리보다 일정 마진(0.015) 이상 높이 들었는지 검사
-      const handsAboveHead = (gLWrist.y < (headTopY - 0.015)) && (gRWrist.y < (headTopY - 0.015));
+      const headMargin = Math.max(0.008, Math.min(0.015, bodyScale * 0.12));
+      const handsAboveHead = (gLWrist.y < (headTopY - headMargin)) && (gRWrist.y < (headTopY - headMargin));
 
       if (!handsAboveHead) {
         return {
@@ -1890,8 +1891,12 @@
           const leftElapsed = Math.max(0, now - gestureStartTime);
           const leftProgress = Math.min(leftElapsed / holdMs, 1);
           if (leftProgress <= CORRECT_MAX_GAUGE_RATIO && !gesturePointLocked) {
-            correctCandidateLeft = true;
-            correctCandidateNeutralSince = now;
+            // Neutral 전환 시각은 최초 1회만 기록합니다.
+            // 매 프레임 갱신하면 전환 제한 시간이 사실상 무효화됩니다.
+            if (!correctCandidateLeft) {
+              correctCandidateLeft = true;
+              correctCandidateNeutralSince = now;
+            }
           } else {
             clearCorrectCandidate();
           }
