@@ -496,9 +496,9 @@
       padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 0.75rem;
     }
 
-    /* 영상을 가리지 않도록 상단 헤더 바로 밑에 얇고 투명한 띠(HUD)로 배치 */
+    /* 상단 슬림 전광판 HUD 바 */
     .cam-test-hud-bar {
-      width: 100%; background: rgba(5, 15, 10, 0.78); backdrop-filter: blur(6px);
+      width: 100%; background: rgba(5, 15, 10, 0.82); backdrop-filter: blur(6px);
       border-bottom: 1px solid rgba(0, 212, 255, 0.35); padding: 5px 12px;
       z-index: 20; display: flex; flex-wrap: wrap; justify-content: space-between;
       align-items: center; gap: 6px; font-size: 0.72rem; color: #e0e0e0; flex-shrink: 0;
@@ -537,10 +537,9 @@
   <!-- 카메라 테스트 전용 뷰 모달 -->
   <div id="cam-test-modal">
     <div class="cam-test-header">
-      <div class="cam-test-title">📷 카메라 & 랜드마크 인식 테스트 모드 (점수 계산 안 함)</div>
+      <div class="cam-test-title">📷 카메라 & 원거리인식 테스트 (점수 카운트 중지됨)</div>
       <button class="btn-close-camtest" onclick="closeCameraTest()">테스트 종료</button>
     </div>
-    <!-- 카메라 영상을 가리지 않는 상단 HUD 바 -->
     <div class="cam-test-hud-bar" id="cam-test-hud-bar">
       <div class="hud-col">
         <strong>감지:</strong> <span class="hud-val-target" id="hud-target" style="color:#ff6b6b;">대기 중</span>
@@ -553,7 +552,7 @@
         <strong>높이:</strong> <span id="hud-height">미감지</span>
       </div>
       <div class="hud-col">
-        <strong>손목 신뢰도:</strong> <span id="hud-conf">L: 0.00 / R: 0.00</span>
+        <strong>타겟 크기(Scale):</strong> <span id="hud-scale" style="color:#39ff68;">0.000</span>
       </div>
       <div class="hud-col">
         <strong>어깨폭:</strong> <span id="hud-shoulder">0.000</span>
@@ -728,7 +727,7 @@
         • <strong>왼쪽 스코어 득점:</strong> 양손을 머리 위로 모으는 동작 유지<br/>
         • <strong>오른쪽 스코어 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작 유지<br/>
         • <strong>Correct:</strong> 좌측(게이지 80% 이하) → 중립 → 1초 이내 우측으로 진입 후 좌/우 2회 반복<br/>
-        • <strong>원거리 보정:</strong> 원거리에서도 관절 검출 신뢰도 및 어깨폭 감도가 자동 보정됩니다.
+        • <strong>원거리/다인 최적화:</strong> 어깨폭 기준을 0.005로 완화하여 원거리에서도 안정적이며, 여러 명일 경우 화면에서 가장 크게 잡힌 전면 인물 1명만 우선 추적합니다.
       </div>
 
       <div class="setting-group">
@@ -843,7 +842,7 @@
         <div class="setting-group"><label>Swipe Right</label><select id="swipe-right"><option value="undo" selected>Correction</option><option value="right_score">우측팀 득점</option></select></div>
       </div>
 
-      <!-- 요청하신 카메라 테스트 버튼: 설정의 가장 맨 하단 배치 -->
+      <!-- 맨 하단 카메라 테스트 버튼 -->
       <div class="setting-group" style="margin-top: 14px; border-top: 1px dashed var(--panel-border); padding-top: 10px;">
         <label>카메라 실시간 테스트 & 골격 진단</label>
         <button type="button" class="btn-cam-test" onclick="openCameraTest()">
@@ -982,6 +981,10 @@
     let gestureLastTargetSeenAt = 0;
     let gestureLastRatio = null;
     let gestureRatioChangedAt = 0;
+
+    // 원거리 노이즈 완화를 위한 이동평균 필터 변수
+    let smoothedHandRatio = null;
+    let primaryPersonTrackingBox = null;
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
@@ -1302,12 +1305,13 @@
           poseInstance = new Pose({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
           });
+          // 원거리 인식 강화를 위해 감지 임계값을 완화
           poseInstance.setOptions({
             modelComplexity: 1,
             smoothLandmarks: true,
             enableSegmentation: false,
-            minDetectionConfidence: 0.35,
-            minTrackingConfidence: 0.35
+            minDetectionConfidence: 0.3,
+            minTrackingConfidence: 0.3
           });
           poseInstance.onResults(onPoseResults);
         }
@@ -1362,7 +1366,6 @@
       testModal.style.display = 'flex';
       isCameraTesting = true;
 
-      // 테스트 도중 기존 게이지/득점 상태 리셋
       resetAllGestureState(true);
 
       if (!cameraInstance) {
@@ -1382,7 +1385,7 @@
       const elTarget = document.getElementById('hud-target');
       const elRatio = document.getElementById('hud-ratio');
       const elHeight = document.getElementById('hud-height');
-      const elConf = document.getElementById('hud-conf');
+      const elScale = document.getElementById('hud-scale');
       const elShoulder = document.getElementById('hud-shoulder');
 
       if (elTarget) {
@@ -1394,7 +1397,7 @@
         elHeight.innerText = statusInfo.heightStatus;
         elHeight.style.color = statusInfo.heightOk ? '#00ffaa' : '#ffaa00';
       }
-      if (elConf) elConf.innerText = `L: ${statusInfo.lWristConf} / R: ${statusInfo.rWristConf}`;
+      if (elScale) elScale.innerText = statusInfo.bodyScaleText;
       if (elShoulder) elShoulder.innerText = statusInfo.shoulderSpan;
     }
 
@@ -1412,10 +1415,8 @@
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // 1. 카메라 영상 그리기 (화면 중앙 전체에 비가림 없이 표시)
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 2. 랜드마크 및 스켈레톤 라인 오버레이
       if (results && results.poseLandmarks) {
         const lm = results.poseLandmarks;
 
@@ -1432,16 +1433,14 @@
           }
         };
 
-        // 몸통 및 팔 연결선
-        drawLine(11, 12, '#ccff00'); // 어깨
-        drawLine(11, 13, '#00d4ff'); // 왼팔 상완
-        drawLine(13, 15, '#00d4ff'); // 왼팔 하완
-        drawLine(12, 14, '#ff0077'); // 오른팔 상완
-        drawLine(14, 16, '#ff0077'); // 오른팔 하완
-        drawLine(11, 23, '#ffffff'); // 왼쪽 몸통
-        drawLine(12, 24, '#ffffff'); // 오른쪽 몸통
+        drawLine(11, 12, '#ccff00');
+        drawLine(11, 13, '#00d4ff');
+        drawLine(13, 15, '#00d4ff');
+        drawLine(12, 14, '#ff0077');
+        drawLine(14, 16, '#ff0077');
+        drawLine(11, 23, '#ffffff');
+        drawLine(12, 24, '#ffffff');
 
-        // 관절 포인트
         [0, 11, 12, 13, 14, 15, 16].forEach(idx => {
           const pt = lm[idx];
           if (pt) {
@@ -1460,6 +1459,7 @@
 
     /* =========================================================================
        원거리 인식 강화 및 MediaPipe Pose 결과 분석
+       (거리초과 대폭 완화 + 여러 명 감지 시 가장 큰 전면 인물 우선 선택)
        ========================================================================= */
     function onPoseResults(results) {
       const now = Date.now();
@@ -1469,8 +1469,7 @@
         ratioText: 'N/A',
         heightStatus: '미감지',
         heightOk: false,
-        lWristConf: '0.00',
-        rWristConf: '0.00',
+        bodyScaleText: '0.000',
         shoulderSpan: '0.000'
       };
 
@@ -1489,57 +1488,81 @@
       const rightElbow = lm[14];
       const leftShoulder = lm[11];
       const rightShoulder = lm[12];
+      const leftHip = lm[23];
+      const rightHip = lm[24];
 
-      if (!leftWrist || !rightWrist || !leftShoulder || !rightShoulder) {
-        statusInfo.targetText = '관절 감지 부족';
+      if (!leftShoulder || !rightShoulder) {
+        statusInfo.targetText = '신체 감지 부족';
         if (!isCameraTesting) processGestureTarget(null, now);
         updateCameraTestHUD(statusInfo);
         renderCameraTestOverlay(results);
         return;
       }
 
-      statusInfo.lWristConf = (leftWrist.visibility || 0).toFixed(2);
-      statusInfo.rWristConf = (rightWrist.visibility || 0).toFixed(2);
-
-      let effectiveLWrist = { x: leftWrist.x, y: leftWrist.y };
-      let effectiveRWrist = { x: rightWrist.x, y: rightWrist.y };
-
-      const lWristValid = (leftWrist.visibility || 0) > 0.10;
-      const rWristValid = (rightWrist.visibility || 0) > 0.10;
-
-      if (!lWristValid && leftElbow && (leftElbow.visibility || 0) > 0.25) {
-        effectiveLWrist.x = leftElbow.x + (leftElbow.x - leftShoulder.x) * 0.8;
-        effectiveLWrist.y = leftElbow.y + (leftElbow.y - leftShoulder.y) * 0.8;
+      // [개선 1]: 여러 명이 잡힐 경우 화면에서 가장 크게 잡힌 한 사람 판별
+      // 어깨 폭과 몸통 길이(어깨~골반)를 종합하여 신체 스케일 산출
+      const shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
+      let torsoHeight = 0;
+      if (leftHip && rightHip) {
+        const midShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+        const midHipY = (leftHip.y + rightHip.y) / 2;
+        torsoHeight = Math.abs(midHipY - midShoulderY);
       }
-      if (!rWristValid && rightElbow && (rightElbow.visibility || 0) > 0.25) {
-        effectiveRWrist.x = rightElbow.x + (rightElbow.x - rightShoulder.x) * 0.8;
-        effectiveRWrist.y = rightElbow.y + (rightElbow.y - rightShoulder.y) * 0.8;
-      }
-
-      const shoulderWidth = Math.hypot(
-        leftShoulder.x - rightShoulder.x,
-        leftShoulder.y - rightShoulder.y
-      );
+      // 신체 유효 크기(Scale): 어깨폭과 몸통 수직 길이를 조합
+      const bodyScale = Math.max(shoulderWidth, torsoHeight * 0.5);
+      statusInfo.bodyScaleText = bodyScale.toFixed(3);
       statusInfo.shoulderSpan = shoulderWidth.toFixed(3);
 
-      if (!Number.isFinite(shoulderWidth) || shoulderWidth < 0.02) {
-        statusInfo.targetText = '어깨폭 미달 (거리초과)';
+      // 이전 감지된 주 사용자(Primary Person)와 비교하여 지나치게 작은 배경 인물 노이즈 차단
+      if (!primaryPersonTrackingBox) {
+        primaryPersonTrackingBox = bodyScale;
+      } else {
+        // 더 크게 잡힌 사람이 들어오면 즉시 주 타겟 갱신, 작게 잡힌 사람은 무시
+        if (bodyScale > primaryPersonTrackingBox * 1.15) {
+          primaryPersonTrackingBox = bodyScale;
+        } else {
+          primaryPersonTrackingBox = primaryPersonTrackingBox * 0.95 + bodyScale * 0.05;
+        }
+      }
+
+      // [개선 2]: 거리초과 임계값 대폭 완화 (0.02 -> 0.005)
+      // 코트 베이스라인 뒤쪽 등 10m 이상 멀리 떨어져도 어깨폭이 최소 0.005 이상이면 유효 인식
+      if (!Number.isFinite(shoulderWidth) || shoulderWidth < 0.005) {
+        statusInfo.targetText = '극원거리 (0.005 미만)';
         if (!isCameraTesting) processGestureTarget(null, now);
         updateCameraTestHUD(statusInfo);
         renderCameraTestOverlay(results);
         return;
       }
 
+      // [개선 3]: 원거리 손목 유실 시 팔꿈치 및 어깨 벡터를 통한 탄력적 보완
+      let effectiveLWrist = { x: leftWrist ? leftWrist.x : 0, y: leftWrist ? leftWrist.y : 0 };
+      let effectiveRWrist = { x: rightWrist ? rightWrist.x : 0, y: rightWrist ? rightWrist.y : 0 };
+
+      const lWristValid = leftWrist && (leftWrist.visibility || 0) > 0.08;
+      const rWristValid = rightWrist && (rightWrist.visibility || 0) > 0.08;
+
+      if (!lWristValid && leftElbow && (leftElbow.visibility || 0) > 0.15) {
+        effectiveLWrist.x = leftElbow.x + (leftElbow.x - leftShoulder.x) * 0.85;
+        effectiveLWrist.y = leftElbow.y + (leftElbow.y - leftShoulder.y) * 0.85;
+      }
+      if (!rWristValid && rightElbow && (rightElbow.visibility || 0) > 0.15) {
+        effectiveRWrist.x = rightElbow.x + (rightElbow.x - rightShoulder.x) * 0.85;
+        effectiveRWrist.y = rightElbow.y + (rightElbow.y - rightShoulder.y) * 0.85;
+      }
+
+      // 어깨 위 제스처 판정: 원거리 투시각을 감안해 margin을 0.18로 대폭 완화
       const shoulderTopY = Math.min(leftShoulder.y, rightShoulder.y);
       const wristsAboveShoulders =
-        effectiveLWrist.y < shoulderTopY + 0.12 &&
-        effectiveRWrist.y < shoulderTopY + 0.12;
+        effectiveLWrist.y < shoulderTopY + 0.18 &&
+        effectiveRWrist.y < shoulderTopY + 0.18;
 
       if (!wristsAboveShoulders) {
         statusInfo.heightStatus = '어깨 아래';
         statusInfo.heightOk = false;
         statusInfo.targetText = '중립 (손 내림)';
         statusInfo.targetColor = '#888888';
+        smoothedHandRatio = null;
         if (!isCameraTesting) processGestureTarget(null, now);
         updateCameraTestHUD(statusInfo);
         renderCameraTestOverlay(results);
@@ -1549,23 +1572,31 @@
       statusInfo.heightStatus = '통과 (어깨 위)';
       statusInfo.heightOk = true;
 
-      const wristsDist = Math.hypot(
+      const rawWristsDist = Math.hypot(
         effectiveLWrist.x - effectiveRWrist.x,
         effectiveLWrist.y - effectiveRWrist.y
       );
 
-      const handRatio = wristsDist / shoulderWidth;
-      statusInfo.ratioText = handRatio.toFixed(2);
+      const rawRatio = rawWristsDist / Math.max(shoulderWidth, 0.005);
+
+      // [개선 4]: 원거리 관절 떨림(지터) 방지용 이동평균(EMA) 필터
+      if (smoothedHandRatio === null) {
+        smoothedHandRatio = rawRatio;
+      } else {
+        smoothedHandRatio = smoothedHandRatio * 0.65 + rawRatio * 0.35;
+      }
+
+      statusInfo.ratioText = smoothedHandRatio.toFixed(2);
 
       const LEFT_CLOSE_RATIO = 0.88;
       const RIGHT_OPEN_RATIO = 1.15;
 
       let currentTarget = null;
-      if (handRatio <= LEFT_CLOSE_RATIO) {
+      if (smoothedHandRatio <= LEFT_CLOSE_RATIO) {
         currentTarget = 'left';
         statusInfo.targetText = 'LEFT (양손 모음)';
         statusInfo.targetColor = '#ccff00';
-      } else if (handRatio >= RIGHT_OPEN_RATIO) {
+      } else if (smoothedHandRatio >= RIGHT_OPEN_RATIO) {
         currentTarget = 'right';
         statusInfo.targetText = 'RIGHT (양손 벌림)';
         statusInfo.targetColor = '#00d4ff';
@@ -1574,9 +1605,9 @@
         statusInfo.targetColor = '#ffff00';
       }
 
-      // [핵심 변경]: 카메라 테스트 중에는 점수 카운트 동작(processGestureTarget)을 건너뜁니다!
+      // 카메라 테스트 중에는 점수 카운트 실행을 완전히 제외
       if (!isCameraTesting) {
-        processGestureTarget(currentTarget, now, handRatio);
+        processGestureTarget(currentTarget, now, smoothedHandRatio);
       }
 
       updateCameraTestHUD(statusInfo);
@@ -1829,6 +1860,7 @@
       gestureLastTargetSeenAt = 0;
       gestureLastRatio = null;
       gestureRatioChangedAt = 0;
+      smoothedHandRatio = null;
 
       clearCorrectCandidate();
 
