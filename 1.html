@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WP Tennis Scoreboard - Multi-person Near-2 Target Priority</title>
+  <title>WP Tennis Scoreboard - Dual Person Vision Engine</title>
 
-  <!-- TensorFlow.js 및 Multi-person Pose Detection 라이브러리 CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.10.0/dist/tf-core.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.10.0/dist/tf-backend-webgl.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+  <!-- MediaPipe Pose JS Libraries via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
   <style>
     :root {
@@ -438,7 +437,6 @@
 
     .btn-save { width: 100%; padding: 10px; background: var(--accent-yellow); border: none; border-radius: 6px; font-weight: bold; color: #000; cursor: pointer; margin-top: 10px; font-size: 0.85rem; }
 
-    /* 맨 하단 위치용 카메라 테스트 버튼 */
     .btn-cam-test {
       width: 100%; padding: 9px; background: #06394c; border: 1px solid var(--accent-cyan);
       border-radius: 6px; font-weight: bold; color: var(--accent-cyan); cursor: pointer;
@@ -497,16 +495,19 @@
       padding: 5px 12px; border-radius: 5px; cursor: pointer; font-size: 0.75rem;
     }
 
-    /* 상단 슬림 전광판 HUD 바 */
+    /* 듀얼 HUD 바 */
     .cam-test-hud-bar {
-      width: 100%; background: rgba(5, 15, 10, 0.9); backdrop-filter: blur(6px);
-      border-bottom: 1px solid rgba(0, 212, 255, 0.35); padding: 5px 10px;
-      z-index: 20; display: flex; flex-wrap: wrap; justify-content: space-between;
-      align-items: center; gap: 6px; font-size: 0.7rem; color: #e0e0e0; flex-shrink: 0;
+      width: 100%; background: rgba(5, 15, 10, 0.88); backdrop-filter: blur(6px);
+      border-bottom: 1px solid rgba(0, 212, 255, 0.35); padding: 6px 12px;
+      z-index: 20; display: flex; flex-direction: column; gap: 4px;
+      font-size: 0.72rem; color: #e0e0e0; flex-shrink: 0;
     }
-    .hud-col { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .hud-row-main {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    }
+    .hud-col { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
     .hud-col strong { color: var(--accent-cyan); font-weight: 600; }
-    .hud-val-target { font-size: 0.8rem; font-weight: 900; }
+    .hud-val-target { font-size: 0.82rem; font-weight: 900; }
 
     .cam-test-body {
       flex: 1; position: relative; width: 100%; height: 100%;
@@ -538,24 +539,27 @@
   <!-- 카메라 테스트 전용 뷰 모달 -->
   <div id="cam-test-modal">
     <div class="cam-test-header">
-      <div class="cam-test-title">📷 카메라 & 가까운 2명 타겟팅 테스트 (점수 카운트 중지됨)</div>
+      <div class="cam-test-title">📷 듀얼 타깃 골격 & 머리 위 제스처 진단 (카운트 중지됨)</div>
       <button class="btn-close-camtest" onclick="closeCameraTest()">테스트 종료</button>
     </div>
     <div class="cam-test-hud-bar" id="cam-test-hud-bar">
-      <div class="hud-col">
-        <strong>감지인원:</strong> <span id="hud-total-people" style="color:var(--accent-cyan);">0명</span>
+      <div class="hud-row-main">
+        <div class="hud-col">
+          <strong>최종 선택:</strong> <span class="hud-val-target" id="hud-final" style="color:#ff6b6b;">대기 중</span>
+        </div>
+        <div class="hud-col">
+          <span style="font-size:0.65rem; color:#aaa;">(모음 ≤ 0.88 | 벌림 ≥ 1.15 | 머리·양손 필수)</span>
+        </div>
       </div>
-      <div class="hud-col">
-        <strong>선택타겟:</strong> <span class="hud-val-target" id="hud-active-target" style="color:#ff6b6b;">미감지</span>
-      </div>
-      <div class="hud-col">
-        <strong>동작:</strong> <span class="hud-val-target" id="hud-target" style="color:#ff6b6b;">대기 중</span>
-      </div>
-      <div class="hud-col">
-        <strong>타겟#1:</strong> <span id="hud-p1-status">미감지</span>
-      </div>
-      <div class="hud-col">
-        <strong>타겟#2:</strong> <span id="hud-p2-status">미감지</span>
+      <div class="hud-row-main" style="border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 3px;">
+        <div class="hud-col">
+          <strong style="color:#ccff00;">P1 (좌측 선수):</strong>
+          <span id="hud-p1-desc" style="color:#ffffff;">미감지</span>
+        </div>
+        <div class="hud-col">
+          <strong style="color:#00d4ff;">P2 (우측 선수):</strong>
+          <span id="hud-p2-desc" style="color:#ffffff;">미감지</span>
+        </div>
       </div>
     </div>
     <div class="cam-test-body">
@@ -652,7 +656,7 @@
     </div>
   </div>
 
-  <!-- 아이콘 패널 메인 메뉴 -->
+  <!-- 사이드바 메뉴 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
       <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
@@ -723,11 +727,11 @@
       </div>
 
       <div class="info-box">
-        <strong>📷 다중 인원 스마트 인식 안내</strong><br/>
-        • <strong>가까운 2명만 타겟팅:</strong> 여러 명이 화면에 있어도 화면 전면의 가장 가까운 2명만 선택합니다.<br/>
-        • <strong>머리/손 정상 인식 필수:</strong> 선택된 2명 중 머리와 양손이 명확히 감지된 인원만 제스처 판정 대상이 됩니다.<br/>
-        • <strong>동작 우선권 부여:</strong> 대상 인원 중 한 명이라도 머리 위로 양손을 올려 점수 제스처를 취하면 즉시 우선 카운트합니다.<br/>
-        • <strong>점수 기록 제스처:</strong> 양손 모음 = 좌측팀 득점, 양손 벌림 = 우측팀 득점
+        <strong>📷 듀얼 타깃 모션 인식 안내</strong><br/>
+        • <strong>가장 큰 2명 감지:</strong> 화면에 여러 사람이 있어도 전면에 크게 잡힌 최대 2명을 각각 독립 추적합니다.<br/>
+        • <strong>우선 인식 원칙:</strong> 두 사람 중 한 명이라도 손을 모으거나 벌리면 즉시 우선 감지합니다.<br/>
+        • <strong>원거리 노이즈 완벽 차단:</strong> 어깨 폭 5% 미만, 얼굴/손목 미감지 시 완전 무시.<br/>
+        • <strong>머리/손 엄격 조건:</strong> 머리(코·눈)와 양 손목이 모두 정확히 감지되고, 두 손이 머리 위로 올라가야만 카운트됩니다.
       </div>
 
       <div class="setting-group">
@@ -746,7 +750,7 @@
           <option value="0">0ms (지연 없음)</option>
           <option value="200">200ms</option>
           <option value="400">400ms</option>
-          <option value="600" selected>600ms (기본 / 권장 - 스피커 깨우기)</option>
+          <option value="600" selected>600ms (기본 / 권장)</option>
           <option value="1000">1000ms (1초)</option>
         </select>
       </div>
@@ -843,9 +847,9 @@
       </div>
 
       <div class="setting-group" style="margin-top: 14px; border-top: 1px dashed var(--panel-border); padding-top: 10px;">
-        <label>카메라 실시간 테스트 & 골격 진단</label>
+        <label>카메라 실시간 테스트 & 듀얼 골격 진단</label>
         <button type="button" class="btn-cam-test" onclick="openCameraTest()">
-          <span>📷 카메라 테스트 실행 (골격 및 2명 타겟팅 확인)</span>
+          <span>📷 카메라 테스트 실행 (2인 감지 & 골격 확인)</span>
         </button>
       </div>
 
@@ -875,7 +879,8 @@
   <script>
     function checkDomainAuth() {
       const allowedHost = "weonpyo.github.io";
-      if (window.location.hostname !== allowedHost && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      const h = window.location.hostname;
+      if (h && h !== allowedHost && h !== "localhost" && h !== "127.0.0.1") {
         const authDiv = document.getElementById('unauthorized-access');
         if (authDiv) authDiv.style.display = 'flex';
         return false;
@@ -943,11 +948,25 @@
       } catch(e) {}
     }
 
+    /* =========================================================================
+       카메라 & 듀얼 타깃 비전 파이프라인 엔진
+       ========================================================================= */
     let isCameraActive = false;
     let isCameraTesting = false;
-    let detectorInstance = null;
-    let cameraStream = null;
-    let cameraAnimFrameId = null;
+    let cameraInstance = null;
+    let poseInstanceLeft = null;
+    let poseInstanceRight = null;
+
+    // 분할 크롭 캔버스 (좌/우 선수 독립 추적)
+    let cropCanvasLeft = null;
+    let ctxCropLeft = null;
+    let cropCanvasRight = null;
+    let ctxCropRight = null;
+    let frameToggle = 0; // 0: 좌측 영역, 1: 우측 영역
+
+    // 2인 상태 캐시
+    let personStatusLeft = null;
+    let personStatusRight = null;
 
     const GESTURE_COOLDOWN_MS = 3000;
     const GESTURE_MIN_STABLE_MS = 140;
@@ -978,9 +997,11 @@
     let gesturePointLocked = false;
     let gestureCandidateSide = null;
     let gestureCandidateSince = 0;
-    let gestureLastTargetSeenAt = 0;
 
-    let smoothedHandRatio = null;
+    // 최소 크기 기준 강화: 어깨 너비 최소 5.2% 이상 (원거리 배경 점 차단)
+    const MIN_SHOULDER_WIDTH = 0.052;
+    const MIN_BODY_SCALE = 0.065;
+    const MIN_VISIBILITY_THRESHOLD = 0.50; // 머리 및 손목 필수 신뢰도
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
@@ -1294,19 +1315,40 @@
     }
 
     /* =========================================================================
-       다중 인원 골격 감지 엔진 (TF.js MoveNet MultiPose)
+       MediaPipe Pose 인스턴스 초기화 및 프레임 분할 전송
        ========================================================================= */
-    async function initDetector() {
-      if (!detectorInstance) {
-        await tf.ready();
-        detectorInstance = await poseDetection.createDetector(
-          poseDetection.SupportedModels.MoveNet,
-          {
-            modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING,
-            enableSmoothing: true,
-            minPoseScore: 0.25
-          }
-        );
+    function initPoseEngines() {
+      const options = {
+        modelComplexity: 1,
+        smoothLandmarks: true,
+        enableSegmentation: false,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      };
+
+      if (!poseInstanceLeft) {
+        poseInstanceLeft = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseInstanceLeft.setOptions(options);
+        poseInstanceLeft.onResults(onPoseResultsLeft);
+      }
+
+      if (!poseInstanceRight) {
+        poseInstanceRight = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
+        poseInstanceRight.setOptions(options);
+        poseInstanceRight.onResults(onPoseResultsRight);
+      }
+
+      if (!cropCanvasLeft) {
+        cropCanvasLeft = document.createElement('canvas');
+        ctxCropLeft = cropCanvasLeft.getContext('2d');
+      }
+      if (!cropCanvasRight) {
+        cropCanvasRight = document.createElement('canvas');
+        ctxCropRight = cropCanvasRight.getContext('2d');
       }
     }
 
@@ -1314,43 +1356,41 @@
       const videoElement = document.getElementById('hidden-video');
 
       try {
-        await initDetector();
-
+        initPoseEngines();
         const res = getCameraResolution(config.cameraRes);
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: res.width },
-            height: { ideal: res.height },
-            facingMode: 'user'
+
+        cameraInstance = new Camera(videoElement, {
+          onFrame: async () => {
+            if ((isCameraActive || isCameraTesting) && videoElement && videoElement.readyState >= 2) {
+              const vw = videoElement.videoWidth;
+              const vh = videoElement.videoHeight;
+              if (vw === 0 || vh === 0) return;
+
+              // 좌/우 분할 크롭 해상도 (효율적인 성능을 위해 480px 기준 조정)
+              const cropW = 480;
+              const cropH = Math.round(cropW * (vh / (vw * 0.65)));
+
+              // 짝수/홀수 프레임 스위칭: 좌측(0~65%)과 우측(35~100%)을 번갈아 분석
+              if (frameToggle === 0) {
+                if (cropCanvasLeft.width !== cropW) { cropCanvasLeft.width = cropW; cropCanvasLeft.height = cropH; }
+                ctxCropLeft.drawImage(videoElement, 0, 0, vw * 0.65, vh, 0, 0, cropW, cropH);
+                if (poseInstanceLeft) await poseInstanceLeft.send({ image: cropCanvasLeft });
+                frameToggle = 1;
+              } else {
+                if (cropCanvasRight.width !== cropW) { cropCanvasRight.width = cropW; cropCanvasRight.height = cropH; }
+                ctxCropRight.drawImage(videoElement, vw * 0.35, 0, vw * 0.65, vh, 0, 0, cropW, cropH);
+                if (poseInstanceRight) await poseInstanceRight.send({ image: cropCanvasRight });
+                frameToggle = 0;
+              }
+            }
           },
-          audio: false
+          width: res.width,
+          height: res.height
         });
 
-        cameraStream = stream;
-        videoElement.srcObject = stream;
-        await videoElement.play();
-
+        await cameraInstance.start();
         isCameraActive = true;
         render();
-
-        const detectionLoop = async () => {
-          if (!isCameraActive && !isCameraTesting) return;
-
-          if (videoElement.readyState >= 2 && detectorInstance) {
-            try {
-              const poses = await detectorInstance.estimatePoses(videoElement, {
-                maxPoses: 6,
-                flipHorizontal: false
-              });
-              processMultiPersonPoses(poses, videoElement.videoWidth, videoElement.videoHeight);
-            } catch (err) {
-              console.warn("Pose estimation error:", err);
-            }
-          }
-          cameraAnimFrameId = requestAnimationFrame(detectionLoop);
-        };
-
-        cameraAnimFrameId = requestAnimationFrame(detectionLoop);
       } catch (err) {
         console.error("Camera activation error:", err);
         isCameraActive = false;
@@ -1360,30 +1400,223 @@
     }
 
     function stopCameraRecognition() {
-      if (cameraAnimFrameId) {
-        cancelAnimationFrame(cameraAnimFrameId);
-        cameraAnimFrameId = null;
+      if (cameraInstance) {
+        cameraInstance.stop();
+        cameraInstance = null;
       }
-      if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
-      }
-      const videoElement = document.getElementById('hidden-video');
-      if (videoElement) videoElement.srcObject = null;
-
       isCameraActive = false;
       if (cameraGestureLockTimer) { clearTimeout(cameraGestureLockTimer); cameraGestureLockTimer = null; }
       cameraGestureLockUntil = 0;
       cooldownUntilTime = 0;
       cameraGestureNeedsNeutral = false;
       gesturePointLocked = false;
+      personStatusLeft = null;
+      personStatusRight = null;
       render();
       resetGestureGauge();
       resetCorrectSequenceGauge();
     }
 
     /* =========================================================================
-       카메라 테스트 모드 (실시간 영상 & 골격 랜드마크 & 상단 전광판 HUD)
+       개별 인물 골격 및 제스처 정밀 판정 엔진 (머리·양손 필수 & 원거리 차단)
+       ========================================================================= */
+    function evaluatePersonPose(results, xOffsetRate, xSpanRate) {
+      if (!results || !results.poseLandmarks) {
+        return {
+          valid: false,
+          reason: '신체 미감지',
+          landmarks: null,
+          globalLandmarks: null,
+          handsUp: false,
+          gesture: null,
+          scale: 0,
+          ratio: null
+        };
+      }
+
+      const lm = results.poseLandmarks;
+      const nose = lm[0];
+      const leftEye = lm[2];
+      const rightEye = lm[5];
+      const leftShoulder = lm[11];
+      const rightShoulder = lm[12];
+      const leftWrist = lm[15];
+      const rightWrist = lm[16];
+      const leftHip = lm[23];
+      const rightHip = lm[24];
+
+      // 1. 머리 핵심 부위 신뢰도 검사
+      const noseOk = nose && (nose.visibility || 0) >= MIN_VISIBILITY_THRESHOLD;
+      const eyesOk = (leftEye && (leftEye.visibility || 0) >= MIN_VISIBILITY_THRESHOLD) ||
+                     (rightEye && (rightEye.visibility || 0) >= MIN_VISIBILITY_THRESHOLD);
+      if (!noseOk && !eyesOk) {
+        return { valid: false, reason: '머리(얼굴) 미감지', landmarks: lm, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
+      }
+
+      // 2. 어깨 부위 및 최소 크기 검사 (원거리 점 차단)
+      if (!leftShoulder || !rightShoulder ||
+          (leftShoulder.visibility || 0) < MIN_VISIBILITY_THRESHOLD ||
+          (rightShoulder.visibility || 0) < MIN_VISIBILITY_THRESHOLD) {
+        return { valid: false, reason: '어깨 미감지', landmarks: lm, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
+      }
+
+      // 전역 정규화 좌표계로 환산 (0.0 ~ 1.0)
+      const globalLM = lm.map(pt => ({
+        x: xOffsetRate + pt.x * xSpanRate,
+        y: pt.y,
+        z: pt.z,
+        visibility: pt.visibility
+      }));
+
+      const gLShoulder = globalLM[11];
+      const gRShoulder = globalLM[12];
+      const shoulderWidth = Math.hypot(gLShoulder.x - gRShoulder.x, gLShoulder.y - gRShoulder.y);
+
+      let torsoHeight = 0;
+      if (leftHip && rightHip && (leftHip.visibility || 0) > 0.3 && (rightHip.visibility || 0) > 0.3) {
+        const midShoulderY = (gLShoulder.y + gRShoulder.y) / 2;
+        const midHipY = (globalLM[23].y + globalLM[24].y) / 2;
+        torsoHeight = Math.abs(midHipY - midShoulderY);
+      }
+      const bodyScale = Math.max(shoulderWidth, torsoHeight * 0.55);
+
+      // 원거리 필터: 어깨 너비 또는 신체 크기가 기준치 미만이면 노이즈로 간주하고 무시
+      if (shoulderWidth < MIN_SHOULDER_WIDTH || bodyScale < MIN_BODY_SCALE) {
+        return { valid: false, reason: '원거리 노이즈 (크기 미달)', landmarks: lm, globalLandmarks: globalLM, handsUp: false, gesture: null, scale: bodyScale, ratio: null };
+      }
+
+      // 3. 양 손목 직접 검출 필수 확인 (가상 연장 제거)
+      if (!leftWrist || !rightWrist ||
+          (leftWrist.visibility || 0) < MIN_VISIBILITY_THRESHOLD ||
+          (rightWrist.visibility || 0) < MIN_VISIBILITY_THRESHOLD) {
+        return { valid: true, reason: '손목 미인식 (대기)', landmarks: lm, globalLandmarks: globalLM, handsUp: false, gesture: null, scale: bodyScale, ratio: null };
+      }
+
+      const gLWrist = globalLM[15];
+      const gRWrist = globalLM[16];
+
+      // 4. 머리 최상단 판정: 양 손목 모두 머리 최상단보다 확실히 위에 위치해야 함
+      let headTopY = 0;
+      if (noseOk) headTopY = globalLM[0].y;
+      else headTopY = Math.min(globalLM[2].y, globalLM[5].y);
+
+      // 양손 모두 머리보다 일정 마진(0.015) 이상 높이 들었는지 검사
+      const handsAboveHead = (gLWrist.y < (headTopY - 0.015)) && (gRWrist.y < (headTopY - 0.015));
+
+      if (!handsAboveHead) {
+        return {
+          valid: true,
+          reason: '중립 (손 내림)',
+          landmarks: lm,
+          globalLandmarks: globalLM,
+          handsUp: false,
+          gesture: null,
+          scale: bodyScale,
+          ratio: null
+        };
+      }
+
+      // 5. 머리 위에서 양손 거리 비율(Ratio) 계산: 모음(Left) vs 벌림(Right)
+      const rawWristsDist = Math.hypot(gLWrist.x - gRWrist.x, gLWrist.y - gRWrist.y);
+      const ratio = rawWristsDist / Math.max(shoulderWidth, 0.01);
+
+      const LEFT_CLOSE_RATIO = 0.88;
+      const RIGHT_OPEN_RATIO = 1.15;
+
+      let gesture = null;
+      let reason = '머리 위 중립폭';
+
+      if (ratio <= LEFT_CLOSE_RATIO) {
+        gesture = 'left';
+        reason = '양손 모음 (LEFT)';
+      } else if (ratio >= RIGHT_OPEN_RATIO) {
+        gesture = 'right';
+        reason = '양손 벌림 (RIGHT)';
+      }
+
+      return {
+        valid: true,
+        reason: reason,
+        landmarks: lm,
+        globalLandmarks: globalLM,
+        handsUp: true,
+        gesture: gesture,
+        scale: bodyScale,
+        ratio: ratio
+      };
+    }
+
+    function onPoseResultsLeft(results) {
+      personStatusLeft = evaluatePersonPose(results, 0.0, 0.65);
+      coordinateDualPoses();
+    }
+
+    function onPoseResultsRight(results) {
+      personStatusRight = evaluatePersonPose(results, 0.35, 0.65);
+      coordinateDualPoses();
+    }
+
+    /* =========================================================================
+       2인 감지 종합 및 우선순위 중재 (한 사람이라도 동작 시 우선 인식)
+       ========================================================================= */
+    function coordinateDualPoses() {
+      const now = Date.now();
+      const p1 = personStatusLeft;
+      const p2 = personStatusRight;
+
+      let chosenTarget = null;
+      let chosenRatio = null;
+      let finalDescription = '대기 중';
+      let finalColor = '#ff6b6b';
+
+      const p1HasGesture = p1 && p1.valid && p1.handsUp && (p1.gesture === 'left' || p1.gesture === 'right');
+      const p2HasGesture = p2 && p2.valid && p2.handsUp && (p2.gesture === 'left' || p2.gesture === 'right');
+
+      if (p1HasGesture && !p2HasGesture) {
+        // P1만 손을 들어 동작을 취한 경우: P1 즉시 채택
+        chosenTarget = p1.gesture;
+        chosenRatio = p1.ratio;
+        finalDescription = `P1 우선 인식 (${p1.gesture.toUpperCase()})`;
+        finalColor = p1.gesture === 'left' ? '#ccff00' : '#00d4ff';
+      } else if (!p1HasGesture && p2HasGesture) {
+        // P2만 손을 들어 동작을 취한 경우: P2 즉시 채택
+        chosenTarget = p2.gesture;
+        chosenRatio = p2.ratio;
+        finalDescription = `P2 우선 인식 (${p2.gesture.toUpperCase()})`;
+        finalColor = p2.gesture === 'left' ? '#ccff00' : '#00d4ff';
+      } else if (p1HasGesture && p2HasGesture) {
+        // 둘 다 동작을 취한 경우: 화면에 더 크게 보이는 사람(더 가까운 선수) 우선
+        const activeP = (p1.scale >= p2.scale) ? p1 : p2;
+        const pName = (p1.scale >= p2.scale) ? 'P1' : 'P2';
+        chosenTarget = activeP.gesture;
+        chosenRatio = activeP.ratio;
+        finalDescription = `${pName} 우선 인식 (더 큼: ${activeP.gesture.toUpperCase()})`;
+        finalColor = activeP.gesture === 'left' ? '#ccff00' : '#00d4ff';
+      } else {
+        // 둘 다 동작 없음
+        if ((p1 && p1.valid && p1.handsUp) || (p2 && p2.valid && p2.handsUp)) {
+          finalDescription = '머리 위 중립 대기';
+          finalColor = '#ffff00';
+        } else if ((p1 && p1.valid) || (p2 && p2.valid)) {
+          finalDescription = '선수 인식됨 (손 내림)';
+          finalColor = '#888888';
+        } else {
+          finalDescription = '선수 감지 대기';
+          finalColor = '#ff6b6b';
+        }
+        chosenTarget = null;
+      }
+
+      if (isCameraTesting) {
+        updateCameraTestHUD(finalDescription, finalColor, p1, p2);
+        renderCameraTestOverlay(p1, p2);
+      } else {
+        processGestureTarget(chosenTarget, now, chosenRatio);
+      }
+    }
+
+    /* =========================================================================
+       카메라 테스트 모드 (실시간 영상 & 듀얼 골격 HUD)
        ========================================================================= */
     async function openCameraTest() {
       document.getElementById('settings-modal').style.display = 'none';
@@ -1393,7 +1626,7 @@
 
       resetAllGestureState(true);
 
-      if (!isCameraActive) {
+      if (!cameraInstance) {
         await startCameraRecognition();
       }
     }
@@ -1405,34 +1638,37 @@
       document.getElementById('settings-modal').style.display = 'block';
     }
 
-    function updateCameraTestHUD(statusInfo) {
+    function updateCameraTestHUD(finalDesc, finalColor, p1, p2) {
       if (!isCameraTesting) return;
-      const elTotal = document.getElementById('hud-total-people');
-      const elActiveTarget = document.getElementById('hud-active-target');
-      const elTarget = document.getElementById('hud-target');
-      const elP1 = document.getElementById('hud-p1-status');
-      const elP2 = document.getElementById('hud-p2-status');
+      const elFinal = document.getElementById('hud-final');
+      const elP1 = document.getElementById('hud-p1-desc');
+      const elP2 = document.getElementById('hud-p2-desc');
 
-      if (elTotal) elTotal.innerText = `${statusInfo.totalDetected}명`;
-      if (elActiveTarget) {
-        elActiveTarget.innerText = statusInfo.activePersonText;
-        elActiveTarget.style.color = statusInfo.activePersonColor;
-      }
-      if (elTarget) {
-        elTarget.innerText = statusInfo.targetText;
-        elTarget.style.color = statusInfo.targetColor;
+      if (elFinal) {
+        elFinal.innerText = finalDesc;
+        elFinal.style.color = finalColor;
       }
       if (elP1) {
-        elP1.innerText = statusInfo.p1Status;
-        elP1.style.color = statusInfo.p1Ok ? '#00ffaa' : '#ff6b6b';
+        if (p1 && p1.valid) {
+          elP1.innerText = `${p1.reason} | Scale: ${p1.scale.toFixed(2)} | Ratio: ${p1.ratio ? p1.ratio.toFixed(2) : '-'}`;
+          elP1.style.color = p1.handsUp ? '#ccff00' : '#ffffff';
+        } else {
+          elP1.innerText = p1 ? p1.reason : '미감지';
+          elP1.style.color = '#777777';
+        }
       }
       if (elP2) {
-        elP2.innerText = statusInfo.p2Status;
-        elP2.style.color = statusInfo.p2Ok ? '#00ffaa' : '#888888';
+        if (p2 && p2.valid) {
+          elP2.innerText = `${p2.reason} | Scale: ${p2.scale.toFixed(2)} | Ratio: ${p2.ratio ? p2.ratio.toFixed(2) : '-'}`;
+          elP2.style.color = p2.handsUp ? '#00d4ff' : '#ffffff';
+        } else {
+          elP2.innerText = p2 ? p2.reason : '미감지';
+          elP2.style.color = '#777777';
+        }
       }
     }
 
-    function renderCameraTestOverlay(poses, targetPersons, vWidth, vHeight) {
+    function renderCameraTestOverlay(p1, p2) {
       if (!isCameraTesting) return;
       const canvas = document.getElementById('cam-test-canvas');
       if (!canvas) return;
@@ -1440,47 +1676,54 @@
       const video = document.getElementById('hidden-video');
       if (!video || video.videoWidth === 0) return;
 
-      canvas.width = vWidth;
-      canvas.height = vHeight;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 타겟 인원 바운딩 및 골격 그리기
-      targetPersons.forEach((person, idx) => {
-        const isPriority = person.hasGesture;
-        const mainColor = isPriority ? '#ccff00' : (idx === 0 ? '#00d4ff' : '#ffaa00');
+      // 분할 구역 가이드 라인 표시
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(canvas.width * 0.35, 0); ctx.lineTo(canvas.width * 0.35, canvas.height);
+      ctx.moveTo(canvas.width * 0.65, 0); ctx.lineTo(canvas.width * 0.65, canvas.height);
+      ctx.stroke();
+      ctx.setLineDash([]);
 
-        // 스켈레톤 라인
-        const drawLine = (name1, name2) => {
-          const p1 = person.kpMap[name1];
-          const p2 = person.kpMap[name2];
-          if (p1 && p2 && p1.score >= 0.35 && p2.score >= 0.35) {
+      const drawSkeleton = (pStatus, baseColor, label) => {
+        if (!pStatus || !pStatus.globalLandmarks) return;
+        const glm = pStatus.globalLandmarks;
+
+        const drawBone = (idx1, idx2, color) => {
+          const pt1 = glm[idx1];
+          const pt2 = glm[idx2];
+          if (pt1 && pt2 && (pt1.visibility || 0) > 0.3 && (pt2.visibility || 0) > 0.3) {
             ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = mainColor;
-            ctx.lineWidth = isPriority ? 5 : 3;
+            ctx.moveTo(pt1.x * canvas.width, pt1.y * canvas.height);
+            ctx.lineTo(pt2.x * canvas.width, pt2.y * canvas.height);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
             ctx.stroke();
           }
         };
 
-        drawLine('left_shoulder', 'right_shoulder');
-        drawLine('left_shoulder', 'left_elbow');
-        drawLine('left_elbow', 'left_wrist');
-        drawLine('right_shoulder', 'right_elbow');
-        drawLine('right_elbow', 'right_wrist');
-        drawLine('left_shoulder', 'left_hip');
-        drawLine('right_shoulder', 'right_hip');
+        drawBone(11, 12, '#ffffff');
+        drawBone(11, 13, baseColor);
+        drawBone(13, 15, baseColor);
+        drawBone(12, 14, baseColor);
+        drawBone(14, 16, baseColor);
+        drawBone(11, 23, '#888888');
+        drawBone(12, 24, '#888888');
 
-        // 주요 관절점
-        ['nose', 'left_eye', 'right_eye', 'left_shoulder', 'right_shoulder', 'left_wrist', 'right_wrist'].forEach(name => {
-          const pt = person.kpMap[name];
-          if (pt && pt.score >= 0.35) {
+        [0, 11, 12, 15, 16].forEach(idx => {
+          const pt = glm[idx];
+          if (pt && (pt.visibility || 0) > 0.3) {
             ctx.beginPath();
-            ctx.arc(pt.x, pt.y, 6, 0, 2 * Math.PI);
-            ctx.fillStyle = (name.includes('wrist')) ? '#ccff00' : '#ffffff';
+            ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = idx === 15 || idx === 16 ? baseColor : '#ffffff';
             ctx.fill();
             ctx.lineWidth = 2;
             ctx.strokeStyle = '#000000';
@@ -1488,198 +1731,27 @@
           }
         });
 
-        // 타겟 라벨 박스
-        if (person.kpMap['nose']) {
-          const n = person.kpMap['nose'];
-          ctx.font = 'bold 15px sans-serif';
-          ctx.fillStyle = mainColor;
-          ctx.fillText(`Target #${idx + 1}${isPriority ? ' [동작중!]' : ''}`, n.x - 30, Math.max(20, n.y - 35));
+        // 인물 헤드 라벨
+        const nosePt = glm[0] || glm[11];
+        if (nosePt) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(nosePt.x * canvas.width - 45, (nosePt.y * canvas.height) - 36, 90, 20);
+          ctx.fillStyle = baseColor;
+          ctx.font = 'bold 12px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${label}: ${pStatus.reason.split(' ')[0]}`, nosePt.x * canvas.width, (nosePt.y * canvas.height) - 22);
         }
-      });
+      };
+
+      drawSkeleton(p1, '#ccff00', 'P1(좌)');
+      drawSkeleton(p2, '#00d4ff', 'P2(우)');
 
       ctx.restore();
     }
 
     /* =========================================================================
-       다중 인원 분석 및 가까운 2명 타겟팅 로직 (우선 순위 처리)
+       제스처 홀드 카운트 & Correction 머신
        ========================================================================= */
-    function processMultiPersonPoses(poses, vWidth, vHeight) {
-      const now = Date.now();
-      let statusInfo = {
-        totalDetected: poses ? poses.length : 0,
-        activePersonText: '없음',
-        activePersonColor: '#ff6b6b',
-        targetText: '대기 중',
-        targetColor: '#ff6b6b',
-        p1Status: '미감지',
-        p1Ok: false,
-        p2Status: '미감지',
-        p2Ok: false
-      };
-
-      if (!poses || poses.length === 0) {
-        if (!isCameraTesting && !isCameraActive) return;
-        if (!isCameraTesting) processGestureTarget(null, now);
-        updateCameraTestHUD(statusInfo);
-        renderCameraTestOverlay([], [], vWidth, vHeight);
-        return;
-      }
-
-      // 1. 각 감지 인원의 기본 스케일(어깨폭) 및 랜드마크 분석
-      const parsedPersons = [];
-
-      poses.forEach(pose => {
-        const kpMap = {};
-        pose.keypoints.forEach(kp => {
-          kpMap[kp.name] = kp;
-        });
-
-        const leftShoulder = kpMap['left_shoulder'];
-        const rightShoulder = kpMap['right_shoulder'];
-        const leftHip = kpMap['left_hip'];
-        const rightHip = kpMap['right_hip'];
-
-        // 어깨가 둘 다 감지된 사람만 유효
-        if (!leftShoulder || !rightShoulder || (leftShoulder.score || 0) < 0.35 || (rightShoulder.score || 0) < 0.35) {
-          return;
-        }
-
-        const shoulderWidth = Math.hypot(leftShoulder.x - rightShoulder.x, leftShoulder.y - rightShoulder.y);
-
-        // 상체 크기(스케일): 어깨너비와 상체 몸통길이 중 큰 값
-        let torsoHeight = 0;
-        if (leftHip && rightHip && leftHip.score >= 0.3 && rightHip.score >= 0.3) {
-          const midShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-          const midHipY = (leftHip.y + rightHip.y) / 2;
-          torsoHeight = Math.abs(midHipY - midShoulderY);
-        }
-        const bodyScale = Math.max(shoulderWidth, torsoHeight * 0.7);
-
-        // 원거리 배경 노이즈 제거: 화면 너비의 최소 5% 이상인 크기만 인정
-        const MIN_SCALE_PIXELS = vWidth * 0.05;
-        if (bodyScale < MIN_SCALE_PIXELS) return;
-
-        // 머리 정상 감지 여부 (코 또는 양쪽 눈 신뢰도 >= 0.40)
-        const nose = kpMap['nose'];
-        const leftEye = kpMap['left_eye'];
-        const rightEye = kpMap['right_eye'];
-        let headTopY = null;
-        let isHeadValid = false;
-
-        if (nose && (nose.score || 0) >= 0.40) {
-          headTopY = nose.y;
-          isHeadValid = true;
-        } else if (leftEye && rightEye && (leftEye.score || 0) >= 0.40 && (rightEye.score || 0) >= 0.40) {
-          headTopY = Math.min(leftEye.y, rightEye.y);
-          isHeadValid = true;
-        }
-
-        // 양손 정상 감지 여부 (손목 신뢰도 >= 0.40)
-        const leftWrist = kpMap['left_wrist'];
-        const rightWrist = kpMap['right_wrist'];
-        const isHandsValid = leftWrist && rightWrist &&
-          (leftWrist.score || 0) >= 0.40 &&
-          (rightWrist.score || 0) >= 0.40;
-
-        // 머리 위 손 올림 여부
-        let wristsAboveHead = false;
-        let handRatio = 1.0;
-        let gesture = null;
-
-        if (isHeadValid && isHandsValid && headTopY !== null) {
-          // 손목이 머리(headTopY)보다 확실히 위에 위치
-          wristsAboveHead = (leftWrist.y < headTopY - 10) && (rightWrist.y < headTopY - 10);
-
-          if (wristsAboveHead) {
-            const rawWristsDist = Math.hypot(leftWrist.x - rightWrist.x, leftWrist.y - rightWrist.y);
-            handRatio = rawWristsDist / Math.max(shoulderWidth, 20);
-
-            const LEFT_CLOSE_RATIO = 0.88;
-            const RIGHT_OPEN_RATIO = 1.15;
-
-            if (handRatio <= LEFT_CLOSE_RATIO) {
-              gesture = 'left';
-            } else if (handRatio >= RIGHT_OPEN_RATIO) {
-              gesture = 'right';
-            }
-          }
-        }
-
-        parsedPersons.push({
-          pose,
-          kpMap,
-          bodyScale,
-          shoulderWidth,
-          isHeadValid,
-          isHandsValid,
-          wristsAboveHead,
-          handRatio,
-          gesture,
-          hasGesture: gesture !== null
-        });
-      });
-
-      // 2. [핵심 조건 1] 화면에서 가장 가까운(bodyScale이 큰 순서대로) 최대 2명만 선정
-      parsedPersons.sort((a, b) => b.bodyScale - a.bodyScale);
-      const targetPersons = parsedPersons.slice(0, 2);
-
-      // HUD 표시용 상태 설정
-      if (targetPersons.length >= 1) {
-        const p1 = targetPersons[0];
-        statusInfo.p1Ok = p1.isHeadValid && p1.isHandsValid;
-        statusInfo.p1Status = statusInfo.p1Ok ? (p1.hasGesture ? `정상 (${p1.gesture.toUpperCase()})` : '정상 (대기)') : '머리/손 미인식';
-      }
-      if (targetPersons.length >= 2) {
-        const p2 = targetPersons[1];
-        statusInfo.p2Ok = p2.isHeadValid && p2.isHandsValid;
-        statusInfo.p2Status = statusInfo.p2Ok ? (p2.hasGesture ? `정상 (${p2.gesture.toUpperCase()})` : '정상 (대기)') : '머리/손 미인식';
-      }
-
-      // 3. [핵심 조건 2] 가까운 2명 중 손을 올려 점수를 기록하는 사람이 한 명이라도 있으면 우선 카운트
-      let selectedGesture = null;
-      let selectedRatio = null;
-      let activeTargetIdx = -1;
-
-      for (let i = 0; i < targetPersons.length; i++) {
-        const p = targetPersons[i];
-        // 머리와 손이 모두 정상 인식된 상태에서 제스처가 유효한 경우 우선 채택
-        if (p.isHeadValid && p.isHandsValid && p.hasGesture) {
-          selectedGesture = p.gesture;
-          selectedRatio = p.handRatio;
-          activeTargetIdx = i;
-          break; // 한 명이라도 있으면 우선 선택
-        }
-      }
-
-      if (selectedGesture) {
-        statusInfo.activePersonText = `타겟 #${activeTargetIdx + 1} 동작 우선`;
-        statusInfo.activePersonColor = '#00ffaa';
-        statusInfo.targetText = selectedGesture === 'left' ? 'LEFT (양손 모음)' : 'RIGHT (양손 벌림)';
-        statusInfo.targetColor = selectedGesture === 'left' ? '#ccff00' : '#00d4ff';
-
-        if (smoothedHandRatio === null) {
-          smoothedHandRatio = selectedRatio;
-        } else {
-          smoothedHandRatio = smoothedHandRatio * 0.65 + selectedRatio * 0.35;
-        }
-      } else {
-        smoothedHandRatio = null;
-        if (targetPersons.length > 0) {
-          statusInfo.activePersonText = '동작 감지 대기';
-          statusInfo.activePersonColor = '#ffff00';
-          statusInfo.targetText = '중립 (손 내림)';
-          statusInfo.targetColor = '#888888';
-        }
-      }
-
-      if (!isCameraTesting) {
-        processGestureTarget(selectedGesture, now, smoothedHandRatio);
-      }
-
-      updateCameraTestHUD(statusInfo);
-      renderCameraTestOverlay(poses, targetPersons, vWidth, vHeight);
-    }
-
     function isCorrectActive() {
       return correctSequenceStage > 0 && !correctSequenceBusy;
     }
@@ -1864,13 +1936,11 @@
         gesturePointLocked = false;
         gestureCandidateSide = null;
         gestureCandidateSince = 0;
-        gestureLastTargetSeenAt = now;
         updateGestureGaugeDisplay(currentTarget, 0);
         return;
       }
 
       if (detectedTargetSide === currentTarget) {
-        gestureLastTargetSeenAt = now;
         const elapsed = Math.max(0, now - (gestureStartTime || now));
         const progress = Math.min(elapsed / holdMs, 1);
 
@@ -1909,7 +1979,6 @@
       gestureCandidateSide = null;
       gestureCandidateSince = 0;
       gesturePointLocked = false;
-      gestureLastTargetSeenAt = now;
       updateGestureGaugeDisplay(currentTarget, 0);
     }
 
@@ -1919,8 +1988,6 @@
       gestureCandidateSide = null;
       gestureCandidateSince = 0;
       gestureStartTime = null;
-      gestureLastTargetSeenAt = 0;
-      smoothedHandRatio = null;
 
       clearCorrectCandidate();
 
@@ -2044,6 +2111,9 @@
       document.getElementById('gauge-fill-right').style.height = '0%';
     }
 
+    /* =========================================================================
+       테니스 경기 규칙 및 스코어보드 제어 엔진
+       ========================================================================= */
     function saveState() {
       historyStack.push(JSON.parse(JSON.stringify(state)));
       if (historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -2180,10 +2250,6 @@
 
     function getGameScoreForServer(serverTeam, gamesA = state.gamesA, gamesB = state.gamesB) {
       return serverTeam === 'A' ? `${gamesA} to ${gamesB}` : `${gamesB} to ${gamesA}`;
-    }
-
-    function getSetScoreForServer(serverTeam, setsA = state.setsA, setsB = state.setsB) {
-      return serverTeam === 'A' ? `${setsA} to ${setsB}` : `${setsB} to ${setsA}`;
     }
 
     function winGame(team) {
@@ -2553,7 +2619,7 @@
         if (isDeuceServe) pmB1.classList.add('receiver'); else pmB2.classList.add('receiver');
       } else {
         if (activeServerIdx === 0) pmB1.classList.add('server'); else pmB2.classList.add('server');
-        if (isDeuceServe) pmB1.classList.add('receiver'); else pmA2.classList.add('receiver');
+        if (isDeuceServe) pmA1.classList.add('receiver'); else pmA2.classList.add('receiver');
       }
 
       const setPos = (el, x, y) => { el.style.left = `${x}%`; el.style.top = `${y}%`; };
