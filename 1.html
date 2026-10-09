@@ -988,10 +988,9 @@
     let correctCandidateLeft = false;
     let correctCandidateNeutralSince = 0;
 
-    // Correct 단일 제스처: 가슴 앞에서 양팔을 X자로 교차
-    let correctCrossedArmsSince = 0;
-    let correctCrossedArmsLatched = false;
-    // Correct는 config.gestureHoldDuration 설정값을 사용합니다.
+    // Correct 단일 제스처: 한 손만 머리 위로 들기
+    let correctSingleHandSince = 0;
+    let correctSingleHandLatched = false;
 
     const CORRECT_SEQUENCE_STEPS = 4;
     const CORRECT_MAX_GAUGE_RATIO = 0.92;
@@ -1504,32 +1503,6 @@
       const gLElbow = globalLM[13];
       const gRElbow = globalLM[14];
 
-      // Correct 전용 단일 동작: 손목이 가슴 중앙에서 교차하고 팔꿈치는 바깥쪽에 위치
-      // 기존 머리 위 좌/우 제스처 판정과 독립적으로 계산합니다.
-      let crossedArms = false;
-      const elbowsVisible =
-        leftElbow && rightElbow &&
-        (leftElbow.visibility || 0) >= 0.35 &&
-        (rightElbow.visibility || 0) >= 0.35;
-      if (elbowsVisible && leftHip && rightHip) {
-        const shoulderMidX = (gLShoulder.x + gRShoulder.x) / 2;
-        const shoulderMidY = (gLShoulder.y + gRShoulder.y) / 2;
-        const hipMidY = (globalLM[23].y + globalLM[24].y) / 2;
-        const wristMidY = (gLWrist.y + gRWrist.y) / 2;
-        const torsoHeightForCross = Math.max(0.08, hipMidY - shoulderMidY);
-        const wristsCrossCenter =
-          (gLWrist.x - shoulderMidX) * (gRWrist.x - shoulderMidX) < 0;
-        const wristsAtChest =
-          wristMidY > shoulderMidY + torsoHeightForCross * 0.08 &&
-          wristMidY < hipMidY - torsoHeightForCross * 0.12 &&
-          Math.abs(gLWrist.y - gRWrist.y) < torsoHeightForCross * 0.55;
-        const elbowsOutside =
-          (gLElbow.x - shoulderMidX) * (gRElbow.x - shoulderMidX) < 0 &&
-          Math.abs(gLElbow.x - gRElbow.x) >
-            Math.abs(gLWrist.x - gRWrist.x) * 1.12;
-        crossedArms = wristsCrossCenter && wristsAtChest && elbowsOutside;
-      }
-
       // 4. 머리 최상단 판정: 양 손목 모두 머리 최상단보다 확실히 위에 위치해야 함
       let headTopY = 0;
       if (noseOk) headTopY = globalLM[0].y;
@@ -1537,7 +1510,11 @@
 
       // 양손 모두 머리보다 일정 마진(0.015) 이상 높이 들었는지 검사
       const headMargin = Math.max(0.008, Math.min(0.015, bodyScale * 0.12));
-      const handsAboveHead = (gLWrist.y < (headTopY - headMargin)) && (gRWrist.y < (headTopY - headMargin));
+      const leftHandAboveHead = gLWrist.y < (headTopY - headMargin);
+      const rightHandAboveHead = gRWrist.y < (headTopY - headMargin);
+      const handsAboveHead = leftHandAboveHead && rightHandAboveHead;
+      // Correct는 한 손만 머리 위에 있는 경우에만 후보로 인정합니다.
+      const singleHandAboveHead = leftHandAboveHead !== rightHandAboveHead;
 
       if (!handsAboveHead) {
         return {
@@ -1547,7 +1524,7 @@
           globalLandmarks: globalLM,
           handsUp: false,
           gesture: null,
-          crossedArms: crossedArms,
+          singleHandAboveHead: singleHandAboveHead,
           scale: bodyScale,
           ratio: null
         };
@@ -1578,7 +1555,7 @@
         globalLandmarks: globalLM,
         handsUp: true,
         gesture: gesture,
-        crossedArms: crossedArms,
+        singleHandAboveHead: false,
         scale: bodyScale,
         ratio: ratio
       };
@@ -1602,40 +1579,40 @@
       const p1 = personStatusLeft;
       const p2 = personStatusRight;
 
-      // Correct는 양팔 X자 단일 동작으로만 처리합니다.
-      // 카메라 테스트 중에는 실행하지 않고, 기존 좌/우 득점 제스처 로직은 변경하지 않습니다.
-      const crossedArmsDetected =
-        !!((p1 && p1.valid && p1.crossedArms) ||
-           (p2 && p2.valid && p2.crossedArms));
+      // Correct: 한 손만 머리 위에 든 상태를 설정 유지시간의 2배 동안 유지해야 실행합니다.
+      // 설정 유지시간이 지난 뒤에만 게이지를 표시해 우발적인 감지를 줄입니다.
+      const singleHandDetected = !!(
+        (p1 && p1.valid && p1.singleHandAboveHead) ||
+        (p2 && p2.valid && p2.singleHandAboveHead)
+      );
+      const correctHoldMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+      const correctGauge = document.getElementById('correct-gauge');
+      const correctFill = document.getElementById('correct-gauge-fill');
+      const correctText = document.getElementById('correct-gauge-step');
 
-      if (crossedArmsDetected) {
-        if (correctCrossedArmsLatched) return;
-        if (!correctCrossedArmsSince) correctCrossedArmsSince = now;
+      if (singleHandDetected) {
+        if (correctSingleHandLatched) return;
+        if (!correctSingleHandSince) correctSingleHandSince = now;
+        const elapsed = Math.max(0, now - correctSingleHandSince);
 
-        // Correct도 다른 제스처와 동일하게 설정된 유지 시간 동안 지속되어야 적용됩니다.
-        const correctHoldMs = Math.max(100, Number(config.gestureHoldDuration || 1.0) * 1000);
-        const correctElapsed = Math.max(0, now - correctCrossedArmsSince);
-        const correctRatio = Math.min(correctElapsed / correctHoldMs, 1);
-        const correctGauge = document.getElementById('correct-gauge');
-        const correctFill = document.getElementById('correct-gauge-fill');
-        const correctText = document.getElementById('correct-gauge-step');
-
-        if (correctGauge && correctFill && correctText) {
-          correctGauge.classList.add('active');
-          correctGauge.classList.remove('success');
-          correctFill.style.width = `${correctRatio * 100}%`;
-          correctText.textContent = `유지 ${(correctElapsed / 1000).toFixed(1)} / ${(correctHoldMs / 1000).toFixed(1)}초`;
+        // 게이지는 설정 유지시간에 도달한 이후부터 표시하고,
+        // 그 다음 설정 유지시간 동안 채워져 총 2배 시간에 실행됩니다.
+        if (elapsed >= correctHoldMs) {
+          const extraElapsed = elapsed - correctHoldMs;
+          const ratio = Math.min(extraElapsed / correctHoldMs, 1);
+          if (correctGauge && correctFill && correctText) {
+            correctGauge.classList.add('active');
+            correctGauge.classList.remove('success');
+            correctFill.style.width = `${ratio * 100}%`;
+            correctText.textContent = `CORRECT ${Math.min(extraElapsed / 1000, correctHoldMs / 1000).toFixed(1)} / ${(correctHoldMs / 1000).toFixed(1)}초`;
+          }
         }
 
-        if (!correctCrossedArmsLatched && correctElapsed >= correctHoldMs) {
-          correctCrossedArmsSince = 0;
-          if (correctGauge) correctGauge.classList.add('success');
-          if (correctText) correctText.textContent = 'CORRECT 적용';
+        if (elapsed >= correctHoldMs * 2) {
+          correctSingleHandLatched = true;
+          if (correctGauge) correctGauge.classList.add('active', 'success');
           if (correctFill) correctFill.style.width = '100%';
-
-          // 일반 제스처 상태만 초기화하고, 팔을 풀 때까지 래치를 유지합니다.
-          resetAllGestureState(false);
-          correctCrossedArmsLatched = true;
+          if (correctText) correctText.textContent = 'CORRECT 적용';
           if (!isCameraTesting && isCameraActive && cameraGestureLockUntil <= now) {
             undo();
             lockCameraGestureFor3Seconds();
@@ -1643,11 +1620,8 @@
         }
         return;
       } else {
-        correctCrossedArmsSince = 0;
-        correctCrossedArmsLatched = false;
-        const correctGauge = document.getElementById('correct-gauge');
-        const correctFill = document.getElementById('correct-gauge-fill');
-        const correctText = document.getElementById('correct-gauge-step');
+        correctSingleHandSince = 0;
+        correctSingleHandLatched = false;
         if (correctGauge) correctGauge.classList.remove('active', 'success');
         if (correctFill) correctFill.style.width = '0%';
         if (correctText) correctText.textContent = 'READY';
@@ -1978,16 +1952,7 @@
         if (detectedTargetSide === 'left' && gestureStartTime !== null) {
           const leftElapsed = Math.max(0, now - gestureStartTime);
           const leftProgress = Math.min(leftElapsed / holdMs, 1);
-          if (leftProgress <= CORRECT_MAX_GAUGE_RATIO && !gesturePointLocked) {
-            // Neutral 전환 시각은 최초 1회만 기록합니다.
-            // 매 프레임 갱신하면 전환 제한 시간이 사실상 무효화됩니다.
-            if (!correctCandidateLeft) {
-              correctCandidateLeft = true;
-              correctCandidateNeutralSince = now;
-            }
-          } else {
-            clearCorrectCandidate();
-          }
+          clearCorrectCandidate();
         }
 
         detectedTargetSide = null;
@@ -1999,22 +1964,6 @@
         return;
       }
 
-      if (correctCandidateLeft) {
-        if (now - correctCandidateNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) {
-          clearCorrectCandidate();
-        } else if (currentTarget === 'right') {
-          if (gestureCandidateSide !== 'right') {
-            gestureCandidateSide = 'right';
-            gestureCandidateSince = now;
-            return;
-          }
-          if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
-          startCorrectSequence(now);
-          return;
-        } else {
-          return;
-        }
-      }
 
       if (detectedTargetSide === null) {
         if (gestureCandidateSide !== currentTarget) {
@@ -2083,8 +2032,8 @@
       gestureStartTime = null;
 
       clearCorrectCandidate();
-      correctCrossedArmsSince = 0;
-      correctCrossedArmsLatched = false;
+      correctSingleHandSince = 0;
+      correctSingleHandLatched = false;
 
       correctSequenceStage = 0;
       correctSequenceState = null;
