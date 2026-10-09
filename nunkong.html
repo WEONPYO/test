@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff5f7">
+<title>눈콩 | 동물 친구 졸음 체크</title>
+<style>
+:root{--ink:#38344e;--muted:#89859d;--pink:#ff9fbd;--lav:#c5b5ff;--mint:#a8e8d5;--cream:#fff9f5;--line:#f0eaf3;--shadow:0 12px 32px #66517d12}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:ui-rounded,"Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;color:var(--ink);background:radial-gradient(circle at 0 0,#ffeaf1 0,transparent 32%),radial-gradient(circle at 100% 35%,#efebff 0,transparent 32%),var(--cream)}
+button,input{font:inherit}button{border:0;cursor:pointer;font-weight:800;transition:transform .15s,filter .15s}button:active{transform:scale(.98)}button:focus-visible,input:focus-visible{outline:3px solid #a995f4;outline-offset:3px}
+.app{max-width:520px;margin:0 auto;min-height:100dvh;padding:env(safe-area-inset-top) 16px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column}
+header{display:flex;justify-content:space-between;align-items:center;padding:16px 2px 8px}
+.brand{display:flex;align-items:center;gap:9px}.brand-mark{width:39px;height:39px;border-radius:14px;background:linear-gradient(135deg,#ffc4d5,#d6caff);display:grid;place-items:center;font-size:22px}.brand-name{font-size:19px;font-weight:950;letter-spacing:-.7px}.brand-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.menu-btn{width:43px;height:43px;border-radius:15px;background:#fff;box-shadow:0 5px 16px #65527d12;color:var(--ink);font-size:21px}
+main{flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:16px 0 20px;text-align:center}
+.greeting{font-size:13px;font-weight:800;color:#9a83d9;margin:0 0 7px}.headline{font-size:27px;line-height:1.25;letter-spacing:-1.1px;font-weight:950;margin:0}.subline{font-size:12px;color:var(--muted);margin:8px 0 4px}
+.pet-stage{width:min(82vw,340px);aspect-ratio:1/1;display:grid;place-items:center;position:relative;margin:5px 0 10px}
+.pet-stage:before{content:"";position:absolute;inset:9%;border-radius:45% 55% 48% 52%;background:linear-gradient(145deg,#fff0f5,#f0edff);transform:rotate(-5deg)}
+.sparkle{position:absolute;z-index:2;font-size:23px;animation:float 3s ease-in-out infinite}.sparkle.s1{top:12%;left:8%}.sparkle.s2{top:19%;right:6%;animation-delay:.8s}.sparkle.s3{bottom:17%;right:8%;font-size:18px;animation-delay:1.3s}
+.pet{position:relative;z-index:1;width:89%;max-width:320px;overflow:visible;filter:drop-shadow(0 10px 8px #5c436514)}
+.pet svg{display:block;width:100%;height:auto;overflow:visible}
+.pet .eye-open{opacity:1;transition:opacity .14s}.pet .eye-closed{opacity:0;transition:opacity .14s}
+.pet.closed .eye-open{opacity:0}.pet.closed .eye-closed{opacity:1}
+.pet.closed .cheek{opacity:.9}
+.pet-bubble{position:absolute;z-index:3;bottom:4%;left:50%;transform:translateX(-50%);white-space:nowrap;background:#fff;border:1px solid #f3e8f2;border-radius:999px;padding:9px 14px;font-size:11px;font-weight:850;box-shadow:0 5px 14px #55426d10}
+.pet-bubble .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#a7dfc8;margin-right:5px}
+.status-mini{font-size:12px;color:var(--muted);margin:0 0 13px}.status-mini strong{color:#3b9f81}
+.main-actions{width:100%;display:flex;flex-direction:column;gap:9px;margin-top:4px}
+.primary{background:var(--ink);color:white;border-radius:17px;padding:15px 18px;font-size:14px;box-shadow:0 8px 18px #38344e20}
+.secondary-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.soft{background:#fff;border:1px solid #f0eaf3;color:var(--ink);border-radius:16px;padding:13px 10px;font-size:12px;box-shadow:0 5px 14px #65527d08}
+.bottom-note{text-align:center;font-size:10px;color:#aaa4b8;line-height:1.6;margin:14px 0 0}
+.panel{display:none;width:100%;background:#ffffffed;border:1px solid white;border-radius:24px;padding:18px;margin:10px 0 4px;text-align:left;box-shadow:var(--shadow);animation:pop .18s ease-out}
+.panel.open{display:block}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.panel-title{font-size:17px;font-weight:950;margin:0}.close-panel{background:#f5f1fb;color:#746c89;width:31px;height:31px;border-radius:11px;font-size:17px}
+.pet-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.pet-option{border:2px solid #f0eaf3;border-radius:18px;background:#fff;padding:10px 4px 9px;text-align:center;color:var(--ink)}.pet-option.selected{border-color:#b7a4ff;background:#f7f3ff;box-shadow:0 0 0 3px #b7a4ff20}.pet-option .mini-face{display:block;width:70px;max-width:100%;margin:0 auto 4px}.pet-option span{font-size:11px;font-weight:900}.pet-option small{display:block;font-size:9px;color:var(--muted);margin-top:2px}
+.cam-preview{position:relative;border-radius:17px;overflow:hidden;aspect-ratio:4/3;background:linear-gradient(135deg,#f1edff,#fff0f5);display:grid;place-items:center}.cam-preview video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);display:none}.cam-preview.active video{display:block}.cam-preview.active .cam-placeholder{display:none}.cam-placeholder{text-align:center;padding:15px}.cam-placeholder b{display:block;font-size:13px;margin-bottom:5px}.cam-placeholder span{font-size:11px;color:var(--muted);line-height:1.5}.panel-actions{display:flex;gap:8px;margin-top:11px}.panel-actions button{flex:1}.setting-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.setting-row:last-of-type{border-bottom:0}.setting-label{display:flex;align-items:center;gap:10px}.setting-icon{width:36px;height:36px;border-radius:13px;background:#f5f1ff;display:grid;place-items:center;font-size:17px}.setting-label strong{display:block;font-size:12px}.setting-label small{display:block;font-size:10px;color:var(--muted);margin-top:3px}.switch{position:relative;width:44px;height:26px;flex-shrink:0}.switch input{opacity:0;width:0;height:0}.track{position:absolute;inset:0;background:#ddd9e8;border-radius:99px;transition:.2s}.track:before{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;background:white;border-radius:50%;box-shadow:0 2px 5px #0002;transition:.2s}.switch input:checked+.track{background:#8fdbbf}.switch input:checked+.track:before{transform:translateX(18px)}
+.range-row{padding:13px 0}.range-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;font-weight:850}.range-head output{color:#8b75d8}.range-row input{width:100%;margin-top:12px;accent-color:#9b8ae8}
+.status-box{display:flex;align-items:center;gap:12px;background:#f3fbf7;padding:13px;border-radius:16px}.status-emoji{font-size:27px}.status-box strong{display:block;font-size:15px;color:#329978}.status-box small{font-size:11px;color:var(--muted);display:block;margin-top:3px;line-height:1.45}
+.toast{display:none;margin-top:10px;padding:10px 12px;border-radius:13px;background:#fff0f4;color:#b44b70;font-size:11px;line-height:1.5}.toast.show{display:block}
+.alarm-overlay{position:fixed;inset:0;background:#38304ed9;z-index:20;display:none;align-items:center;justify-content:center;padding:18px}.alarm-overlay.show{display:flex;animation:pulseBg 1s infinite alternate}.alarm-box{max-width:360px;width:100%;background:white;border-radius:27px;padding:25px 22px;text-align:center;box-shadow:0 25px 80px #17102a55}.alarm-box .big{font-size:56px}.alarm-box h2{font-size:23px;margin:9px 0}.alarm-box p{color:var(--muted);font-size:12px;line-height:1.6}.alarm-box button{margin-top:8px;width:100%}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-6px) rotate(6deg)}}@keyframes pop{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}@keyframes pulseBg{from{background:#38304ed9}to{background:#a94d72e8}}
+@media(min-height:850px){main{padding-top:26px;padding-bottom:28px}.pet-stage{width:min(78vw,360px);margin:10px 0 18px}}
+@media(min-width:700px){.app{max-width:480px}.pet-stage{width:320px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand"><div class="brand-mark">🐾</div><div><div class="brand-name">눈콩 <span style="color:#9a86e8">Eye콩</span></div><div class="brand-sub">졸음은 톡톡, 집중은 차곡차곡!</div></div></div>
+  <button class="menu-btn" id="menuBtn" aria-label="메뉴 열기" title="메뉴">☰</button>
+</header>
+
+<main>
+  <p class="greeting">오늘도 함께 깨어 있어요 🌷</p>
+  <h1 class="headline">눈콩 친구와<br>기분 좋게 집중해요!</h1>
+  <p class="subline">눈이 감기면 동물 친구도 꾸벅꾸벅</p>
+
+  <div class="pet-stage">
+    <span class="sparkle s1">✦</span><span class="sparkle s2">♡</span><span class="sparkle s3">✧</span>
+    <div class="pet" id="petFace" aria-label="선택한 동물 캐릭터">
+      <svg id="petSvg" viewBox="0 0 320 320" role="img" aria-label="귀여운 곰 얼굴">
+        <!-- SVG is replaced according to selected animal. -->
+      </svg>
+    </div>
+    <div class="pet-bubble"><span class="live-dot"></span><span id="bubbleText">나랑 같이 집중해요!</span></div>
+  </div>
+  <p class="status-mini" id="statusMini">현재 상태 <strong>정상 😊</strong></p>
+
+  <div class="main-actions">
+    <button class="primary" id="cameraMenuBtn">📷 졸음 감지 시작하기</button>
+    <div class="secondary-row">
+      <button class="soft" id="animalMenuBtn">🐶 동물 친구 바꾸기</button>
+      <button class="soft" id="settingsMenuBtn">⚙️ 알람 설정</button>
+    </div>
+  </div>
+
+  <section class="panel" id="menuPanel">
+    <div class="panel-head"><h2 class="panel-title">메뉴</h2><button class="close-panel" data-close="menuPanel" aria-label="닫기">×</button></div>
+    <button class="soft" style="width:100%;margin-bottom:8px" data-open="animalPanel">🐾 동물 친구 선택</button>
+    <button class="soft" style="width:100%;margin-bottom:8px" data-open="cameraPanel">📷 졸음 감지 / 카메라</button>
+    <button class="soft" style="width:100%;margin-bottom:8px" data-open="settingsPanel">🔔 알람 및 감도 설정</button>
+    <button class="soft" style="width:100%" data-open="statusPanel">💗 현재 감지 상태</button>
+  </section>
+
+  <section class="panel" id="animalPanel">
+    <div class="panel-head"><h2 class="panel-title">🐾 동물 친구 고르기</h2><button class="close-panel" data-close="animalPanel" aria-label="닫기">×</button></div>
+    <div class="pet-options">
+      <button class="pet-option" data-pet="dog">
+        <svg class="mini-face" viewBox="0 0 320 320" aria-hidden="true"></svg><span>멍멍 강아지</span><small>활발한 친구</small>
+      </button>
+      <button class="pet-option" data-pet="cat">
+        <svg class="mini-face" viewBox="0 0 320 320" aria-hidden="true"></svg><span>야옹 고양이</span><small>새침한 친구</small>
+      </button>
+      <button class="pet-option" data-pet="bear">
+        <svg class="mini-face" viewBox="0 0 320 320" aria-hidden="true"></svg><span>포근 곰돌이</span><small>다정한 친구</small>
+      </button>
+    </div>
+  </section>
+
+  <section class="panel" id="cameraPanel">
+    <div class="panel-head"><h2 class="panel-title">📷 졸음 감지</h2><button class="close-panel" data-close="cameraPanel" aria-label="닫기">×</button></div>
+    <div class="cam-preview" id="camPreview">
+      <video id="video" playsinline muted></video>
+      <div class="cam-placeholder"><b>카메라는 눈 상태만 확인해요</b><span>카메라에 비친 얼굴은 화면에 표시하지 않아요.<br>얼굴 영상은 별도 저장하지 않습니다.</span></div>
+    </div>
+    <div class="panel-actions"><button class="primary" id="startBtn">카메라 켜기</button><button class="soft" id="stopBtn" disabled>감지 종료</button></div>
+    <div class="toast" id="toast"></div>
+    <p style="font-size:10px;color:var(--muted);line-height:1.6;margin:12px 1px 0">카메라를 켜면 얼굴 랜드마크를 분석해 눈 감김을 추정합니다. 조명, 안경, 얼굴 각도에 따라 정확도가 달라질 수 있어요.</p>
+  </section>
+
+  <section class="panel" id="settingsPanel">
+    <div class="panel-head"><h2 class="panel-title">🔔 알람 설정</h2><button class="close-panel" data-close="settingsPanel" aria-label="닫기">×</button></div>
+    <div class="setting-row"><div class="setting-label"><div class="setting-icon">🔊</div><div><strong>소리 알람</strong><small>짧고 부드러운 알림음</small></div></div><label class="switch"><input id="soundToggle" type="checkbox" checked><span class="track"></span></label></div>
+    <div class="setting-row"><div class="setting-label"><div class="setting-icon">📳</div><div><strong>진동 알람</strong><small>지원 기기에서 진동</small></div></div><label class="switch"><input id="vibrateToggle" type="checkbox" checked><span class="track"></span></label></div>
+    <div class="setting-row"><div class="setting-label"><div class="setting-icon">✨</div><div><strong>화면 알람</strong><small>화면 팝업으로 알려줘요</small></div></div><label class="switch"><input id="screenToggle" type="checkbox" checked><span class="track"></span></label></div>
+    <div class="range-row"><div class="range-head"><span>🥱 졸음 알림 기준</span><output id="sleepyValue">2.0초</output></div><input id="sleepyRange" type="range" min="1" max="5" step=".5" value="2"></div>
+    <div class="range-row"><div class="range-head"><span>💤 수면 감지 기준</span><output id="sleepValue">5초</output></div><input id="sleepRange" type="range" min="3" max="10" step="1" value="5"></div>
+    <p style="font-size:10px;color:var(--muted);line-height:1.6;margin:4px 0 0">설정은 이 화면을 열어 조절할 수 있어요. 브라우저를 닫으면 설정은 초기화됩니다.</p>
+  </section>
+
+  <section class="panel" id="statusPanel">
+    <div class="panel-head"><h2 class="panel-title">💗 현재 감지 상태</h2><button class="close-panel" data-close="statusPanel" aria-label="닫기">×</button></div>
+    <div class="status-box"><div class="status-emoji" id="detailEmoji">😊</div><div><strong id="detailStatus">정상</strong><small id="detailText">눈콩 친구가 또렷하게 눈을 뜨고 있어요.</small></div></div>
+    <div class="setting-row"><div class="setting-label"><div class="setting-icon">⏱️</div><div><strong>연속 눈 감김 시간</strong><small>감지된 시간</small></div></div><strong id="closedTime">0.0초</strong></div>
+    <div class="setting-row"><div class="setting-label"><div class="setting-icon">👁️</div><div><strong>눈 감김 정도</strong><small>현재 추정치</small></div></div><strong id="closedPct">0%</strong></div>
+    <div class="setting-row"><div class="setting-label"><div class="setting-icon">📡</div><div><strong>얼굴 감지</strong><small>카메라 상태</small></div></div><strong id="faceState">대기 중</strong></div>
+  </section>
+</main>
+<p class="bottom-note">눈콩은 졸음 가능성을 알려주는 보조 도구예요.<br>운전이나 위험한 작업의 안전 판단을 대신할 수 없어요. 🫶</p>
+</div>
+
+<div class="alarm-overlay" id="alarmOverlay" role="alertdialog" aria-modal="true" aria-labelledby="alarmTitle">
+  <div class="alarm-box"><div class="big" id="alarmBig">🥱</div><h2 id="alarmTitle">잠깐 쉬어 가요!</h2><p id="alarmText">눈 감김이 계속 감지됐어요. 잠깐 눈을 뜨고 몸을 움직여 보세요.</p><button class="primary" id="dismissAlarm">알았어요, 깨어날게요 🌷</button></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+<script>
+(() => {
+ const $=id=>document.getElementById(id);
+ const petFace=$('petFace'),petSvg=$('petSvg'),video=$('video');
+ let stream=null,faceMesh=null,running=false,frameBusy=false,lastClosedStart=null,closedMs=0,lastFrameTime=0,lastAlarmAt=0,audioCtx=null;
+ let selectedPet='bear',faceDetected=false;
+ const eyeLeft=[33,160,158,133,153,144],eyeRight=[362,385,387,263,373,380];
+ const pets={
+  dog:{name:'강아지',aria:'귀여운 강아지 얼굴',bubble:'멍멍! 같이 집중해요!',svg:`<g stroke="#8b593c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="#b97b52" d="M78 92 Q30 43 36 123 Q40 169 83 169Z"/><path fill="#b97b52" d="M242 92 Q290 43 284 123 Q280 169 237 169Z"/>
+    <path fill="#eaa0a1" stroke="#d28b8b" stroke-width="2" d="M58 105 Q47 73 58 75 Q75 83 76 123Z"/><path fill="#eaa0a1" stroke="#d28b8b" stroke-width="2" d="M262 105 Q273 73 262 75 Q245 83 244 123Z"/>
+    <path fill="#d99b6e" d="M160 42 C95 42 66 91 69 163 C72 237 111 274 160 274 C209 274 248 237 251 163 C254 91 225 42 160 42Z"/>
+    <ellipse cx="112" cy="171" rx="29" ry="34" fill="#fff0df" stroke="none"/><ellipse cx="208" cy="171" rx="29" ry="34" fill="#fff0df" stroke="none"/>
+    <g class="eye-open"><ellipse cx="117" cy="151" rx="10" ry="14" fill="#49352e" stroke="none"/><ellipse cx="203" cy="151" rx="10" ry="14" fill="#49352e" stroke="none"/><circle cx="120" cy="146" r="3.5" fill="#fff" stroke="none"/><circle cx="206" cy="146" r="3.5" fill="#fff" stroke="none"/></g>
+    <g class="eye-closed" fill="none" stroke="#49352e" stroke-width="5"><path d="M101 153 Q117 166 133 153"/><path d="M187 153 Q203 166 219 153"/></g>
+    <ellipse class="cheek" cx="94" cy="190" rx="14" ry="8" fill="#f59a9e" stroke="none" opacity=".6"/><ellipse class="cheek" cx="226" cy="190" rx="14" ry="8" fill="#f59a9e" stroke="none" opacity=".6"/>
+    <ellipse cx="160" cy="190" rx="29" ry="23" fill="#fff0df" stroke="none"/><path fill="#49352e" stroke="none" d="M147 184 Q160 173 173 184 Q171 197 160 198 Q149 197 147 184Z"/><path d="M160 198 V207 Q150 218 141 208" fill="none"/><path d="M160 207 Q170 218 179 208" fill="none"/>
+    <path d="M102 106 Q119 96 134 105" fill="none" stroke="#f3c79c" stroke-width="5"/><path d="M186 105 Q201 96 218 106" fill="none" stroke="#f3c79c" stroke-width="5"/>
+  </g>`},
+  cat:{name:'고양이',aria:'귀여운 고양이 얼굴',svg:`<g stroke="#77708c" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path fill="#b9b2d1" d="M72 116 L65 35 Q64 25 76 34 L133 77 Q160 68 187 77 L244 34 Q256 25 255 35 L248 116Z"/>
+    <path fill="#f5b2c7" stroke="#d996b0" stroke-width="2" d="M83 84 L78 52 L113 79Z"/><path fill="#f5b2c7" stroke="#d996b0" stroke-width="2" d="M237 84 L242 52 L207 79Z"/>
+    <path fill="#d4cde6" d="M160 55 C99 55 68 97 72 164 C76 231 111 272 160 272 C209 272 244 231 248 164 C252 97 221 55 160 55Z"/>
+    <path d="M94 102 Q106 93 119 98 M201 98 Q214 93 226 102" fill="none" stroke="#a29abf" stroke-width="5"/>
+    <g class="eye-open"><path d="M99 150 Q115 132 132 150 Q116 173 99 150Z" fill="#514963" stroke="none"/><path d="M188 150 Q205 132 221 150 Q204 173 188 150Z" fill="#514963" stroke="none"/><circle cx="115" cy="148" r="4" fill="#fff" stroke="none"/><circle cx="204" cy="148" r="4" fill="#fff" stroke="none"/></g>
+    <g class="eye-closed" fill="none" stroke="#514963" stroke-width="5"><path d="M98 151 Q115 165 133 151"/><path d="M187 151 Q205 165 222 151"/></g>
+    <ellipse class="cheek" cx="94" cy="183" rx="15" ry="8" fill="#f39bb9" stroke="none" opacity=".7"/><ellipse class="cheek" cx="226" cy="183" rx="15" ry="8" fill="#f39bb9" stroke="none" opacity=".7"/>
+    <path fill="#e995ad" stroke="none" d="M151 183 Q160 176 169 183 L160 193Z"/><path d="M160 193 Q151 204 143 197 M160 193 Q169 204 177 197" fill="none"/>
+    <path d="M137 191 L88 184 M137 199 L91 203 M183 191 L232 184 M183 199 L229 203" fill="none" stroke="#8f88a4" stroke-width="2.5"/>
+  </g>`},
+  bear:{name:'곰돌이',aria:'귀여운 곰 얼굴',svg:`<g stroke="#946c53" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="88" cy="88" r="39" fill="#c9956e"/><circle cx="232" cy="88" r="39" fill="#c9956e"/><circle cx="88" cy="88" r="20" fill="#f1c6a4" stroke="#d5a07c" stroke-width="2"/><circle cx="232" cy="88" r="20" fill="#f1c6a4" stroke="#d5a07c" stroke-width="2"/>
+    <path fill="#d9aa83" d="M160 43 C95 43 65 91 69 163 C73 235 111 273 160 273 C209 273 247 235 251 163 C255 91 225 43 160 43Z"/>
+    <ellipse cx="112" cy="174" rx="28" ry="31" fill="#f8dfc5" stroke="none"/><ellipse cx="208" cy="174" rx="28" ry="31" fill="#f8dfc5" stroke="none"/>
+    <g class="eye-open"><ellipse cx="116" cy="151" rx="9" ry="13" fill="#4b382f" stroke="none"/><ellipse cx="204" cy="151" rx="9" ry="13" fill="#4b382f" stroke="none"/><circle cx="119" cy="146" r="3.5" fill="#fff" stroke="none"/><circle cx="207" cy="146" r="3.5" fill="#fff" stroke="none"/></g>
+    <g class="eye-closed" fill="none" stroke="#4b382f" stroke-width="5"><path d="M100 153 Q116 166 132 153"/><path d="M188 153 Q204 166 220 153"/></g>
+    <ellipse class="cheek" cx="94" cy="190" rx="14" ry="8" fill="#f49eaa" stroke="none" opacity=".65"/><ellipse class="cheek" cx="226" cy="190" rx="14" ry="8" fill="#f49eaa" stroke="none" opacity=".65"/>
+    <ellipse cx="160" cy="190" rx="31" ry="23" fill="#f8dfc5" stroke="none"/><ellipse cx="160" cy="184" rx="10" ry="7" fill="#4b382f" stroke="none"/><path d="M160 191 V202 Q151 212 143 204 M160 202 Q169 212 177 204" fill="none"/>
+  </g>`}
+ };
+ function setPet(type){
+  selectedPet=type;const p=pets[type];
+  petSvg.innerHTML=p.svg;petSvg.setAttribute('aria-label',p.aria);
+  $('bubbleText').textContent=pets[type].bubble||'눈콩 친구와 같이 집중해요!';
+  document.querySelectorAll('.pet-option').forEach(b=>b.classList.toggle('selected',b.dataset.pet===type));
+  document.querySelectorAll('.mini-face').forEach(svg=>{const t=svg.closest('.pet-option').dataset.pet;svg.innerHTML=pets[t].svg;});
+  petFace.classList.remove('closed');
+ }
+ function showPanel(id){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'));
+  $(id).classList.add('open');
+  $(id).scrollIntoView({behavior:'smooth',block:'nearest'});
+ }
+ function closePanels(){document.querySelectorAll('.panel').forEach(p=>p.classList.remove('open'))}
+ function status(state,duration){
+  const map={
+   normal:['😊','정상','눈콩 친구가 또렷하게 눈을 뜨고 있어요.','나랑 같이 집중해요!'],
+   sleepy:['🥱','졸음','눈 감김이 이어져요. 잠깐 어깨를 펴고 쉬어 가요.','꾸벅꾸벅… 잠깐 쉬어요!'],
+   sleep:['💤','수면 감지','눈 감김이 오래 지속돼요. 안전한 곳에서 충분히 쉬어 주세요.','쿨쿨… 푹 쉬어도 좋아요'],
+   noface:['👀','얼굴 미감지','카메라를 향해 얼굴을 맞춰 주세요.','얼굴이 잘 보이도록 해 주세요!']
+  }[state];
+  petFace.classList.toggle('closed',state==='sleepy'||state==='sleep');
+  $('statusMini').innerHTML='현재 상태 <strong>'+map[1]+' '+map[0]+'</strong>';
+  $('bubbleText').textContent=map[3];
+  $('detailEmoji').textContent=map[0];$('detailStatus').textContent=map[1];$('detailText').textContent=map[2];
+  $('closedTime').textContent=(duration/1000).toFixed(1)+'초';
+  $('closedPct').textContent=Math.min(100,Math.round(duration/Math.max(1,Number($('sleepRange').value)*1000)*100))+'%';
+  $('faceState').textContent=state==='noface'?'미감지':(running?'감지 중':'대기 중');
+ }
+ function beep(){
+  if(!$('soundToggle').checked)return;
+  try{audioCtx=audioCtx||new(window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();
+   const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.type='sine';o.frequency.setValueAtTime(660,audioCtx.currentTime);o.frequency.setValueAtTime(880,audioCtx.currentTime+.12);
+   g.gain.setValueAtTime(.001,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.15,audioCtx.currentTime+.03);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.42);o.connect(g);g.connect(audioCtx.destination);o.start();o.stop(audioCtx.currentTime+.45);
+  }catch(e){}
+ }
+ function triggerAlarm(state){
+  const now=Date.now();if(now-lastAlarmAt<5000)return;lastAlarmAt=now;
+  $('alarmBig').textContent=state==='sleep'?'💤':'🥱';$('alarmTitle').textContent=state==='sleep'?'눈 감김이 길어요':'잠깐 쉬어 가요!';
+  $('alarmText').textContent=state==='sleep'?'눈 감김이 오래 이어지고 있어요. 안전한 곳에서 충분히 쉬어 주세요.':'눈콩 친구도 꾸벅꾸벅 졸고 있어요. 잠깐 눈을 뜨고 몸을 움직여 보세요.';
+  if($('screenToggle').checked)$('alarmOverlay').classList.add('show');
+  if($('vibrateToggle').checked&&navigator.vibrate)navigator.vibrate([180,100,180,100,280]);
+  beep();
+ }
+ $('dismissAlarm').addEventListener('click',()=>{$('alarmOverlay').classList.remove('show');if(navigator.vibrate)navigator.vibrate(0)});
+ $('menuBtn').addEventListener('click',()=>{$('menuPanel').classList.toggle('open')});
+ $('cameraMenuBtn').addEventListener('click',()=>showPanel('cameraPanel'));
+ $('animalMenuBtn').addEventListener('click',()=>showPanel('animalPanel'));
+ $('settingsMenuBtn').addEventListener('click',()=>showPanel('settingsPanel'));
+ document.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>showPanel(b.dataset.open)));
+ document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).classList.remove('open')));
+ document.querySelectorAll('.pet-option').forEach(b=>b.addEventListener('click',()=>{setPet(b.dataset.pet);}));
+ $('sleepyRange').addEventListener('input',()=>{$('sleepyValue').textContent=Number($('sleepyRange').value).toFixed(1)+'초'});
+ $('sleepRange').addEventListener('input',()=>{$('sleepValue').textContent=$('sleepRange').value+'초'});
+
+ function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+ function ear(points,ids){const p=ids.map(i=>points[i]);return(dist(p[1],p[5])+dist(p[2],p[4]))/(2*dist(p[0],p[3])||1)}
+ async function startCamera(){
+  $('toast').classList.remove('show');
+  if(!navigator.mediaDevices?.getUserMedia){showToast('카메라를 사용할 수 없어요. HTTPS 주소 또는 localhost에서 페이지를 열어 주세요.');return}
+  if(!window.FaceMesh){showToast('얼굴 감지 모듈을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.');return}
+  try{
+   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+   video.srcObject=stream;await video.play();$('camPreview').classList.add('active');running=true;lastFrameTime=performance.now();
+   $('startBtn').disabled=true;$('startBtn').textContent='감지 중이에요';$('stopBtn').disabled=false;
+   faceMesh=new FaceMesh({locateFile:file=>`https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+   faceMesh.setOptions({maxNumFaces:1,refineLandmarks:true,minDetectionConfidence:.5,minTrackingConfidence:.5});
+   faceMesh.onResults(onResults);requestAnimationFrame(processFrame);status('normal',0);
+  }catch(err){showToast(err.name==='NotAllowedError'?'카메라 권한을 허용해 주세요. 브라우저 설정에서 카메라를 켤 수 있어요.':'카메라를 시작하지 못했어요. 다른 앱이 사용 중인지 확인해 주세요.');stopCamera(false)}
+ }
+ function showToast(msg){$('toast').textContent=msg;$('toast').classList.add('show')}
+ async function processFrame(){if(!running)return;if(video.readyState>=2&&faceMesh&&!frameBusy){frameBusy=true;try{await faceMesh.send({image:video})}catch(e){}finally{frameBusy=false}}if(running)requestAnimationFrame(processFrame)}
+ function onResults(results){
+  const points=results.multiFaceLandmarks?.[0];const now=performance.now();
+  if(!points){lastClosedStart=null;closedMs=0;status('noface',0);return}
+  const avg=(ear(points,eyeLeft)+ear(points,eyeRight))/2;
+  const closed=avg<.19;
+  if(closed){if(lastClosedStart===null)lastClosedStart=now;closedMs=now-lastClosedStart}else{lastClosedStart=null;closedMs=0}
+  lastFrameTime=now;
+  const sleepyMs=Number($('sleepyRange').value)*1000,sleepMs=Number($('sleepRange').value)*1000;
+  const state=closed&&closedMs>=sleepMs?'sleep':closed&&closedMs>=sleepyMs?'sleepy':'normal';
+  status(state,closedMs);if(state==='sleep'||state==='sleepy')triggerAlarm(state);
+ }
+ function stopCamera(reset=true){
+  running=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  video.pause();video.srcObject=null;if(faceMesh){try{faceMesh.close()}catch(e){}faceMesh=null}
+  $('camPreview').classList.remove('active');$('startBtn').disabled=false;$('startBtn').textContent='카메라 켜기';$('stopBtn').disabled=true;
+  $('alarmOverlay').classList.remove('show');if(navigator.vibrate)navigator.vibrate(0);lastClosedStart=null;closedMs=0;
+  if(reset)status('normal',0);
+ }
+ $('startBtn').addEventListener('click',startCamera);$('stopBtn').addEventListener('click',()=>stopCamera());
+ window.addEventListener('pagehide',()=>stopCamera(false));
+ setPet('bear');
+})();
+</script>
+</body>
+</html>
