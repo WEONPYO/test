@@ -1002,10 +1002,10 @@
     let gestureCandidateSide = null;
     let gestureCandidateSince = 0;
 
-    // 최소 크기 기준 강화: 어깨 너비 최소 5.2% 이상 (원거리 배경 점 차단)
-    const MIN_SHOULDER_WIDTH = 0.052;
-    const MIN_BODY_SCALE = 0.065;
-    const MIN_VISIBILITY_THRESHOLD = 0.50; // 머리 및 손목 필수 신뢰도
+    // 최소 크기 기준 완화: 원거리 인식 가능하도록 수치 대폭 하향 (260927 버전 수준)
+    const MIN_SHOULDER_WIDTH = 0.015;
+    const MIN_BODY_SCALE = 0.02;
+    const MIN_VISIBILITY_THRESHOLD = 0.35; // 머리 및 손목 필수 신뢰도
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
