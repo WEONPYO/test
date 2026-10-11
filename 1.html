@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>WP Tennis Scoreboard - Dual Person Vision Engine</title>
 
+  <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
@@ -71,6 +72,7 @@
       flex: 1; display: flex; flex-direction: column; height: 100%; width: 100%; position: relative; overflow: hidden;
     }
 
+    /* 점수판 레이아웃 */
     .scoreboard { display: flex; padding: 6px 8px 0 8px; gap: 8px; height: 65%; }
 
     .team-card {
@@ -114,7 +116,7 @@
     }
 
     .point-score {
-      font-size: min(32vw, 34vh);
+      font-size: min(38vw, 40vh); /* 기본값을 Large에 맞춰 세팅 (JS에서 덮어씀) */
       font-weight: 900; text-shadow: 4px 4px 16px rgba(0,0,0,0.9);
       line-height: 0.8; text-align: center; display: flex; align-items: center; justify-content: center;
       letter-spacing: -2px; margin: 0; padding: 0; transform: translateY(-2%);
@@ -559,11 +561,11 @@
       </div>
 
       <div class="setting-group">
-        <label>점수 표시 글꼴 크기 (Score Font Size)</label>
+        <label>점수 글꼴 크기 (Score Font Size)</label>
         <select id="set-score-font">
           <option value="small">작게 (Small)</option>
-          <option value="medium" selected>보통 (Medium - 기본)</option>
-          <option value="large">크게 (Large)</option>
+          <option value="medium">보통 (Medium)</option>
+          <option value="large" selected>크게 (Large - 기본)</option>
           <option value="xlarge">매우 크게 (Extra Large)</option>
         </select>
       </div>
@@ -736,7 +738,7 @@
     }
 
     let config = {
-      scoreFontSize: 'medium',
+      scoreFontSize: 'large', // Default to Large
       cameraRes: 'max',
       gestureHoldDuration: 1.0,
       audioDelay: 600,
@@ -842,10 +844,7 @@
     const CORRECT_IDLE_TIMEOUT_MS = 3200;
     const CORRECT_TRANSITION_STABLE_MS = 80;
 
-    let gesturePointLocked = false;
-    let gestureCandidateSide = null;
-    let gestureCandidateSince = 0;
-
+    // 스트레스/거리에 따른 노이즈 차단 임계값 완화
     const MIN_SHOULDER_WIDTH = 0.015;
     const MIN_BODY_SCALE = 0.02;
     const MIN_VISIBILITY_THRESHOLD = 0.35; 
@@ -1045,7 +1044,7 @@
     }
 
     function populateSettingsModal() {
-      document.getElementById('set-score-font').value = config.scoreFontSize || 'medium';
+      document.getElementById('set-score-font').value = config.scoreFontSize || 'large';
       document.getElementById('set-camera-res').value = config.cameraRes || 'max';
       
       const gestureHold = Number(config.gestureHoldDuration);
@@ -1230,9 +1229,6 @@
       resetCorrectSequenceGauge();
     }
 
-    /* =========================================================================
-       개별 인물 골격 및 제스처 정밀 판정 엔진 (머리·양손 필수 & 원거리 차단)
-       ========================================================================= */
     function evaluatePersonPose(results, xOffsetRate, xSpanRate) {
       if (!results || !results.poseLandmarks) {
         return { valid: false, reason: '신체 미감지', landmarks: null, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
@@ -1605,9 +1601,6 @@
       document.getElementById('gauge-fill-left').style.height = '0%'; document.getElementById('gauge-fill-right').style.height = '0%';
     }
 
-    /* =========================================================================
-       테니스 경기 규칙 및 스코어보드 제어 엔진
-       ========================================================================= */
     function saveState() {
       historyStack.push(JSON.parse(JSON.stringify(state)));
       if (historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -1710,7 +1703,7 @@
       return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
     }
 
-    // TTS를 위한 게임 스코어 포맷 (예: 2, ... 3 또는 2 all) -> 숫자만 부르고 텀 두기
+    // TTS Game Score Format (e.g. "2, ... 3" OR "2 all")
     function getGameScoreForServer(serverTeam, gamesA = state.gamesA, gamesB = state.gamesB) {
       if (gamesA === gamesB) {
         return `${gamesA} all`;
@@ -1764,6 +1757,7 @@
         else { switchServer(); }
       }
 
+      // Read standard formats for Sets
       const gameScoreCall = `${finalGamesA} games to ${finalGamesB}`;
       const setScoreCall = `${state.setsA} sets to ${state.setsB}`;
 
@@ -1895,7 +1889,7 @@
 
       // 폰트 크기 동적 적용
       const fontSizes = { small: 'min(24vw, 26vh)', medium: 'min(32vw, 34vh)', large: 'min(38vw, 40vh)', xlarge: 'min(44vw, 46vh)' };
-      const selectedFont = fontSizes[config.scoreFontSize] || fontSizes['medium'];
+      const selectedFont = fontSizes[config.scoreFontSize] || fontSizes['large'];
       document.getElementById('points-a').style.fontSize = selectedFont;
       document.getElementById('points-b').style.fontSize = selectedFont;
 
@@ -1904,7 +1898,8 @@
       
       const serveMenu = document.getElementById('btn-toggle-serve-s');
       if (serveMenu) {
-        serveMenu.classList.toggle('active-toggle', true);
+        // SERVE 버튼의 불필요한 깜빡임(.active-toggle)을 제거하고, 기능 변경 툴팁만 갱신
+        serveMenu.classList.remove('active-toggle');
         serveMenu.title = `Switch Serve Team (current: Team ${state.currentServerTeam})`;
       }
 
