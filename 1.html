@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WP Tennis Scoreboard - Dual Person Vision Engine</title>
+  <title>WP Tennis Scoreboard</title>
 
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -20,6 +20,7 @@
       --accent-cyan: #00d4ff;
       --text-main: #ffffff;
       --panel-border: #234733;
+      --score-font-size: min(32vw, 34vh);
     }
 
     * {
@@ -43,7 +44,9 @@
     }
 
     @media (orientation: portrait) {
-      body { flex-direction: column-reverse; }
+      body {
+        flex-direction: column-reverse;
+      }
     }
 
     #unauthorized-access {
@@ -102,7 +105,8 @@
     }
 
     .score-body {
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
       display: flex; justify-content: center; align-items: center;
       z-index: 1; pointer-events: none;
     }
@@ -116,17 +120,23 @@
     }
 
     .point-score {
-      font-size: min(38vw, 40vh); /* 기본값을 Large에 맞춰 세팅 (JS에서 덮어씀) */
-      font-weight: 900; text-shadow: 4px 4px 16px rgba(0,0,0,0.9);
-      line-height: 0.8; text-align: center; display: flex; align-items: center; justify-content: center;
-      letter-spacing: -2px; margin: 0; padding: 0; transform: translateY(-2%);
+      font-size: var(--score-font-size);
+      font-weight: 900;
+      text-shadow: 4px 4px 16px rgba(0,0,0,0.9);
+      line-height: 0.8;
+      text-align: center;
+      display: flex; align-items: center; justify-content: center;
+      letter-spacing: -2px; margin: 0; padding: 0;
+      transform: translateY(-2%);
+      transition: font-size 0.3s ease;
     }
 
     .serve-ball {
       position: relative; flex: 0 0 18px; width: 18px; height: 18px;
       border-radius: 50%; visibility: hidden; opacity: 0;
       background: #12351f; border: 2px solid #2f8f4e;
-      box-shadow: inset 0 0 3px rgba(0,0,0,.8); transition: opacity .15s ease, transform .15s ease;
+      box-shadow: inset 0 0 3px rgba(0,0,0,.8);
+      transition: opacity .15s ease, transform .15s ease;
       margin-right: 7px;
     }
     .serve-ball::before {
@@ -142,7 +152,6 @@
       animation: serve-led-blink .75s steps(1, end) infinite;
     }
     .serve-ball.active::after { animation: serve-led-ring .75s ease-out infinite; }
-    
     @keyframes serve-led-blink {
       0%, 45% { filter: brightness(1.0); }
       46%, 100% { filter: brightness(1.85); }
@@ -157,6 +166,7 @@
       opacity: 0; cursor: pointer; z-index: 3;
     }
 
+    /* 사이드바 메뉴 패널 */
     .sidebar-controls {
       display: flex; width: 68px; background-color: var(--card-bg);
       border-left: 1px solid var(--panel-border); padding: 6px 4px; flex-direction: column; gap: 4px;
@@ -169,22 +179,26 @@
 
     .btn-icon-menu {
       width: 100%; height: 44px; background: #14261c; border: 1px solid #2e5941;
-      border-radius: 8px; color: #ffffff; display: flex; flex-direction: column;
+      border-radius: 8px; color: #d0d0d0; display: flex; flex-direction: column;
       justify-content: center; align-items: center; gap: 1px; cursor: pointer;
       transition: all 0.15s ease; position: relative; padding: 2px 0;
     }
 
-    .btn-icon-menu svg { width: 17px; height: 17px; fill: currentColor; color: currentColor; }
+    .btn-icon-menu svg { width: 17px; height: 17px; fill: #ffffff; color: #ffffff; }
     .btn-icon-menu span { font-size: 0.55rem; font-weight: 700; letter-spacing: -0.2px; }
     .btn-icon-menu:active { transform: scale(0.94); background: #1c3829; }
 
     .btn-icon-menu.active-toggle {
-      border-color: var(--accent-yellow); color: var(--accent-yellow); background: #183321;
+      border-color: var(--accent-yellow);
+      color: var(--accent-yellow);
+      background: #183321;
     }
+    .btn-icon-menu.active-toggle svg { fill: #ffffff; color: #ffffff; }
     .btn-icon-menu.active-toggle::after {
       content: ''; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px;
       background-color: var(--accent-yellow); border-radius: 50%;
-      box-shadow: 0 0 6px var(--accent-yellow); animation: pulse-ring 1.5s infinite;
+      box-shadow: 0 0 6px var(--accent-yellow);
+      animation: pulse-ring 1.5s infinite;
     }
 
     @keyframes pulse-ring {
@@ -194,7 +208,9 @@
     }
 
     .btn-icon-menu.highlight-correct {
-      background: #062a36; border: 1px solid var(--accent-cyan); color: var(--accent-cyan);
+      background: #062a36;
+      border: 1px solid var(--accent-cyan);
+      color: var(--accent-cyan);
     }
     .btn-icon-menu.highlight-correct:active { background: #0a4154; }
 
@@ -207,13 +223,16 @@
         width: 100%; height: 56px; border-left: none; border-bottom: 1px solid var(--panel-border);
         flex-direction: row; padding: 4px; gap: 3px; justify-content: space-between;
       }
-      .menu-group-main, .menu-group-bottom { flex-direction: row; flex: none; gap: 3px; width: auto; }
+      .menu-group-main, .menu-group-bottom {
+        flex-direction: row; flex: none; gap: 3px; width: auto;
+      }
       .menu-group-main { flex: 5; }
       .menu-group-bottom { flex: 3; }
       .btn-icon-menu { height: 46px; flex: 1.2; }
       .btn-icon-menu.btn-compact { flex: 0.7; }
     }
 
+    /* 테니스 코트 영역 */
     .court-section {
       display: flex; justify-content: center; align-items: center;
       padding: 2px; position: relative; height: 35%;
@@ -280,62 +299,99 @@
     .player-marker.server {
       background-color: var(--accent-yellow) !important; color: #000 !important;
       border: 2px solid #000; transform: translate(-50%, -50%) scale(1.1); z-index: 10;
-      box-shadow: 0 0 10px var(--accent-yellow); animation: server-player-sparkle 0.9s ease-in-out infinite;
+      box-shadow: 0 0 10px var(--accent-yellow);
+      animation: server-player-sparkle 0.9s ease-in-out infinite;
       will-change: transform, box-shadow, filter;
     }
     .player-marker.server::after {
-      content: '✦'; position: absolute; top: -11px; right: -9px; color: #ffffff;
-      font-size: 0.78rem; line-height: 1; text-shadow: 0 0 3px #ffffff, 0 0 7px var(--accent-yellow), 0 0 12px var(--accent-yellow);
-      pointer-events: none; animation: server-player-star 0.9s ease-in-out infinite;
+      content: '✦';
+      position: absolute;
+      top: -11px;
+      right: -9px;
+      color: #ffffff;
+      font-size: 0.78rem;
+      line-height: 1;
+      text-shadow: 0 0 3px #ffffff, 0 0 7px var(--accent-yellow), 0 0 12px var(--accent-yellow);
+      pointer-events: none;
+      animation: server-player-star 0.9s ease-in-out infinite;
     }
     .player-marker.server .role-badge { background: #000; color: var(--accent-yellow); }
 
     @keyframes server-player-sparkle {
-      0%, 100% { transform: translate(-50%, -50%) scale(1.06); box-shadow: 0 0 7px var(--accent-yellow), 0 0 13px rgba(204,255,0,.55); filter: brightness(1); }
-      45% { transform: translate(-50%, -50%) scale(1.16); box-shadow: 0 0 12px var(--accent-yellow), 0 0 24px rgba(204,255,0,.95), 0 0 34px rgba(255,255,255,.35); filter: brightness(1.35); }
-      60% { transform: translate(-50%, -50%) scale(1.10); box-shadow: 0 0 9px var(--accent-yellow), 0 0 18px rgba(204,255,0,.75); filter: brightness(1.12); }
+      0%, 100% {
+        transform: translate(-50%, -50%) scale(1.06);
+        box-shadow: 0 0 7px var(--accent-yellow), 0 0 13px rgba(204,255,0,.55);
+        filter: brightness(1);
+      }
+      45% {
+        transform: translate(-50%, -50%) scale(1.16);
+        box-shadow: 0 0 12px var(--accent-yellow), 0 0 24px rgba(204,255,0,.95), 0 0 34px rgba(255,255,255,.35);
+        filter: brightness(1.35);
+      }
+      60% {
+        transform: translate(-50%, -50%) scale(1.10);
+        box-shadow: 0 0 9px var(--accent-yellow), 0 0 18px rgba(204,255,0,.75);
+        filter: brightness(1.12);
+      }
     }
+
     @keyframes server-player-star {
       0%, 100% { opacity: .25; transform: scale(.75) rotate(0deg); }
       45% { opacity: 1; transform: scale(1.35) rotate(18deg); }
       65% { opacity: .55; transform: scale(.95) rotate(-8deg); }
     }
 
-    .player-marker.receiver { border: 2px solid var(--accent-yellow); transform: translate(-50%, -50%) scale(1.05); box-shadow: 0 0 8px rgba(255, 255, 255, 0.9); }
+    .player-marker.receiver {
+      border: 2px solid var(--accent-yellow); transform: translate(-50%, -50%) scale(1.05);
+      box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+    }
     .player-marker.receiver .role-badge { background: var(--accent-yellow); color: #000; }
 
+    /* 동작 인식 게이지 */
     .gesture-gauge-container {
       position: absolute; top: 0; bottom: 0; width: 28px;
       background: rgba(0,0,0,0.5); display: flex; flex-direction: column;
-      justify-content: flex-end; z-index: 150; pointer-events: none; opacity: 0; transition: opacity 0.2s ease;
+      justify-content: flex-end; z-index: 150; pointer-events: none; opacity: 0;
+      transition: opacity 0.2s ease;
     }
+
     .gesture-gauge-container.left { left: 0; border-right: 2px solid rgba(204,255,0,0.4); }
     .gesture-gauge-container.right { right: 0; border-left: 2px solid rgba(204,255,0,0.4); }
-    .gesture-gauge-container.active { opacity: 1; }
 
     .correct-gauge-container {
       position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-      width: min(62vw, 520px); height: 34px; background: rgba(0,0,0,0.72); border: 2px solid rgba(204,255,0,0.55);
-      border-top: none; border-radius: 0 0 10px 10px; z-index: 155; pointer-events: none; opacity: 0;
-      transition: opacity .15s ease, transform .15s ease; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,.45);
+      width: min(62vw, 520px); height: 34px;
+      background: rgba(0,0,0,0.72); border: 2px solid rgba(204,255,0,0.55);
+      border-top: none; border-radius: 0 0 10px 10px;
+      z-index: 155; pointer-events: none; opacity: 0;
+      transition: opacity .15s ease, transform .15s ease; overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,.45);
     }
     .correct-gauge-container.active { opacity: 1; }
     .correct-gauge-fill {
       position: absolute; left: 0; bottom: 0; height: 5px; width: 0%;
-      background: linear-gradient(90deg, #ccff00, #00ffaa); box-shadow: 0 0 12px rgba(204,255,0,.9); transition: width .08s linear;
+      background: linear-gradient(90deg, #ccff00, #00ffaa);
+      box-shadow: 0 0 12px rgba(204,255,0,.9);
+      transition: width .08s linear;
     }
     .correct-gauge-text {
       position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      color: #fff; font-size: .72rem; font-weight: 900; letter-spacing: 1px; text-shadow: 0 2px 5px #000;
+      color: #fff; font-size: .72rem; font-weight: 900; letter-spacing: 1px;
+      text-shadow: 0 2px 5px #000;
     }
     .correct-gauge-text .step { color: var(--accent-yellow); margin-left: 7px; }
-    .correct-gauge-container.success { border-color: #00ffaa; box-shadow: 0 0 20px rgba(0,255,170,.65); }
+    .correct-gauge-container.success {
+      border-color: #00ffaa; box-shadow: 0 0 20px rgba(0,255,170,.65);
+    }
     .correct-gauge-container.success .correct-gauge-fill { background: #00ffaa; }
+
+    .gesture-gauge-container.active { opacity: 1; }
 
     .gauge-fill {
       width: 100%; height: 0%; background: linear-gradient(to top, #ccff00, #00ffaa);
       transition: height 0.05s linear; box-shadow: 0 0 10px var(--accent-yellow);
     }
+
     .gauge-status-text {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg);
       white-space: nowrap; font-size: 0.65rem; font-weight: 900; letter-spacing: 1px;
@@ -343,11 +399,14 @@
     }
 
     .gesture-gauge-container.cooldown .gauge-fill {
-      height: 100% !important; background: linear-gradient(to top, #ccff00, #00ffaa) !important;
-      opacity: 0.55; box-shadow: 0 0 10px rgba(0,255,170,.55);
+      height: 100% !important;
+      background: linear-gradient(to top, #ccff00, #00ffaa) !important;
+      opacity: 0.55;
+      box-shadow: 0 0 10px rgba(0,255,170,.55);
     }
     .gesture-gauge-container.cooldown .gauge-status-text { color: #ffffff; }
 
+    /* 설정 및 공통 모달 UI */
     .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 200; padding: 10px; overflow-y: auto; }
     .modal-content { background: var(--card-bg); border-radius: 10px; padding: 14px; max-width: 440px; margin: 5px auto; border: 1px solid var(--panel-border); position: relative; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -362,9 +421,15 @@
     .swipe-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 
     .info-box {
-      background: rgba(204, 255, 0, 0.08); border: 1px solid rgba(204, 255, 0, 0.25);
-      border-radius: 6px; padding: 8px; font-size: 0.68rem; line-height: 1.35; color: #dcdcdc;
-      margin-top: 4px; margin-bottom: 8px;
+      background: rgba(204, 255, 0, 0.08);
+      border: 1px solid rgba(204, 255, 0, 0.25);
+      border-radius: 6px;
+      padding: 8px;
+      font-size: 0.68rem;
+      line-height: 1.35;
+      color: #dcdcdc;
+      margin-top: 4px;
+      margin-bottom: 8px;
     }
     .info-box strong { color: var(--accent-yellow); }
 
@@ -375,14 +440,20 @@
     .confirm-box p { font-size: 0.85rem; line-height: 1.3; color: #fff; margin-bottom: 14px; }
     .confirm-btns { display: flex; gap: 6px; }
     .confirm-btns button { flex: 1; padding: 8px; border-radius: 5px; font-size: 0.8rem; font-weight: bold; border: none; cursor: pointer; }
+
     .btn-confirm-yes { background: var(--accent-yellow); color: #000; }
     .btn-confirm-no { background: #1c3829; color: #fff; border: 1px solid var(--panel-border) !important; }
 
-    .match-result-modal { display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.88); justify-content: center; align-items: center; padding: 18px; }
+    /* 경기 종료 승리 팀 팝업 */
+    .match-result-modal {
+      display: none; position: fixed; inset: 0; z-index: 400; background: rgba(0,0,0,.88);
+      justify-content: center; align-items: center; padding: 18px;
+    }
     .match-result-box {
       width: 100%; max-width: 430px; background: linear-gradient(180deg, #102419 0%, #08130d 100%);
       border: 2px solid var(--accent-yellow); border-radius: 16px; padding: 24px 18px 18px; text-align: center;
-      box-shadow: 0 0 20px rgba(204,255,0,.35), 0 0 55px rgba(204,255,0,.15); animation: match-result-pop .35s ease-out;
+      box-shadow: 0 0 20px rgba(204,255,0,.35), 0 0 55px rgba(204,255,0,.15);
+      animation: match-result-pop .35s ease-out;
     }
     .match-result-title { color: var(--accent-yellow); font-size: 1.05rem; font-weight: 900; letter-spacing: .08em; margin-bottom: 10px; }
     .match-result-winner {
@@ -391,9 +462,13 @@
     }
     .match-result-score { color: #dce8df; font-size: .9rem; line-height: 1.5; margin-bottom: 16px; }
     .match-result-start {
-      width: 100%; border: 0; border-radius: 8px; padding: 12px 10px; background: var(--accent-yellow); color: #000; font-size: .9rem; font-weight: 900; cursor: pointer;
+      width: 100%; border: 0; border-radius: 8px; padding: 12px 10px;
+      background: var(--accent-yellow); color: #000; font-size: .9rem; font-weight: 900; cursor: pointer;
     }
-    @keyframes match-result-pop { from { opacity: 0; transform: scale(.92) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    @keyframes match-result-pop {
+      from { opacity: 0; transform: scale(.92) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
 
     #hidden-video { display: none; visibility: hidden; width: 0; height: 0; position: absolute; }
     #keep-awake-canvas { display: none; width: 1px; height: 1px; position: absolute; pointer-events: none; }
@@ -402,7 +477,8 @@
 <body>
 
   <div id="unauthorized-access">
-    <h2>Access Denied</h2><p>잘못된 접근입니다.</p>
+    <h2>Access Denied</h2>
+    <p>잘못된 접근입니다.</p>
   </div>
 
   <div id="fs-overlay">
@@ -502,6 +578,7 @@
     </div>
   </div>
 
+  <!-- 사이드바 메뉴 -->
   <div class="sidebar-controls">
     <div class="menu-group-main">
       <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
@@ -553,6 +630,7 @@
     </div>
   </div>
 
+  <!-- 설정 모달 -->
   <div class="modal" id="settings-modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -560,13 +638,30 @@
         <button class="btn-close-modal" id="btn-close-settings">&times;</button>
       </div>
 
+      <div class="info-box">
+        <strong>📷 카메라 모드 제스처 안내</strong><br/>
+        • <strong>왼쪽팀 득점:</strong> 양손을 머리 위로 모으는 동작<br/>
+        • <strong>오른쪽팀 득점:</strong> 양손을 머리 위로 넓게 벌리는 동작<br/>
+        • <strong>점수 정정(Correct):</strong> 한 손만 머리 위로 들고 길게 유지 (기본 3초 + 설정시간 적용)
+      </div>
+
       <div class="setting-group">
-        <label>점수 글꼴 크기 (Score Font Size)</label>
+        <label>점수 폰트 크기 (Score Font Size)</label>
         <select id="set-score-font">
-          <option value="small">작게 (Small)</option>
-          <option value="medium">보통 (Medium)</option>
-          <option value="large" selected>크게 (Large - 기본)</option>
-          <option value="xlarge">매우 크게 (Extra Large)</option>
+          <option value="min(24vw, 26vh)">Small</option>
+          <option value="min(28vw, 30vh)">Medium</option>
+          <option value="min(32vw, 34vh)" selected>Large (기본)</option>
+          <option value="min(36vw, 38vh)">Extra Large</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>제스처 인식 유지 시간 (Gesture Hold Duration, 기본 1000ms)</label>
+        <select id="set-gesture-hold">
+          <option value="0.5">500ms</option>
+          <option value="1.0" selected>1000ms (기본)</option>
+          <option value="1.5">1500ms</option>
+          <option value="2.0">2000ms</option>
         </select>
       </div>
 
@@ -577,23 +672,6 @@
           <option value="1080">1080p (Full HD)</option>
           <option value="720">720p (HD)</option>
           <option value="480">480p (SD)</option>
-        </select>
-      </div>
-
-      <div class="info-box">
-        <strong>📷 카메라 제스처 동작 안내</strong><br/>
-        • <strong>왼쪽 득점 (Left Score):</strong> 양손을 머리 위로 모으는 동작<br/>
-        • <strong>오른쪽 득점 (Right Score):</strong> 양손을 머리 위로 넓게 벌리는 동작<br/>
-        • <strong>점수 정정 (Correct / Undo):</strong> 한 손만 머리 위로 드는 동작
-      </div>
-
-      <div class="setting-group">
-        <label>제스처 인식 유지 시간 (Gesture Hold Duration, 기본 1000ms)</label>
-        <select id="set-gesture-hold">
-          <option value="0.5">500ms</option>
-          <option value="1.0" selected>1000ms (기본)</option>
-          <option value="1.5">1500ms</option>
-          <option value="2.0">2000ms</option>
         </select>
       </div>
 
@@ -667,7 +745,7 @@
       </div>
 
       <div class="setting-group">
-        <label>Doubles Server Order Voice Call Delay</label>
+        <label>Doubles Server Order Voice Call</label>
         <select id="set-announce-server">
           <option value="1000">1초 후 Call</option>
           <option value="2000">2초 후 Call</option>
@@ -738,10 +816,10 @@
     }
 
     let config = {
-      scoreFontSize: 'large', // Default to Large
       cameraRes: 'max',
       gestureHoldDuration: 1.0,
       audioDelay: 600,
+      scoreFontSize: 'min(32vw, 34vh)',
       swipeEnabled: true,
       type: 'doubles',
       voiceLang: 'en-GB',
@@ -806,12 +884,14 @@
     let poseInstanceLeft = null;
     let poseInstanceRight = null;
 
+    // 분할 크롭 캔버스 (좌/우 선수 독립 추적)
     let cropCanvasLeft = null;
     let ctxCropLeft = null;
     let cropCanvasRight = null;
     let ctxCropRight = null;
-    let frameToggle = 0;
+    let frameToggle = 0; // 0: 좌측 영역, 1: 우측 영역
 
+    // 2인 상태 캐시
     let personStatusLeft = null;
     let personStatusRight = null;
 
@@ -835,6 +915,7 @@
     let correctCandidateLeft = false;
     let correctCandidateNeutralSince = 0;
 
+    // Correct 단일 제스처: 한 손만 머리 위로 들기
     let correctSingleHandSince = 0;
     let correctSingleHandLatched = false;
 
@@ -844,15 +925,22 @@
     const CORRECT_IDLE_TIMEOUT_MS = 3200;
     const CORRECT_TRANSITION_STABLE_MS = 80;
 
-    // 스트레스/거리에 따른 노이즈 차단 임계값 완화
+    let gesturePointLocked = false;
+    let gestureCandidateSide = null;
+    let gestureCandidateSince = 0;
+
+    // 최소 크기 기준 (원거리 배경 점 차단, 완화 버전 적용)
     const MIN_SHOULDER_WIDTH = 0.015;
     const MIN_BODY_SCALE = 0.02;
-    const MIN_VISIBILITY_THRESHOLD = 0.35; 
+    const MIN_VISIBILITY_THRESHOLD = 0.35; // 머리 및 손목 필수 신뢰도
 
     function getActiveServerIndices() {
       const totalGames = (state.setsA + state.setsB) * (config.gamesPerSet * 2) + state.gamesA + state.gamesB;
       const cycle = Math.floor(totalGames / 2);
-      return { serverIdxA: cycle % 2, serverIdxB: cycle % 2 };
+      return {
+        serverIdxA: cycle % 2,
+        serverIdxB: cycle % 2
+      };
     }
 
     let speechQueue = [];
@@ -864,12 +952,20 @@
       speechSequenceToken++;
       speechQueue = [];
       speechBusy = false;
-      if (speechTimer) { clearTimeout(speechTimer); speechTimer = null; }
-      try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e) {}
+      if (speechTimer) {
+        clearTimeout(speechTimer);
+        speechTimer = null;
+      }
+      try {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+      } catch (e) {}
     }
 
     function cancelServerAnnouncement() {
-      if (serverAnnounceTimer) { clearTimeout(serverAnnounceTimer); serverAnnounceTimer = null; }
+      if (serverAnnounceTimer) {
+        clearTimeout(serverAnnounceTimer);
+        serverAnnounceTimer = null;
+      }
     }
 
     function scheduleServerAnnouncement(customDelayMs = null) {
@@ -894,7 +990,9 @@
           wakeLock = await navigator.wakeLock.request('screen');
           wakeLock.addEventListener('release', () => { wakeLock = null; });
         }
-      } catch (err) { console.warn("Screen Wake Lock unavailable:", err); }
+      } catch (err) {
+        console.warn("Screen Wake Lock unavailable:", err);
+      }
       startCanvasHeartbeatFallback();
     }
 
@@ -914,7 +1012,9 @@
     }
 
     document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState === 'visible' && !wakeLock) await requestWakeLock();
+      if (document.visibilityState === 'visible' && !wakeLock) {
+        await requestWakeLock();
+      }
     });
 
     function showCustomConfirm(message, onConfirm) {
@@ -983,6 +1083,7 @@
 
       document.getElementById('btn-settings-sidebar').onclick = openModal;
       document.getElementById('btn-close-settings').onclick = () => { modal.style.display = 'none'; };
+
       window.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
 
       document.getElementById('btn-save-settings').onclick = () => {
@@ -991,7 +1092,9 @@
       };
 
       const newGameBtn = document.getElementById('btn-match-new-game');
-      if (newGameBtn) newGameBtn.onclick = () => { resetMatch(); };
+      if (newGameBtn) {
+        newGameBtn.onclick = () => { resetMatch(); };
+      }
     }
 
     function speakWithConfiguredDelay(text) { speak(text); }
@@ -1044,9 +1147,8 @@
     }
 
     function populateSettingsModal() {
-      document.getElementById('set-score-font').value = config.scoreFontSize || 'large';
       document.getElementById('set-camera-res').value = config.cameraRes || 'max';
-      
+      document.getElementById('set-score-font').value = config.scoreFontSize || 'min(32vw, 34vh)';
       const gestureHold = Number(config.gestureHoldDuration);
       const gestureHoldSelect = document.getElementById('set-gesture-hold');
       gestureHoldSelect.value = (Number.isFinite(gestureHold) && gestureHold > 0) ? gestureHold.toFixed(1) : '1.0';
@@ -1087,15 +1189,14 @@
     function saveSettings() {
       cancelServerAnnouncement();
       const prevCameraRes = config.cameraRes;
-      
-      config.scoreFontSize = document.getElementById('set-score-font').value;
       config.cameraRes = document.getElementById('set-camera-res').value;
-      
+      config.scoreFontSize = document.getElementById('set-score-font').value;
       const gestureHoldValue = document.getElementById('set-gesture-hold').value;
-      config.gestureHoldDuration = Number.isFinite(parseFloat(gestureHoldValue)) && parseFloat(gestureHoldValue) > 0 ? parseFloat(gestureHoldValue) : 1.0;
-        
+      config.gestureHoldDuration = Number.isFinite(parseFloat(gestureHoldValue)) && parseFloat(gestureHoldValue) > 0
+        ? parseFloat(gestureHoldValue) : 1.0;
       const audioDelayValue = document.getElementById('set-audio-delay').value;
-      config.audioDelay = Number.isFinite(parseInt(audioDelayValue, 10)) ? parseInt(audioDelayValue, 10) : 600;
+      config.audioDelay = Number.isFinite(parseInt(audioDelayValue, 10))
+        ? parseInt(audioDelayValue, 10) : 600;
 
       config.type = document.getElementById('set-type').value;
       config.voiceLang = document.getElementById('set-voice-lang').value;
@@ -1131,7 +1232,8 @@
         case '1080': return isPortrait ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
         case '720': return isPortrait ? { width: 720, height: 1280 } : { width: 1280, height: 720 };
         case '480': return isPortrait ? { width: 480, height: 640 } : { width: 640, height: 480 };
-        case 'max': default: return isPortrait ? { width: 2160, height: 3840 } : { width: 3840, height: 2160 };
+        case 'max':
+        default: return isPortrait ? { width: 2160, height: 3840 } : { width: 3840, height: 2160 };
       }
     }
 
@@ -1145,6 +1247,9 @@
       }
     }
 
+    /* =========================================================================
+       MediaPipe Pose 인스턴스 초기화 및 프레임 분할 전송
+       ========================================================================= */
     function initPoseEngines() {
       const options = {
         modelComplexity: 1,
@@ -1155,23 +1260,34 @@
       };
 
       if (!poseInstanceLeft) {
-        poseInstanceLeft = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
+        poseInstanceLeft = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
         poseInstanceLeft.setOptions(options);
         poseInstanceLeft.onResults(onPoseResultsLeft);
       }
 
       if (!poseInstanceRight) {
-        poseInstanceRight = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
+        poseInstanceRight = new Pose({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+        });
         poseInstanceRight.setOptions(options);
         poseInstanceRight.onResults(onPoseResultsRight);
       }
 
-      if (!cropCanvasLeft) { cropCanvasLeft = document.createElement('canvas'); ctxCropLeft = cropCanvasLeft.getContext('2d'); }
-      if (!cropCanvasRight) { cropCanvasRight = document.createElement('canvas'); ctxCropRight = cropCanvasRight.getContext('2d'); }
+      if (!cropCanvasLeft) {
+        cropCanvasLeft = document.createElement('canvas');
+        ctxCropLeft = cropCanvasLeft.getContext('2d');
+      }
+      if (!cropCanvasRight) {
+        cropCanvasRight = document.createElement('canvas');
+        ctxCropRight = cropCanvasRight.getContext('2d');
+      }
     }
 
     async function startCameraRecognition() {
       const videoElement = document.getElementById('hidden-video');
+
       try {
         initPoseEngines();
         const res = getCameraResolution(config.cameraRes);
@@ -1183,9 +1299,11 @@
               const vh = videoElement.videoHeight;
               if (vw === 0 || vh === 0) return;
 
+              // 좌/우 분할 크롭 해상도 (효율적인 성능을 위해 480px 기준 조정)
               const cropW = 480;
               const cropH = Math.round(cropW * (vh / (vw * 0.65)));
 
+              // 짝수/홀수 프레임 스위칭: 좌측(0~65%)과 우측(35~100%)을 번갈아 분석
               if (frameToggle === 0) {
                 if (cropCanvasLeft.width !== cropW) { cropCanvasLeft.width = cropW; cropCanvasLeft.height = cropH; }
                 ctxCropLeft.drawImage(videoElement, 0, 0, vw * 0.65, vh, 0, 0, cropW, cropH);
@@ -1215,7 +1333,10 @@
     }
 
     function stopCameraRecognition() {
-      if (cameraInstance) { cameraInstance.stop(); cameraInstance = null; }
+      if (cameraInstance) {
+        cameraInstance.stop();
+        cameraInstance = null;
+      }
       isCameraActive = false;
       if (cameraGestureLockTimer) { clearTimeout(cameraGestureLockTimer); cameraGestureLockTimer = null; }
       cameraGestureLockUntil = 0;
@@ -1229,9 +1350,21 @@
       resetCorrectSequenceGauge();
     }
 
+    /* =========================================================================
+       개별 인물 골격 및 제스처 정밀 판정 엔진
+       ========================================================================= */
     function evaluatePersonPose(results, xOffsetRate, xSpanRate) {
       if (!results || !results.poseLandmarks) {
-        return { valid: false, reason: '신체 미감지', landmarks: null, globalLandmarks: null, handsUp: false, gesture: null, scale: 0, ratio: null };
+        return {
+          valid: false,
+          reason: '신체 미감지',
+          landmarks: null,
+          globalLandmarks: null,
+          handsUp: false,
+          gesture: null,
+          scale: 0,
+          ratio: null
+        };
       }
 
       const lm = results.poseLandmarks;
@@ -1240,6 +1373,8 @@
       const rightEye = lm[5];
       const leftShoulder = lm[11];
       const rightShoulder = lm[12];
+      const leftElbow = lm[13];
+      const rightElbow = lm[14];
       const leftWrist = lm[15];
       const rightWrist = lm[16];
       const leftHip = lm[23];
@@ -1260,7 +1395,9 @@
 
       const globalLM = lm.map(pt => ({
         x: xOffsetRate + pt.x * xSpanRate,
-        y: pt.y, z: pt.z, visibility: pt.visibility
+        y: pt.y,
+        z: pt.z,
+        visibility: pt.visibility
       }));
 
       const gLShoulder = globalLM[11];
@@ -1300,8 +1437,15 @@
 
       if (!handsAboveHead) {
         return {
-          valid: true, reason: '중립 (손 내림)', landmarks: lm, globalLandmarks: globalLM,
-          handsUp: false, gesture: null, singleHandAboveHead: singleHandAboveHead, scale: bodyScale, ratio: null
+          valid: true,
+          reason: '중립 (손 내림)',
+          landmarks: lm,
+          globalLandmarks: globalLM,
+          handsUp: false,
+          gesture: null,
+          singleHandAboveHead: singleHandAboveHead,
+          scale: bodyScale,
+          ratio: null
         };
       }
 
@@ -1314,12 +1458,24 @@
       let gesture = null;
       let reason = '머리 위 중립폭';
 
-      if (ratio <= LEFT_CLOSE_RATIO) { gesture = 'left'; reason = '양손 모음 (LEFT)'; } 
-      else if (ratio >= RIGHT_OPEN_RATIO) { gesture = 'right'; reason = '양손 벌림 (RIGHT)'; }
+      if (ratio <= LEFT_CLOSE_RATIO) {
+        gesture = 'left';
+        reason = '양손 모음 (LEFT)';
+      } else if (ratio >= RIGHT_OPEN_RATIO) {
+        gesture = 'right';
+        reason = '양손 벌림 (RIGHT)';
+      }
 
       return {
-        valid: true, reason: reason, landmarks: lm, globalLandmarks: globalLM,
-        handsUp: true, gesture: gesture, singleHandAboveHead: false, scale: bodyScale, ratio: ratio
+        valid: true,
+        reason: reason,
+        landmarks: lm,
+        globalLandmarks: globalLM,
+        handsUp: true,
+        gesture: gesture,
+        singleHandAboveHead: false,
+        scale: bodyScale,
+        ratio: ratio
       };
     }
 
@@ -1333,16 +1489,25 @@
       coordinateDualPoses();
     }
 
+    /* =========================================================================
+       2인 감지 종합 및 우선순위 중재 & Correct 동작 머신 (3초+설정시간)
+       ========================================================================= */
     function coordinateDualPoses() {
       const now = Date.now();
       const p1 = personStatusLeft;
       const p2 = personStatusRight;
 
+      // Correct: 기본 3초(3000ms) + 설정시간(configuredHoldMs) 적용
+      // 오작동을 막기 위해 게이지는 동작 유지 2초(2000ms) 후부터 화면에 나타남
       const singleHandDetected = !!(
         (p1 && p1.valid && p1.singleHandAboveHead) ||
         (p2 && p2.valid && p2.singleHandAboveHead)
       );
-      const correctHoldMs = Math.max(250, Number(config.gestureHoldDuration || 1.0) * 1000);
+
+      const configuredHoldMs = Number(config.gestureHoldDuration || 1.0) * 1000;
+      const totalCorrectHoldMs = 3000 + configuredHoldMs;
+      const gaugeStartTime = 2000; // 2초 대기
+
       const correctGauge = document.getElementById('correct-gauge');
       const correctFill = document.getElementById('correct-gauge-fill');
       const correctText = document.getElementById('correct-gauge-step');
@@ -1352,18 +1517,23 @@
         if (!correctSingleHandSince) correctSingleHandSince = now;
         const elapsed = Math.max(0, now - correctSingleHandSince);
 
-        if (elapsed >= correctHoldMs) {
-          const extraElapsed = elapsed - correctHoldMs;
-          const ratio = Math.min(extraElapsed / correctHoldMs, 1);
+        if (elapsed >= gaugeStartTime) {
+          const extraElapsed = elapsed - gaugeStartTime;
+          const gaugeDuration = totalCorrectHoldMs - gaugeStartTime;
+          const ratio = Math.min(extraElapsed / gaugeDuration, 1);
           if (correctGauge && correctFill && correctText) {
             correctGauge.classList.add('active');
             correctGauge.classList.remove('success');
             correctFill.style.width = `${ratio * 100}%`;
-            correctText.textContent = `CORRECT ${Math.min(extraElapsed / 1000, correctHoldMs / 1000).toFixed(1)} / ${(correctHoldMs / 1000).toFixed(1)}초`;
+            correctText.textContent = `CORRECT ${(extraElapsed / 1000).toFixed(1)} / ${(gaugeDuration / 1000).toFixed(1)}초`;
           }
+        } else {
+          if (correctGauge) correctGauge.classList.remove('active', 'success');
+          if (correctFill) correctFill.style.width = '0%';
+          if (correctText) correctText.textContent = 'READY';
         }
 
-        if (elapsed >= correctHoldMs * 2) {
+        if (elapsed >= totalCorrectHoldMs) {
           correctSingleHandLatched = true;
           if (correctGauge) correctGauge.classList.add('active', 'success');
           if (correctFill) correctFill.style.width = '100%';
@@ -1405,42 +1575,9 @@
       processGestureTarget(chosenTarget, now, chosenRatio);
     }
 
-    function isCorrectActive() { return correctSequenceStage > 0 && !correctSequenceBusy; }
-    function clearCorrectCandidate() { correctCandidateLeft = false; correctCandidateNeutralSince = 0; }
-
-    function startCorrectSequence(now) {
-      correctSequenceStage = 2; correctSequenceState = 'right'; correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0; correctSequenceLastDirectionAt = now; correctSequenceBusy = false;
-      clearCorrectCandidate();
-      detectedTargetSide = 'right'; gestureStartTime = now; gestureCandidateSide = null; gestureCandidateSince = 0; gesturePointLocked = false;
-      updateCorrectSequenceGauge();
-    }
-
-    function acceptCorrectDirection(direction, now) {
-      const expected = correctSequenceState === 'left' ? 'right' : 'left';
-      if (direction !== expected) return false;
-      correctSequenceStage += 1; correctSequenceState = direction; correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0; correctSequenceLastDirectionAt = now;
-      detectedTargetSide = direction; gestureStartTime = now; gestureCandidateSide = null; gestureCandidateSince = 0; gesturePointLocked = false;
-      updateCorrectSequenceGauge();
-
-      if (correctSequenceStage >= CORRECT_SEQUENCE_STEPS) {
-        correctSequenceBusy = true;
-        const gauge = document.getElementById('correct-gauge');
-        const text = document.getElementById('correct-gauge-step');
-        const fill = document.getElementById('correct-gauge-fill');
-        if (gauge) gauge.classList.add('active', 'success');
-        if (fill) fill.style.width = '100%';
-        if (text) text.innerText = 'CORRECT';
-
-        setTimeout(() => {
-          if (!isCameraActive || !correctSequenceBusy) return;
-          correctSequenceBusy = false;
-          undo();
-          lockCameraGestureFor3Seconds();
-        }, 180);
-      }
-      return true;
+    function clearCorrectCandidate() {
+      correctCandidateLeft = false;
+      correctCandidateNeutralSince = 0;
     }
 
     function processGestureTarget(currentTarget, now, handRatio = null) {
@@ -1448,51 +1585,50 @@
 
       if (cameraGestureLockUntil > 0) {
         if (now < cameraGestureLockUntil) {
-          updateCooldownGaugeDisplay(Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1));
+          updateCooldownGaugeDisplay(
+            Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1)
+          );
           return;
         }
-        cameraGestureLockUntil = 0; cooldownUntilTime = 0; cameraGestureNeedsNeutral = false;
+        cameraGestureLockUntil = 0;
+        cooldownUntilTime = 0;
+        cameraGestureNeedsNeutral = false;
         resetAllGestureState(true);
-      }
-
-      if (isCorrectActive()) {
-        if (correctSequenceLastDirectionAt > 0 && now - correctSequenceLastDirectionAt > CORRECT_IDLE_TIMEOUT_MS) { resetAllGestureState(true); return; }
-        if (currentTarget === correctSequenceState) {
-          correctSequenceLastDirectionAt = now; correctSequenceWaitingNeutral = false; correctSequenceNeutralSince = 0;
-          gestureCandidateSide = null; gestureCandidateSince = 0; return;
-        }
-        if (currentTarget === null) {
-          if (!correctSequenceWaitingNeutral) { correctSequenceWaitingNeutral = true; correctSequenceNeutralSince = now; gestureCandidateSide = null; gestureCandidateSince = 0; }
-          if (correctSequenceNeutralSince > 0 && now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) { resetAllGestureState(true); }
-          return;
-        }
-        if (!correctSequenceWaitingNeutral) return;
-        if (now - correctSequenceNeutralSince > CORRECT_TRANSITION_TIMEOUT_MS) { resetAllGestureState(true); return; }
-        const expected = correctSequenceState === 'left' ? 'right' : 'left';
-        if (currentTarget !== expected) return;
-        if (gestureCandidateSide !== currentTarget) { gestureCandidateSide = currentTarget; gestureCandidateSince = now; return; }
-        if (now - gestureCandidateSince < CORRECT_TRANSITION_STABLE_MS) return;
-        acceptCorrectDirection(currentTarget, now);
-        return;
       }
 
       if (correctSequenceBusy) return;
 
       if (currentTarget === null) {
-        if (detectedTargetSide === 'left' && gestureStartTime !== null) { clearCorrectCandidate(); }
-        detectedTargetSide = null; gestureStartTime = null; gestureCandidateSide = null; gestureCandidateSince = 0;
-        gesturePointLocked = false; cameraGestureNeedsNeutral = false; 
+        if (detectedTargetSide === 'left' && gestureStartTime !== null) {
+          clearCorrectCandidate();
+        }
+        detectedTargetSide = null;
+        gestureStartTime = null;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
+        gesturePointLocked = false;
+        cameraGestureNeedsNeutral = false;
         resetGestureGauge();
         return;
       }
 
-      if (cameraGestureNeedsNeutral) return;
+      if (cameraGestureNeedsNeutral) {
+        return;
+      }
 
       if (detectedTargetSide === null) {
-        if (gestureCandidateSide !== currentTarget) { gestureCandidateSide = currentTarget; gestureCandidateSince = now; return; }
+        if (gestureCandidateSide !== currentTarget) {
+          gestureCandidateSide = currentTarget;
+          gestureCandidateSince = now;
+          return;
+        }
         if (now - gestureCandidateSince < GESTURE_MIN_STABLE_MS) return;
-        detectedTargetSide = currentTarget; gestureStartTime = now; gesturePointLocked = false;
-        gestureCandidateSide = null; gestureCandidateSince = 0;
+
+        detectedTargetSide = currentTarget;
+        gestureStartTime = now;
+        gesturePointLocked = false;
+        gestureCandidateSide = null;
+        gestureCandidateSince = 0;
         updateGestureGaugeDisplay(currentTarget, 0);
         return;
       }
@@ -1500,17 +1636,29 @@
       if (detectedTargetSide === currentTarget) {
         const elapsed = Math.max(0, now - (gestureStartTime || now));
         const progress = Math.min(elapsed / holdMs, 1);
+
         updateGestureGaugeDisplay(currentTarget, progress);
 
         if (elapsed >= holdMs && !gesturePointLocked) {
           gesturePointLocked = true;
-          const targetTeam = currentTarget === 'left' ? state.courtLeftTeam : (state.courtLeftTeam === 'A' ? 'B' : 'A');
-          const fill = document.getElementById(currentTarget === 'left' ? 'gauge-fill-left' : 'gauge-fill-right');
+          const targetTeam = currentTarget === 'left'
+            ? state.courtLeftTeam
+            : (state.courtLeftTeam === 'A' ? 'B' : 'A');
+
+          const fill = document.getElementById(
+            currentTarget === 'left' ? 'gauge-fill-left' : 'gauge-fill-right'
+          );
           if (fill) fill.style.height = '100%';
 
           setTimeout(() => {
-            if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) { gesturePointLocked = false; return; }
-            if (detectedTargetSide !== currentTarget || isCorrectActive() || correctSequenceBusy) { gesturePointLocked = false; return; }
+            if (!isCameraActive || cameraGestureLockUntil > 0 || cameraGestureNeedsNeutral) {
+              gesturePointLocked = false;
+              return;
+            }
+            if (detectedTargetSide !== currentTarget || correctSequenceBusy) {
+              gesturePointLocked = false;
+              return;
+            }
             addPoint(targetTeam);
             lockCameraGestureFor3Seconds();
           }, 80);
@@ -1519,88 +1667,134 @@
       }
 
       clearCorrectCandidate();
-      detectedTargetSide = currentTarget; gestureStartTime = now; gestureCandidateSide = null; gestureCandidateSince = 0; gesturePointLocked = false;
+      detectedTargetSide = currentTarget;
+      gestureStartTime = now;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gesturePointLocked = false;
       updateGestureGaugeDisplay(currentTarget, 0);
     }
 
     function resetAllGestureState(clearCorrectVisual = true) {
-      gesturePointLocked = false; detectedTargetSide = null; gestureCandidateSide = null; gestureCandidateSince = 0; gestureStartTime = null;
-      clearCorrectCandidate(); correctSingleHandSince = 0; correctSingleHandLatched = false;
-      correctSequenceStage = 0; correctSequenceState = null; correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0; correctSequenceLastDirectionAt = 0; correctSequenceBusy = false;
+      gesturePointLocked = false;
+      detectedTargetSide = null;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
+      gestureStartTime = null;
+
+      clearCorrectCandidate();
+      correctSingleHandSince = 0;
+      correctSingleHandLatched = false;
+
+      correctSequenceStage = 0;
+      correctSequenceState = null;
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = 0;
+      correctSequenceBusy = false;
+
       resetGestureGauge();
       if (clearCorrectVisual) resetCorrectSequenceGauge();
     }
 
-    function updateCorrectSequenceGauge() {
+    function resetCorrectSequenceGauge() {
+      correctSequenceStage = 0;
+      correctSequenceState = null;
+      correctSequenceWaitingNeutral = false;
+      correctSequenceNeutralSince = 0;
+      correctSequenceLastDirectionAt = 0;
+      correctSequenceBusy = false;
+
+      clearCorrectCandidate();
+
       const gauge = document.getElementById('correct-gauge');
       const fill = document.getElementById('correct-gauge-fill');
       const text = document.getElementById('correct-gauge-step');
-      if (!gauge || !fill || !text) return;
-      gauge.classList.add('active'); gauge.classList.remove('success');
-      const ratio = Math.min(correctSequenceStage / CORRECT_SEQUENCE_STEPS, 1);
-      fill.style.width = `${ratio * 100}%`; text.innerText = `${correctSequenceStage}/${CORRECT_SEQUENCE_STEPS}`;
-    }
 
-    function resetCorrectSequenceGauge() {
-      correctSequenceStage = 0; correctSequenceState = null; correctSequenceWaitingNeutral = false;
-      correctSequenceNeutralSince = 0; correctSequenceLastDirectionAt = 0; correctSequenceBusy = false;
-      clearCorrectCandidate();
-      const gauge = document.getElementById('correct-gauge'); const fill = document.getElementById('correct-gauge-fill'); const text = document.getElementById('correct-gauge-step');
       if (gauge) gauge.classList.remove('active', 'success');
       if (fill) fill.style.width = '0%';
       if (text) text.innerText = 'READY';
     }
 
     function updateGestureGaugeDisplay(side, ratio) {
-      const leftGauge = document.getElementById('gauge-left'); const rightGauge = document.getElementById('gauge-right');
-      const fillLeft = document.getElementById('gauge-fill-left'); const fillRight = document.getElementById('gauge-fill-right');
+      const leftGauge = document.getElementById('gauge-left');
+      const rightGauge = document.getElementById('gauge-right');
+      const fillLeft = document.getElementById('gauge-fill-left');
+      const fillRight = document.getElementById('gauge-fill-right');
       const holdText = `${(config.gestureHoldDuration || 1.0).toFixed(1)}s HOLD`;
 
-      leftGauge.classList.remove('cooldown'); rightGauge.classList.remove('cooldown');
+      leftGauge.classList.remove('cooldown');
+      rightGauge.classList.remove('cooldown');
 
       if (side === 'left') {
-        leftGauge.classList.add('active'); rightGauge.classList.remove('active');
-        fillLeft.style.height = `${ratio * 100}%`; fillRight.style.height = `0%`;
+        leftGauge.classList.add('active');
+        rightGauge.classList.remove('active');
+        fillLeft.style.height = `${ratio * 100}%`;
+        fillRight.style.height = `0%`;
         document.getElementById('gauge-text-left').innerText = holdText;
       } else if (side === 'right') {
-        rightGauge.classList.add('active'); leftGauge.classList.remove('active');
-        fillRight.style.height = `${ratio * 100}%`; fillLeft.style.height = `0%`;
+        rightGauge.classList.add('active');
+        leftGauge.classList.remove('active');
+        fillRight.style.height = `${ratio * 100}%`;
+        fillLeft.style.height = `0%`;
         document.getElementById('gauge-text-right').innerText = holdText;
       }
     }
 
     function lockCameraGestureFor3Seconds() {
       const now = Date.now();
-      cameraGestureLockUntil = now + GESTURE_COOLDOWN_MS; cooldownUntilTime = cameraGestureLockUntil;
-      gesturePointLocked = true; cameraGestureNeedsNeutral = true; gestureStartTime = null; detectedTargetSide = null;
-      gestureCandidateSide = null; gestureCandidateSince = 0;
+      cameraGestureLockUntil = now + GESTURE_COOLDOWN_MS;
+      cooldownUntilTime = cameraGestureLockUntil;
+      gesturePointLocked = true;
+      cameraGestureNeedsNeutral = true;
+      gestureStartTime = null;
+      detectedTargetSide = null;
+      gestureCandidateSide = null;
+      gestureCandidateSince = 0;
       resetCorrectSequenceGauge();
 
       if (cameraGestureLockTimer) clearTimeout(cameraGestureLockTimer);
       cameraGestureLockTimer = setTimeout(() => {
         cameraGestureLockTimer = null;
         if (Date.now() >= cameraGestureLockUntil) {
-          cameraGestureLockUntil = 0; cooldownUntilTime = 0; gesturePointLocked = false; resetGestureGauge();
+          cameraGestureLockUntil = 0;
+          cooldownUntilTime = 0;
+          gesturePointLocked = false;
+          resetGestureGauge();
         }
       }, GESTURE_COOLDOWN_MS + 80);
     }
 
     function updateCooldownGaugeDisplay(remainingSec) {
-      const leftGauge = document.getElementById('gauge-left'); const rightGauge = document.getElementById('gauge-right');
-      leftGauge.classList.add('active', 'cooldown'); rightGauge.classList.add('active', 'cooldown');
-      document.getElementById('gauge-fill-left').style.height = '100%'; document.getElementById('gauge-fill-right').style.height = '100%';
+      const leftGauge = document.getElementById('gauge-left');
+      const rightGauge = document.getElementById('gauge-right');
+
+      leftGauge.classList.add('active', 'cooldown');
+      rightGauge.classList.add('active', 'cooldown');
+
+      document.getElementById('gauge-fill-left').style.height = '100%';
+      document.getElementById('gauge-fill-right').style.height = '100%';
+
       const label = remainingSec === 'WAIT' ? 'WAIT' : `LOCK ${remainingSec}s`;
-      document.getElementById('gauge-text-left').innerText = label; document.getElementById('gauge-text-right').innerText = label;
+      document.getElementById('gauge-text-left').innerText = label;
+      document.getElementById('gauge-text-right').innerText = label;
     }
 
     function resetGestureGauge() {
       gestureStartTime = null;
-      const leftGauge = document.getElementById('gauge-left'); const rightGauge = document.getElementById('gauge-right');
-      leftGauge.classList.remove('active', 'cooldown'); rightGauge.classList.remove('active', 'cooldown');
-      document.getElementById('gauge-fill-left').style.height = '0%'; document.getElementById('gauge-fill-right').style.height = '0%';
+      const leftGauge = document.getElementById('gauge-left');
+      const rightGauge = document.getElementById('gauge-right');
+
+      leftGauge.classList.remove('active', 'cooldown');
+      rightGauge.classList.remove('active', 'cooldown');
+
+      document.getElementById('gauge-fill-left').style.height = '0%';
+      document.getElementById('gauge-fill-right').style.height = '0%';
     }
 
+    /* =========================================================================
+       테니스 경기 규칙 및 스코어보드 제어 엔진
+       ========================================================================= */
     function saveState() {
       historyStack.push(JSON.parse(JSON.stringify(state)));
       if (historyStack.length > MAX_HISTORY) historyStack.shift();
@@ -1619,14 +1813,22 @@
       const modal = document.getElementById('match-result-modal');
       const winner = document.getElementById('match-result-winner');
       const score = document.getElementById('match-result-score');
+
       if (!modal || !winner || !score) return;
 
       const winnerName = getTeamDisplayName(team);
-      const matchSetScores = Array.isArray(state.completedSetScores) ? state.completedSetScores.join(' / ') : '';
+      const setsA = state.setsA;
+      const setsB = state.setsB;
+      const matchSetScores = Array.isArray(state.completedSetScores)
+        ? state.completedSetScores.join(' / ')
+        : '';
 
       winner.textContent = winnerName || `TEAM ${team}`;
-      score.innerHTML = `Winner: <strong>Team ${team}</strong><br/>Match score: ${state.setsA} sets to ${state.setsB}` +
+      score.innerHTML =
+        `Winner: <strong>Team ${team}</strong><br/>` +
+        `Match score: ${setsA} sets to ${setsB}` +
         (matchSetScores ? `<br/>Sets: ${matchSetScores}` : '');
+
       modal.style.display = 'flex';
     }
 
@@ -1640,44 +1842,66 @@
     }
 
     function resetMatch() {
-      cancelServerAnnouncement(); cancelSpeechQueue();
+      cancelServerAnnouncement();
+      cancelSpeechQueue();
       state = {
         ptsA: 0, ptsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
-        isTiebreak: false, tiebreakFirstServer: null, currentServerTeam: config.firstServeTeam,
-        courtLeftTeam: 'A', completedSetScores: []
+        isTiebreak: false, tiebreakFirstServer: null,
+        currentServerTeam: config.firstServeTeam,
+        courtLeftTeam: 'A',
+        completedSetScores: []
       };
-      historyStack = []; resetAllGestureState(true); saveStateToStorage(); hideMatchResultPopup(); render();
+      historyStack = [];
+      resetAllGestureState(true);
+      saveStateToStorage();
+      hideMatchResultPopup();
+      render();
       speak("New match. All match scores have been reset.");
     }
 
     function toggleServeTeam() {
-      cancelServerAnnouncement(); cancelSpeechQueue(); saveState();
+      cancelServerAnnouncement();
+      cancelSpeechQueue();
+      saveState();
       state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A';
-      saveStateToStorage(); render();
+      saveStateToStorage();
+      render();
       speakWithConfiguredDelay(`Service Team ${state.currentServerTeam}.`);
       scheduleServerAnnouncement();
     }
 
     function addPoint(team) {
-      cancelServerAnnouncement(); cancelSpeechQueue(); saveState();
-      if (state.isTiebreak) handleTiebreakPoint(team); else handleStandardPoint(team);
-      saveStateToStorage(); render();
+      cancelServerAnnouncement();
+      cancelSpeechQueue();
+      saveState();
+      if (state.isTiebreak) handleTiebreakPoint(team);
+      else handleStandardPoint(team);
+      saveStateToStorage();
+      render();
     }
 
     function handleStandardPoint(team) {
       const isA = (team === 'A');
-      let pWin = isA ? state.ptsA : state.ptsB; let pLose = isA ? state.ptsB : state.ptsA;
+      let pWin = isA ? state.ptsA : state.ptsB;
+      let pLose = isA ? state.ptsB : state.ptsA;
 
       if (config.deuceRule === 'no-ad' && pWin === 3 && pLose === 3) { winGame(team); return; }
 
       if (pWin >= 3 && pLose >= 3) {
-        if (pWin === pLose) { if (isA) state.ptsA++; else state.ptsB++; speakCall(); } 
-        else if ((isA && state.ptsA > state.ptsB) || (!isA && state.ptsB > state.ptsA)) { winGame(team); } 
-        else { state.ptsA = 3; state.ptsB = 3; speakCall(); }
+        if (pWin === pLose) {
+          if (isA) state.ptsA++; else state.ptsB++;
+          speakCall();
+        } else if ((isA && state.ptsA > state.ptsB) || (!isA && state.ptsB > state.ptsA)) {
+          winGame(team);
+        } else {
+          state.ptsA = 3; state.ptsB = 3;
+          speakCall();
+        }
       } else if (pWin === 3) {
         winGame(team);
       } else {
-        if (isA) state.ptsA++; else state.ptsB++; speakCall();
+        if (isA) state.ptsA++; else state.ptsB++;
+        speakCall();
       }
     }
 
@@ -1690,7 +1914,9 @@
 
       if ((state.ptsA >= 7 || state.ptsB >= 7) && Math.abs(state.ptsA - state.ptsB) >= 2) {
         winGame(state.ptsA > state.ptsB ? 'A' : 'B');
-      } else { speakCall(); }
+      } else {
+        speakCall();
+      }
     }
 
     function getLastName(fullName) {
@@ -1703,150 +1929,261 @@
       return config.type === 'singles' ? getLastName(team === 'A' ? config.playersA[0] : config.playersB[0]) : `Team ${team}`;
     }
 
-    // TTS Game Score Format (e.g. "2, ... 3" OR "2 all")
-    function getGameScoreForServer(serverTeam, gamesA = state.gamesA, gamesB = state.gamesB) {
-      if (gamesA === gamesB) {
-        return `${gamesA} all`;
+    function getGameScoreForServer(serverTeam, gamesA, gamesB) {
+      const sGames = serverTeam === 'A' ? gamesA : gamesB;
+      const rGames = serverTeam === 'A' ? gamesB : gamesA;
+      if (sGames === rGames) {
+        return `${sGames} all`;
       }
-      const s1 = serverTeam === 'A' ? gamesA : gamesB;
-      const s2 = serverTeam === 'A' ? gamesB : gamesA;
-      return `${s1}, ... ${s2}`;
+      return `${sGames}, ... ${rGames}`;
     }
 
     function winGame(team) {
       cancelServerAnnouncement();
       const winnerCall = getTeamDisplayName(team);
+
       if (team === 'A') state.gamesA++; else state.gamesB++;
 
-      const finalGamesA = state.gamesA; const finalGamesB = state.gamesB;
-      const gWin = team === 'A' ? finalGamesA : finalGamesB; const gLose = team === 'A' ? finalGamesB : finalGamesA;
+      const finalGamesA = state.gamesA;
+      const finalGamesB = state.gamesB;
+      const gWin = team === 'A' ? finalGamesA : finalGamesB;
+      const gLose = team === 'A' ? finalGamesB : finalGamesA;
       const wasTiebreak = state.isTiebreak;
 
-      state.ptsA = 0; state.ptsB = 0;
+      state.ptsA = 0;
+      state.ptsB = 0;
+
       const totalGames = finalGamesA + finalGamesB;
       const isAutoCourtChange = (config.courtChange === 'auto' && totalGames % 2 === 1 && !wasTiebreak);
 
-      if (wasTiebreak) { winSet(team, true, { gamesA: finalGamesA, gamesB: finalGamesB }); return; }
-      if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) { winSet(team, false, { gamesA: finalGamesA, gamesB: finalGamesB }); return; }
+      if (wasTiebreak) {
+        winSet(team, true, { gamesA: finalGamesA, gamesB: finalGamesB });
+        return;
+      }
+
+      if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
+        winSet(team, false, { gamesA: finalGamesA, gamesB: finalGamesB });
+        return;
+      }
 
       if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
-        state.isTiebreak = true; state.tiebreakFirstServer = state.currentServerTeam === 'A' ? 'B' : 'A';
+        state.isTiebreak = true;
+        state.tiebreakFirstServer = state.currentServerTeam === 'A' ? 'B' : 'A';
         state.currentServerTeam = state.tiebreakFirstServer;
-        if (isAutoCourtChange) { state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A'; saveStateToStorage(); render(); }
-        speakSequence([`Game, ${winnerCall}.`, `${finalGamesA} all.`, `Tiebreak.`], 650, () => scheduleServerAnnouncement());
+
+        if (isAutoCourtChange) {
+          state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+          saveStateToStorage();
+          render();
+        }
+
+        speakSequence([
+          `Game, ${winnerCall}.`,
+          `${finalGamesA} games all.`,
+          `Tiebreak.`
+        ], 650, () => scheduleServerAnnouncement());
         return;
       }
 
       switchServer();
-      if (isAutoCourtChange) { state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A'; saveStateToStorage(); render(); }
-      speakSequence([`Game, ${winnerCall}.`, `${getGameScoreForServer(state.currentServerTeam, finalGamesA, finalGamesB)}.`], 650, () => scheduleServerAnnouncement());
+      if (isAutoCourtChange) {
+        state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+        saveStateToStorage();
+        render();
+      }
+
+      speakSequence([
+        `Game, ${winnerCall}.`,
+        `${getGameScoreForServer(state.currentServerTeam, finalGamesA, finalGamesB)}.`
+      ], 650, () => scheduleServerAnnouncement());
     }
 
     function winSet(team, viaTiebreak = false, gameInfo = null) {
       cancelServerAnnouncement();
       const winnerCall = getTeamDisplayName(team);
+
       const finalGamesA = gameInfo && Number.isFinite(gameInfo.gamesA) ? gameInfo.gamesA : state.gamesA;
       const finalGamesB = gameInfo && Number.isFinite(gameInfo.gamesB) ? gameInfo.gamesB : state.gamesB;
       const tiebreakFirstServer = state.tiebreakFirstServer;
 
       if (team === 'A') state.setsA++; else state.setsB++;
-      const matchWon = (team === 'A' ? state.setsA : state.setsB) >= config.setsToWin;
+
+      const finalSetsA = state.setsA;
+      const finalSetsB = state.setsB;
+      const matchWon = (team === 'A' ? finalSetsA : finalSetsB) >= config.setsToWin;
 
       if (!matchWon) {
-        if (viaTiebreak && tiebreakFirstServer) { state.currentServerTeam = tiebreakFirstServer === 'A' ? 'B' : 'A'; } 
-        else { switchServer(); }
+        if (viaTiebreak && tiebreakFirstServer) {
+          state.currentServerTeam = tiebreakFirstServer === 'A' ? 'B' : 'A';
+        } else {
+          switchServer();
+        }
       }
 
-      // Read standard formats for Sets
       const gameScoreCall = `${finalGamesA} games to ${finalGamesB}`;
-      const setScoreCall = `${state.setsA} sets to ${state.setsB}`;
+      const setScoreCall = `${finalSetsA} sets to ${finalSetsB}`;
 
       if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
-      const winnerGames = team === 'A' ? finalGamesA : finalGamesB; const loserGames = team === 'A' ? finalGamesB : finalGamesA;
+      const winnerGames = team === 'A' ? finalGamesA : finalGamesB;
+      const loserGames = team === 'A' ? finalGamesB : finalGamesA;
       state.completedSetScores.push(`${winnerGames}-${loserGames}`);
 
-      state.gamesA = 0; state.gamesB = 0; state.ptsA = 0; state.ptsB = 0;
-      state.isTiebreak = false; state.tiebreakFirstServer = null;
+      state.gamesA = 0;
+      state.gamesB = 0;
+      state.ptsA = 0;
+      state.ptsB = 0;
+      state.isTiebreak = false;
+      state.tiebreakFirstServer = null;
 
-      if (!matchWon && config.courtChange === 'auto') { state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A'; }
-      saveStateToStorage(); render();
+      if (!matchWon && config.courtChange === 'auto') {
+        state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+      }
+      saveStateToStorage();
+      render();
 
       if (matchWon) {
-        const matchSetScores = state.completedSetScores.length ? state.completedSetScores.join(', ') : `${winnerGames}-${loserGames}`;
-        let matchPopupShown = false;
-        const finishMatchPopup = () => { if (matchPopupShown) return; matchPopupShown = true; showMatchResultPopup(team); };
+        const matchSetScores = state.completedSetScores.length
+          ? state.completedSetScores.join(', ')
+          : `${winnerGames}-${loserGames}`;
 
-        speakSequence([`Game, set and match, ${winnerCall}.`, `${matchSetScores}.`], 650, finishMatchPopup);
-        setTimeout(finishMatchPopup, Math.max(7000, Number(config.audioDelay || 0) + 6500));
+        let matchPopupShown = false;
+        const finishMatchPopup = () => {
+          if (matchPopupShown) return;
+          matchPopupShown = true;
+          showMatchResultPopup(team);
+        };
+
+        speakSequence([
+          `Game, set and match, ${winnerCall}.`,
+          `${matchSetScores}.`
+        ], 650, finishMatchPopup);
+
+        const popupFallbackMs = Math.max(7000, Number(config.audioDelay || 0) + 6500);
+        setTimeout(finishMatchPopup, popupFallbackMs);
       } else {
-        speakSequence([`Game, ${winnerCall}.`, `${gameScoreCall}.`, `Set, ${winnerCall}.`, `${setScoreCall}.`], 650, () => scheduleServerAnnouncement());
+        speakSequence([
+          `Game, ${winnerCall}.`,
+          `${gameScoreCall}.`,
+          `Set, ${winnerCall}.`,
+          `${setScoreCall}.`
+        ], 650, () => scheduleServerAnnouncement());
       }
     }
 
-    function switchServer() { state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A'; }
+    function switchServer() {
+      state.currentServerTeam = state.currentServerTeam === 'A' ? 'B' : 'A';
+    }
 
     function manualCourtChange(announce = true, recordHistory = true) {
-      cancelServerAnnouncement(); if (recordHistory) saveState();
-      state.courtLeftTeam = (state.courtLeftTeam === 'A') ? 'B' : 'A'; saveStateToStorage(); render();
-      if (announce) { speak("Change ends."); scheduleServerAnnouncement(2500); }
+      cancelServerAnnouncement();
+      if (recordHistory) saveState();
+      state.courtLeftTeam = (state.courtLeftTeam === 'A') ? 'B' : 'A';
+      saveStateToStorage();
+      render();
+      if (announce) {
+        speak("Change ends.");
+        scheduleServerAnnouncement(2500);
+      }
     }
 
     function getSpokenText(text) {
-      return text.replace(/ 15 /g, " Fifteen ").replace(/ 30 /g, " Thirty ").replace(/ 40 /g, " Forty ").replace(/ 0 /g, " Love ").replace(/,\s*,+/g, ".").replace(/\s+/g, " ").trim();
+      return text
+        .replace(/ 15 /g, " Fifteen ")
+        .replace(/ 30 /g, " Thirty ")
+        .replace(/ 40 /g, " Forty ")
+        .replace(/ 0 /g, " Love ")
+        .replace(/,\s*,+/g, ".")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
-    function speak(text) { cancelSpeechQueue(); enqueueSpeech(text, speechSequenceToken); }
-    function speakSequence(texts, gapMs = 650, onComplete = null) {
-      cancelSpeechQueue(); const token = speechSequenceToken;
-      speechQueue = texts.filter(Boolean).map(text => ({ text, gapMs, token })); processSpeechQueue(token, onComplete);
+    function speak(text) {
+      cancelSpeechQueue();
+      enqueueSpeech(text, speechSequenceToken);
     }
-    function enqueueSpeech(text, token = speechSequenceToken) { speechQueue.push({ text, gapMs: 0, token }); processSpeechQueue(token); }
+
+    function speakSequence(texts, gapMs = 650, onComplete = null) {
+      cancelSpeechQueue();
+      const token = speechSequenceToken;
+      speechQueue = texts.filter(Boolean).map(text => ({ text, gapMs, token }));
+      processSpeechQueue(token, onComplete);
+    }
+
+    function enqueueSpeech(text, token = speechSequenceToken) {
+      speechQueue.push({ text, gapMs: 0, token });
+      processSpeechQueue(token);
+    }
 
     function processSpeechQueue(token, onComplete = null) {
       if (speechBusy || !speechQueue.length || token !== speechSequenceToken) {
         if (!speechBusy && !speechQueue.length && token === speechSequenceToken && onComplete) onComplete();
         return;
       }
-      const item = speechQueue.shift(); speechBusy = true;
+      const item = speechQueue.shift();
+      speechBusy = true;
 
       const startUtterance = () => {
-        if (token !== speechSequenceToken) { speechBusy = false; return; }
+        if (token !== speechSequenceToken) {
+          speechBusy = false;
+          return;
+        }
+
         try {
           playSilentWakeAudio();
           const spokenText = getSpokenText(item.text);
           const utterance = new SpeechSynthesisUtterance(spokenText);
           const selectedLang = config.voiceLang || 'en-GB';
-          utterance.lang = selectedLang; utterance.rate = 0.92; utterance.pitch = 1.0;
+          utterance.lang = selectedLang;
+          utterance.rate = 0.92;
+          utterance.pitch = 1.0;
 
           const voices = window.speechSynthesis.getVoices();
           if (voices && voices.length > 0) {
-            const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) || voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
+            const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
+                                 voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
             if (matchedVoice) utterance.voice = matchedVoice;
           }
 
           utterance.onend = () => {
             if (token !== speechSequenceToken) { speechBusy = false; return; }
-            speechTimer = setTimeout(() => { speechTimer = null; speechBusy = false; processSpeechQueue(token, onComplete); }, Math.max(0, item.gapMs || 0));
+            const wait = Math.max(0, item.gapMs || 0);
+            speechTimer = setTimeout(() => {
+              speechTimer = null;
+              speechBusy = false;
+              processSpeechQueue(token, onComplete);
+            }, wait);
           };
           utterance.onerror = () => {
             if (token !== speechSequenceToken) { speechBusy = false; return; }
-            speechTimer = setTimeout(() => { speechTimer = null; speechBusy = false; processSpeechQueue(token, onComplete); }, Math.max(0, item.gapMs || 0));
+            speechTimer = setTimeout(() => {
+              speechTimer = null;
+              speechBusy = false;
+              processSpeechQueue(token, onComplete);
+            }, Math.max(0, item.gapMs || 0));
           };
 
           window.speechSynthesis.speak(utterance);
-        } catch (e) { speechBusy = false; processSpeechQueue(token, onComplete); }
+        } catch (e) {
+          speechBusy = false;
+          processSpeechQueue(token, onComplete);
+        }
       };
 
       const delay = config.audioDelay !== undefined ? Math.max(0, Number(config.audioDelay) || 0) : 200;
-      speechTimer = setTimeout(() => { speechTimer = null; startUtterance(); }, delay);
+      speechTimer = setTimeout(() => {
+        speechTimer = null;
+        startUtterance();
+      }, delay);
     }
 
     function speakCall(prefix = "") {
       let callText = "";
       if (state.isTiebreak) {
-        if (state.ptsA === state.ptsB) callText = `${state.ptsA} all.`; else callText = `${state.ptsA}, ${state.ptsB}.`;
+        if (state.ptsA === state.ptsB) callText = `${state.ptsA} all.`;
+        else callText = `${state.ptsA}, ${state.ptsB}.`;
       } else {
-        const pA = state.ptsA; const pB = state.ptsB;
+        const pA = state.ptsA;
+        const pB = state.ptsB;
         if (pA >= 3 && pB >= 3) {
           if (pA === pB) callText = "Deuce.";
           else if (pA > pB) callText = `Advantage, ${getTeamDisplayName('A')}.`;
@@ -1854,7 +2191,8 @@
         } else {
           if (pA === pB) callText = pointTerms[pA] === "Love" ? "Love all." : `${pointTerms[pA]} all.`;
           else {
-            const sPts = state.currentServerTeam === 'A' ? pA : pB; const rPts = state.currentServerTeam === 'A' ? pB : pA;
+            const sPts = state.currentServerTeam === 'A' ? pA : pB;
+            const rPts = state.currentServerTeam === 'A' ? pB : pA;
             callText = `${pointTerms[sPts]} ${pointTerms[rPts]}.`;
           }
         }
@@ -1872,74 +2210,98 @@
     }
 
     function render() {
+      // 폰트 크기를 CSS 변수로 전달
+      document.documentElement.style.setProperty('--score-font-size', config.scoreFontSize || 'min(32vw, 34vh)');
+
       const camBtn = document.getElementById('btn-camera-toggle');
       if (camBtn) camBtn.classList.toggle('active-toggle', isCameraActive);
 
       const swipeBtn = document.getElementById('btn-swipe-toggle');
       if (swipeBtn) swipeBtn.classList.toggle('active-toggle', !!config.swipeEnabled);
 
-      document.getElementById('disp-players-a').innerText = config.type === 'doubles' ? `${config.playersA[0]} / ${config.playersA[1]}` : config.playersA[0];
-      document.getElementById('disp-players-b').innerText = config.type === 'doubles' ? `${config.playersB[0]} / ${config.playersB[1]}` : config.playersB[0];
+      document.getElementById('disp-players-a').innerText = config.type === 'doubles' 
+        ? `${config.playersA[0]} / ${config.playersA[1]}` : config.playersA[0];
+      document.getElementById('disp-players-b').innerText = config.type === 'doubles' 
+        ? `${config.playersB[0]} / ${config.playersB[1]}` : config.playersB[0];
 
-      document.getElementById('sets-a').innerText = `Set: ${state.setsA}`; document.getElementById('sets-b').innerText = `Set: ${state.setsB}`;
-      document.getElementById('games-a').innerText = `Game: ${state.gamesA}`; document.getElementById('games-b').innerText = `Game: ${state.gamesB}`;
+      document.getElementById('sets-a').innerText = `Set: ${state.setsA}`;
+      document.getElementById('sets-b').innerText = `Set: ${state.setsB}`;
+      document.getElementById('games-a').innerText = `Game: ${state.gamesA}`;
+      document.getElementById('games-b').innerText = `Game: ${state.gamesB}`;
 
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
 
-      // 폰트 크기 동적 적용
-      const fontSizes = { small: 'min(24vw, 26vh)', medium: 'min(32vw, 34vh)', large: 'min(38vw, 40vh)', xlarge: 'min(44vw, 46vh)' };
-      const selectedFont = fontSizes[config.scoreFontSize] || fontSizes['large'];
-      document.getElementById('points-a').style.fontSize = selectedFont;
-      document.getElementById('points-b').style.fontSize = selectedFont;
-
-      const serveAActive = state.currentServerTeam === 'A'; const serveBActive = state.currentServerTeam === 'B';
-      document.getElementById('serve-a').classList.toggle('active', serveAActive); document.getElementById('serve-b').classList.toggle('active', serveBActive);
-      
+      const serveAActive = state.currentServerTeam === 'A';
+      const serveBActive = state.currentServerTeam === 'B';
+      document.getElementById('serve-a').classList.toggle('active', serveAActive);
+      document.getElementById('serve-b').classList.toggle('active', serveBActive);
       const serveMenu = document.getElementById('btn-toggle-serve-s');
       if (serveMenu) {
-        // SERVE 버튼의 불필요한 깜빡임(.active-toggle)을 제거하고, 기능 변경 툴팁만 갱신
+        // SERVE 버튼의 강제 노란색 활성화(toggle) 상태를 해제하여 항상 흰색으로 일반 버튼처럼 보이도록 함
         serveMenu.classList.remove('active-toggle');
+        serveMenu.dataset.serverTeam = state.currentServerTeam;
         serveMenu.title = `Switch Serve Team (current: Team ${state.currentServerTeam})`;
       }
 
-      const leftTeam = state.courtLeftTeam; const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
-      document.getElementById('card-team-a').style.order = (leftTeam === 'A') ? 1 : 2;
-      document.getElementById('card-team-b').style.order = (leftTeam === 'B') ? 1 : 2;
+      const leftTeam = state.courtLeftTeam;
+      const rightTeam = (leftTeam === 'A') ? 'B' : 'A';
+
+      const cardA = document.getElementById('card-team-a');
+      cardA.style.order = (leftTeam === 'A') ? 1 : 2;
+      const cardB = document.getElementById('card-team-b');
+      cardB.style.order = (leftTeam === 'B') ? 1 : 2;
+
       document.getElementById('arrow-a').innerText = (leftTeam === 'A') ? '◀' : '▶';
       document.getElementById('arrow-b').innerText = (leftTeam === 'A') ? '◀' : '▶';
 
       document.getElementById('side-left-bg').className = `court-side left ${leftTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
       document.getElementById('side-right-bg').className = `court-side right ${rightTeam === 'A' ? 'bg-team-a' : 'bg-team-b'}`;
+
       document.getElementById('label-left').innerText = `TEAM ${leftTeam}`;
       document.getElementById('label-right').innerText = `TEAM ${rightTeam}`;
 
-      const totalPts = state.ptsA + state.ptsB; const isDeuceServe = (totalPts % 2 === 0); const isDoubles = (config.type === 'doubles');
-      const serverTeam = state.currentServerTeam; const indices = getActiveServerIndices();
+      const totalPts = state.ptsA + state.ptsB;
+      const isDeuceServe = (totalPts % 2 === 0);
+      const isDoubles = (config.type === 'doubles');
+
+      const serverTeam = state.currentServerTeam;
+      const indices = getActiveServerIndices();
       const activeServerIdx = isDoubles ? (serverTeam === 'A' ? indices.serverIdxA : indices.serverIdxB) : 0;
 
-      const pmA1 = document.getElementById('pm-a1'); const pmA2 = document.getElementById('pm-a2');
-      const pmB1 = document.getElementById('pm-b1'); const pmB2 = document.getElementById('pm-b2');
+      const pmA1 = document.getElementById('pm-a1');
+      const pmA2 = document.getElementById('pm-a2');
+      const pmB1 = document.getElementById('pm-b1');
+      const pmB2 = document.getElementById('pm-b2');
 
       const updateMarkerContent = (el, name, role) => {
         let badgeHtml = role ? `<span class="role-badge visible">${role}</span>` : `<span class="role-badge"></span>`;
         el.innerHTML = `<span class="player-name-text">${name}</span>${badgeHtml}`;
       };
 
-      const isA1_Server = (serverTeam === 'A' && activeServerIdx === 0); const isA2_Server = (serverTeam === 'A' && activeServerIdx === 1);
-      const isB1_Server = (serverTeam === 'B' && activeServerIdx === 0); const isB2_Server = (serverTeam === 'B' && activeServerIdx === 1);
-      const isA1_Receiver = (serverTeam === 'B' && isDeuceServe); const isA2_Receiver = (serverTeam === 'B' && !isDeuceServe);
-      const isB1_Receiver = (serverTeam === 'A' && isDeuceServe); const isB2_Receiver = (serverTeam === 'A' && !isDeuceServe);
+      const isA1_Server = (serverTeam === 'A' && activeServerIdx === 0);
+      const isA2_Server = (serverTeam === 'A' && activeServerIdx === 1);
+      const isB1_Server = (serverTeam === 'B' && activeServerIdx === 0);
+      const isB2_Server = (serverTeam === 'B' && activeServerIdx === 1);
+
+      const isA1_Receiver = (serverTeam === 'B' && isDeuceServe);
+      const isA2_Receiver = (serverTeam === 'B' && !isDeuceServe);
+      const isB1_Receiver = (serverTeam === 'A' && isDeuceServe);
+      const isB2_Receiver = (serverTeam === 'A' && !isDeuceServe);
 
       updateMarkerContent(pmA1, config.playersA[0], isA1_Server ? 'SERVE' : (isA1_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmA2, config.playersA[1], isA2_Server ? 'SERVE' : (isA2_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmB1, config.playersB[0], isB1_Server ? 'SERVE' : (isB1_Receiver ? 'RECEIVER' : ''));
       updateMarkerContent(pmB2, config.playersB[1], isB2_Server ? 'SERVE' : (isB2_Receiver ? 'RECEIVER' : ''));
 
-      pmA1.style.background = 'var(--team-a-color)'; pmA2.style.background = 'var(--team-a-color)';
-      pmB1.style.background = 'var(--team-b-color)'; pmB2.style.background = 'var(--team-b-color)';
+      pmA1.style.background = 'var(--team-a-color)';
+      pmA2.style.background = 'var(--team-a-color)';
+      pmB1.style.background = 'var(--team-b-color)';
+      pmB2.style.background = 'var(--team-b-color)';
 
-      pmA2.style.display = isDoubles ? 'flex' : 'none'; pmB2.style.display = isDoubles ? 'flex' : 'none';
+      pmA2.style.display = isDoubles ? 'flex' : 'none';
+      pmB2.style.display = isDoubles ? 'flex' : 'none';
+
       document.querySelectorAll('.player-marker').forEach(m => m.classList.remove('server', 'receiver'));
 
       if (serverTeam === 'A') {
@@ -1954,27 +2316,55 @@
       const targetBox = document.getElementById('target-box');
 
       const placeTeamPlayers = (team, isLeft) => {
-        const p1 = (team === 'A') ? pmA1 : pmB1; const p2 = (team === 'A') ? pmA2 : pmB2; const isServerTeam = (serverTeam === team);
+        const p1 = (team === 'A') ? pmA1 : pmB1;
+        const p2 = (team === 'A') ? pmA2 : pmB2;
+        const isServerTeam = (serverTeam === team);
+
         if (isLeft) {
           if (isServerTeam) {
-            if (isDeuceServe) { setPos(activeServerIdx === 0 ? p1 : p2, 3, 70); if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 38, 25); } 
-            else { setPos(activeServerIdx === 0 ? p1 : p2, 3, 30); if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 38, 75); }
-          } else { setPos(p1, 14, 68); if (isDoubles) setPos(p2, 14, 32); }
+            if (isDeuceServe) {
+              setPos(activeServerIdx === 0 ? p1 : p2, 3, 70);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 38, 25);
+            } else {
+              setPos(activeServerIdx === 0 ? p1 : p2, 3, 30);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 38, 75);
+            }
+          } else {
+            setPos(p1, 14, 68);
+            if (isDoubles) setPos(p2, 14, 32);
+          }
         } else {
           if (isServerTeam) {
-            if (isDeuceServe) { setPos(activeServerIdx === 0 ? p1 : p2, 97, 30); if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 62, 75); } 
-            else { setPos(activeServerIdx === 0 ? p1 : p2, 97, 70); if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 62, 25); }
-          } else { setPos(p1, 86, 32); if (isDoubles) setPos(p2, 86, 68); }
+            if (isDeuceServe) {
+              setPos(activeServerIdx === 0 ? p1 : p2, 97, 30);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 62, 75);
+            } else {
+              setPos(activeServerIdx === 0 ? p1 : p2, 97, 70);
+              if (isDoubles) setPos(activeServerIdx === 0 ? p2 : p1, 62, 25);
+            }
+          } else {
+            setPos(p1, 86, 32);
+            if (isDoubles) setPos(p2, 86, 68);
+          }
         }
       };
 
-      placeTeamPlayers(leftTeam, true); placeTeamPlayers(rightTeam, false);
+      placeTeamPlayers(leftTeam, true);
+      placeTeamPlayers(rightTeam, false);
 
-      const serverOnLeft = (serverTeam === leftTeam); targetBox.style.transform = 'none';
+      const serverOnLeft = (serverTeam === leftTeam);
+      targetBox.style.transform = 'none';
+
       if (serverOnLeft) {
-        targetBox.style.left = '50%'; targetBox.style.width = '25%'; targetBox.style.height = '35%'; targetBox.style.top = isDeuceServe ? '15%' : '50%';
+        targetBox.style.left = '50%';
+        targetBox.style.width = '25%';
+        targetBox.style.height = '35%';
+        targetBox.style.top = isDeuceServe ? '15%' : '50%';
       } else {
-        targetBox.style.left = '25%'; targetBox.style.width = '25%'; targetBox.style.height = '35%'; targetBox.style.top = isDeuceServe ? '50%' : '15%';
+        targetBox.style.left = '25%';
+        targetBox.style.width = '25%';
+        targetBox.style.height = '35%';
+        targetBox.style.top = isDeuceServe ? '50%' : '15%';
       }
     }
   </script>
