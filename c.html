@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WP Tennis Scoreboard - Dual Person Vision Engine</title>
+  <title>WP Tennis Scoreboard</title>
 
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -751,10 +751,10 @@
       <div class="setting-group">
         <label>동점 시 경기 규칙 (Tie / Draw Rule)</label>
         <select id="set-tie-rule">
-          <option value="tiebreak_equal" id="opt-tb-equal">6:6 타이브레이크 (2게임차 룰, 6:6 시 타이브레이크)</option>
-          <option value="draw_minus1" id="opt-draw-minus1">5:5 동점 종료 (6게임 선취, 5:5 시 게임 종료)</option>
-          <option value="tiebreak_minus1" id="opt-tb-minus1">5:5 타이브레이크 (6게임 선취, 5:5 시 타이브레이크)</option>
-          <option value="draw_equal" id="opt-draw-equal">6:6 동점 종료 (2게임차 룰, 6:6 시 게임 종료)</option>
+          <option value="tiebreak_equal" id="opt-tb-equal">6:6 타이브레이크</option>
+          <option value="draw_minus1" id="opt-draw-minus1">5:5 동점 종료</option>
+          <option value="tiebreak_minus1" id="opt-tb-minus1">5:5 타이브레이크</option>
+          <option value="draw_equal" id="opt-draw-equal">6:6 동점 종료</option>
         </select>
       </div>
 
@@ -1296,10 +1296,10 @@
       const optTbMinus1 = document.getElementById('opt-tb-minus1');
       const optDrawEqual = document.getElementById('opt-draw-equal');
 
-      if (optTbEqual) optTbEqual.textContent = `${gamesVal}:${gamesVal} 타이브레이크 (2게임차 룰, ${gamesVal}:${gamesVal} 시 타이브레이크)`;
-      if (optDrawMinus1) optDrawMinus1.textContent = `${minus1}:${minus1} 동점 종료 (${gamesVal}게임 선취, ${minus1}:${minus1} 시 게임 종료)`;
-      if (optTbMinus1) optTbMinus1.textContent = `${minus1}:${minus1} 타이브레이크 (${gamesVal}게임 선취, ${minus1}:${minus1} 시 타이브레이크)`;
-      if (optDrawEqual) optDrawEqual.textContent = `${gamesVal}:${gamesVal} 동점 종료 (2게임차 룰, ${gamesVal}:${gamesVal} 시 게임 종료)`;
+      if (optTbEqual) optTbEqual.textContent = `${gamesVal}:${gamesVal} 타이브레이크`;
+      if (optDrawMinus1) optDrawMinus1.textContent = `${minus1}:${minus1} 동점 종료`;
+      if (optTbMinus1) optTbMinus1.textContent = `${minus1}:${minus1} 타이브레이크`;
+      if (optDrawEqual) optDrawEqual.textContent = `${gamesVal}:${gamesVal} 동점 종료`;
     }
 
     function populateSettingsModal() {
