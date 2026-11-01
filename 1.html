@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>WP Tennis Scoreboard - Dual Person Vision Engine</title>
+  <title>WP Tennis Scoreboard</title>
 
   <!-- MediaPipe Pose JS Libraries via CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -73,7 +73,9 @@
     }
 
     /* 점수판 레이아웃 */
-    .scoreboard { display: flex; padding: 6px 8px 0 8px; gap: 8px; height: 65%; }
+    .scoreboard {
+      display: flex; padding: 6px 8px 0 8px; gap: 8px; height: 65%; position: relative;
+    }
 
     .team-card {
       flex: 1; border-radius: 10px; padding: 8px 10px; display: flex;
@@ -120,6 +122,84 @@
       font-weight: 900; text-shadow: 4px 4px 16px rgba(0,0,0,0.9);
       line-height: 0.8; text-align: center; display: flex; align-items: center; justify-content: center;
       letter-spacing: -2px; margin: 0; padding: 0; transform: translateY(-2%);
+    }
+
+    /* 점수판 정중앙 스코어 재호출(CALL) 버튼 */
+    .btn-recall-score {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 30;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #1f3f2d, #0b1710);
+      border: 2px solid var(--accent-yellow);
+      color: var(--accent-yellow);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 2px;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.85), 0 0 12px rgba(204, 255, 0, 0.28);
+      transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+      padding: 0;
+      outline: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .btn-recall-score svg {
+      width: 20px;
+      height: 20px;
+      fill: currentColor;
+      pointer-events: none;
+    }
+
+    .btn-recall-score span {
+      font-size: 0.52rem;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      line-height: 1;
+      color: #ffffff;
+      pointer-events: none;
+    }
+
+    .btn-recall-score:active {
+      transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    .btn-recall-score.speaking {
+      background: var(--accent-yellow);
+      color: #000000;
+      box-shadow: 0 0 20px var(--accent-yellow), 0 0 36px rgba(204, 255, 0, 0.6);
+    }
+
+    .btn-recall-score.speaking span {
+      color: #000000;
+    }
+
+    /* 타이브레이크 표시 배지 */
+    .tiebreak-badge {
+      position: absolute;
+      left: 50%;
+      top: 12px;
+      transform: translateX(-50%);
+      z-index: 25;
+      background: rgba(204, 255, 0, 0.92);
+      color: #000;
+      font-size: 0.65rem;
+      font-weight: 900;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 1px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.6);
+      display: none;
+      pointer-events: none;
+    }
+    .tiebreak-badge.visible {
+      display: block;
     }
 
     .serve-ball {
@@ -390,8 +470,15 @@
       margin: 8px 0 12px; text-shadow: 0 0 16px rgba(204,255,0,.45);
     }
     .match-result-score { color: #dce8df; font-size: .9rem; line-height: 1.5; margin-bottom: 16px; }
+    .match-result-actions { display: flex; flex-direction: column; gap: 8px; }
     .match-result-start {
       width: 100%; border: 0; border-radius: 8px; padding: 12px 10px; background: var(--accent-yellow); color: #000; font-size: .9rem; font-weight: 900; cursor: pointer;
+    }
+    .match-result-continue {
+      width: 100%; border: 1px solid var(--panel-border); border-radius: 8px; padding: 10px; background: #183321; color: #fff; font-size: .82rem; font-weight: 700; cursor: pointer; display: none;
+    }
+    .match-result-close {
+      width: 100%; border: 1px solid #3a5c47; border-radius: 8px; padding: 9px; background: transparent; color: #b8ccc0; font-size: .8rem; font-weight: 700; cursor: pointer;
     }
     @keyframes match-result-pop { from { opacity: 0; transform: scale(.92) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 
@@ -430,6 +517,16 @@
 
   <div class="main-app">
     <div class="scoreboard" id="scoreboard-container">
+      <div class="tiebreak-badge" id="tiebreak-badge">TIEBREAK</div>
+
+      <!-- 점수 카운터 정중앙 스코어 재호출(CALL) 버튼 -->
+      <button type="button" class="btn-recall-score" id="btn-recall-score" onclick="recallScore(event)" title="현재 스코어만 다시 호출">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+        </svg>
+        <span>CALL</span>
+      </button>
+
       <div class="team-card team-a" id="card-team-a" style="order: 1;">
         <div class="team-header">
           <div class="team-info">
@@ -448,7 +545,7 @@
           <div class="point-score" id="points-a">0</div>
         </div>
         <div class="games-score" id="games-a">Game: 0</div>
-        <button class="btn-score-up" onclick="addPoint('A')"></button>
+        <button type="button" class="btn-score-up" onclick="addPoint('A')"></button>
       </div>
 
       <div class="team-card team-b" id="card-team-b" style="order: 2;">
@@ -469,7 +566,7 @@
           <div class="point-score" id="points-b">0</div>
         </div>
         <div class="games-score" id="games-b">Game: 0</div>
-        <button class="btn-score-up" onclick="addPoint('B')"></button>
+        <button type="button" class="btn-score-up" onclick="addPoint('B')"></button>
       </div>
     </div>
 
@@ -504,17 +601,17 @@
 
   <div class="sidebar-controls">
     <div class="menu-group-main">
-      <button class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
+      <button type="button" class="btn-icon-menu" id="btn-camera-toggle" onclick="toggleCameraRecognition()" title="Camera Control On/Off">
         <svg viewBox="0 0 24 24"><path d="M9 2L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-3.17L15 2H9zm3 15c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5z"/><circle cx="12" cy="12" r="3"/></svg>
         <span>CAM</span>
       </button>
 
-      <button class="btn-icon-menu" id="btn-swipe-toggle" onclick="toggleSwipeMode()" title="Swipe Mode On/Off">
+      <button type="button" class="btn-icon-menu" id="btn-swipe-toggle" onclick="toggleSwipeMode()" title="Swipe Mode On/Off">
         <svg viewBox="0 0 24 24"><path d="M9 11.24V7.5C9 6.12 10.12 5 11.5 5S14 6.12 14 7.5v3.74c1.21-.81 2-2.18 2-3.74C16 5.01 13.99 3 11.5 3S7 5.01 7 7.5c0 1.56.79 2.93 2 3.74zM18.5 13H18v-2.5C18 9.01 16.99 8 15.75 8S13.5 9.01 13.5 10.5V13h-.5c-.83 0-1.5.67-1.5 1.5v6c0 .83.67 1.5 1.5 1.5h5.5c.83 0 1.5-.67 1.5-1.5v-6c0-.83-.67-1.5-1.5-1.5z"/></svg>
         <span>SWIPE</span>
       </button>
 
-      <button class="btn-icon-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
+      <button type="button" class="btn-icon-menu" id="btn-toggle-serve-s" onclick="toggleServeTeam()" title="Switch Serve Team">
         <svg viewBox="0 0 32 32" aria-hidden="true">
           <circle cx="15" cy="18" r="7.5" fill="none" stroke="currentColor" stroke-width="2.2"/>
           <path d="M10.3 12.8c2.1 1.2 4.8 1.6 7.7.7 1.9-.6 3.4-1.7 4.6-3.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -524,29 +621,29 @@
         <span>SERVE</span>
       </button>
 
-      <button class="btn-icon-menu" onclick="manualCourtChange()" title="Change Court Ends">
+      <button type="button" class="btn-icon-menu" onclick="manualCourtChange()" title="Change Court Ends">
         <svg viewBox="0 0 24 24"><path d="M6.99 11L3 15l3.99 4v-3H14v-2H6.99v-3zM21 9l-3.99-4v3H10v2h7.01v3L21 9z"/></svg>
         <span>COURT</span>
       </button>
 
-      <button class="btn-icon-menu highlight-correct" onclick="undo()" title="Undo Last Point">
+      <button type="button" class="btn-icon-menu highlight-correct" onclick="undo()" title="Undo Last Point">
         <svg viewBox="0 0 24 24"><path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 6v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/></svg>
         <span>CORRECT</span>
       </button>
     </div>
 
     <div class="menu-group-bottom">
-      <button class="btn-icon-menu danger btn-compact" onclick="confirmResetMatch()" title="Reset Match">
+      <button type="button" class="btn-icon-menu danger btn-compact" onclick="confirmResetMatch()" title="Reset Match">
         <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
         <span>RESET</span>
       </button>
 
-      <button class="btn-icon-menu btn-compact" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+      <button type="button" class="btn-icon-menu btn-compact" onclick="toggleFullscreen()" title="Toggle Fullscreen">
         <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
         <span>FULL</span>
       </button>
 
-      <button class="btn-icon-menu btn-compact" id="btn-settings-sidebar" title="Open Settings">
+      <button type="button" class="btn-icon-menu btn-compact" id="btn-settings-sidebar" title="Open Settings">
         <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
         <span>SETTING</span>
       </button>
@@ -557,7 +654,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Settings</h2>
-        <button class="btn-close-modal" id="btn-close-settings">&times;</button>
+        <button type="button" class="btn-close-modal" id="btn-close-settings">&times;</button>
       </div>
 
       <div class="setting-group">
@@ -643,10 +740,21 @@
 
       <div class="setting-group">
         <label>Games per Set</label>
-        <select id="set-games">
+        <select id="set-games" onchange="updateTieRuleLabels()">
           <option value="3">3 Games</option>
+          <option value="4">4 Games</option>
           <option value="5">5 Games</option>
           <option value="6" selected>6 Games</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>동점 시 경기 규칙 (Tie / Draw Rule)</label>
+        <select id="set-tie-rule">
+          <option value="tiebreak_equal" id="opt-tb-equal">6:6 타이브레이크</option>
+          <option value="draw_minus1" id="opt-draw-minus1">5:5 동점 종료</option>
+          <option value="tiebreak_minus1" id="opt-tb-minus1">5:5 타이브레이크</option>
+          <option value="draw_equal" id="opt-draw-equal">6:6 동점 종료</option>
         </select>
       </div>
 
@@ -734,7 +842,7 @@
         </div>
       </div>
 
-      <button class="btn-save" id="btn-save-settings">Apply & Update Settings</button>
+      <button type="button" class="btn-save" id="btn-save-settings">Apply & Update Settings</button>
     </div>
   </div>
 
@@ -742,18 +850,22 @@
     <div class="confirm-box">
       <p id="confirm-message">안내문구</p>
       <div class="confirm-btns">
-        <button class="btn-confirm-yes" id="btn-confirm-yes">확인</button>
-        <button class="btn-confirm-no" id="btn-confirm-no">취소</button>
+        <button type="button" class="btn-confirm-yes" id="btn-confirm-yes">확인</button>
+        <button type="button" class="btn-confirm-no" id="btn-confirm-no">취소</button>
       </div>
     </div>
   </div>
 
   <div class="match-result-modal" id="match-result-modal">
     <div class="match-result-box">
-      <div class="match-result-title">MATCH OVER</div>
+      <div class="match-result-title" id="match-result-title">MATCH OVER</div>
       <div class="match-result-winner" id="match-result-winner">TEAM A</div>
       <div class="match-result-score" id="match-result-score"></div>
-      <button class="match-result-start" id="btn-match-new-game">새 경기 시작 — 전체 초기화</button>
+      <div class="match-result-actions">
+        <button type="button" class="match-result-continue" id="btn-match-continue-set">다음 세트 계속하기 (Next Set)</button>
+        <button type="button" class="match-result-start" id="btn-match-new-game">새 경기 시작 — 전체 초기화</button>
+        <button type="button" class="match-result-close" id="btn-match-close-popup">결과창 닫기 (점수판 확인)</button>
+      </div>
     </div>
   </div>
 
@@ -780,6 +892,7 @@
       firstServeTeam: 'A',
       setsToWin: 3,
       gamesPerSet: 6,
+      tieRule: 'tiebreak_equal',
       deuceRule: 'ad',
       courtChange: 'manual',
       announceServer: '3000',
@@ -797,11 +910,13 @@
       currentServerTeam: 'A',
       courtLeftTeam: 'A',
       completedSetScores: [],
-      matchOver: false
+      matchOver: false,
+      matchWinner: null,
+      isDrawMatch: false
     };
 
     let historyStack = [];
-    const MAX_HISTORY = 10;
+    const MAX_HISTORY = 15;
     const pointTerms = ["Love", "Fifteen", "Thirty", "Forty"];
 
     let wakeLock = null;
@@ -809,6 +924,14 @@
     let serverAnnounceTimer = null;
     let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
     let audioCtx = null;
+    let cachedVoices = [];
+    let activeUtterance = null; // 가비지 컬렉션에 의한 음성 끊김 방지용 전역 참조
+
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => { cachedVoices = window.speechSynthesis.getVoices() || []; };
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
 
     function playSilentWakeAudio() {
       try {
@@ -870,8 +993,6 @@
 
     /**
      * 복식(Doubles) 경기에서 각 팀의 현재 서버 인덱스(0 또는 1)를 반환합니다.
-     * - 일반 게임: 세트 내 진행된 게임 수(gamesA + gamesB)에 따라 2게임 주기로 각 팀 서버 순번이 교대됩니다.
-     * - 타이브레이크: 첫 포인트(1점) 후 2포인트마다 팀과 파트너 순번(A1 -> B1 -> A2 -> B2)이 순환합니다.
      */
     function getActiveServerIndices() {
       const baseCycle = Math.floor((state.gamesA + state.gamesB) / 2) % 2;
@@ -880,25 +1001,12 @@
       }
       const totalPts = state.ptsA + state.ptsB;
       const turnIndex = Math.floor((totalPts + 1) / 2);
-      const firstTeam = state.tiebreakFirstServer || state.currentServerTeam;
-
-      // turnIndex 0, 2, 4... 는 타이브레이크 선서브 팀 차례 / 1, 3, 5... 는 후서브 팀 차례
-      const firstTeamOffset = Math.floor((turnIndex + 1) / 2);
-      const secondTeamOffset = Math.floor(turnIndex / 2);
-
-      // 현재 서브 중인 팀은 정확히 Math.floor(turnIndex / 2) 만큼 파트너가 교대됨
-      const activeOffset = Math.floor(turnIndex / 2);
-      if (state.currentServerTeam === firstTeam) {
-        return {
-          serverIdxA: firstTeam === 'A' ? (baseCycle + activeOffset) % 2 : (baseCycle + secondTeamOffset) % 2,
-          serverIdxB: firstTeam === 'B' ? (baseCycle + activeOffset) % 2 : (baseCycle + secondTeamOffset) % 2
-        };
-      } else {
-        return {
-          serverIdxA: firstTeam === 'A' ? (baseCycle + firstTeamOffset) % 2 : (baseCycle + activeOffset) % 2,
-          serverIdxB: firstTeam === 'B' ? (baseCycle + firstTeamOffset) % 2 : (baseCycle + activeOffset) % 2
-        };
-      }
+      const partnerOffset = Math.floor(turnIndex / 2);
+      const activeIdx = (baseCycle + partnerOffset) % 2;
+      return {
+        serverIdxA: activeIdx,
+        serverIdxB: activeIdx
+      };
     }
 
     let speechQueue = [];
@@ -906,10 +1014,17 @@
     let speechSequenceToken = 0;
     let speechTimer = null;
 
+    function setRecallButtonSpeaking(isSpeaking) {
+      const btn = document.getElementById('btn-recall-score');
+      if (btn) btn.classList.toggle('speaking', !!isSpeaking);
+    }
+
     function cancelSpeechQueue() {
       speechSequenceToken++;
       speechQueue = [];
       speechBusy = false;
+      activeUtterance = null;
+      setRecallButtonSpeaking(false);
       if (speechTimer) { clearTimeout(speechTimer); speechTimer = null; }
       try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch (e) {}
     }
@@ -923,15 +1038,81 @@
       if (config.type !== 'doubles' || config.announceServer === 'off' || state.matchOver) return;
       const delayMs = customDelayMs !== null ? customDelayMs : parseInt(config.announceServer || '3000', 10);
 
-      serverAnnounceTimer = setTimeout(() => {
-        if (config.type !== 'doubles' || state.matchOver) return;
+      const triggerServerCall = () => {
+        if (config.type !== 'doubles' || config.announceServer === 'off' || state.matchOver) {
+          serverAnnounceTimer = null;
+          return;
+        }
+        // 만약 이전 점수 음성이 아직 재생 중이라면 끊지 않고 잠시 대기 후 호출
+        if (speechBusy || ('speechSynthesis' in window && window.speechSynthesis.speaking)) {
+          serverAnnounceTimer = setTimeout(triggerServerCall, 350);
+          return;
+        }
         const serverTeam = state.currentServerTeam;
         const indices = getActiveServerIndices();
         const activeServerIdx = (serverTeam === 'A') ? indices.serverIdxA : indices.serverIdxB;
         const callText = (activeServerIdx === 0) ? "First server." : "Second server.";
         speak(callText);
         serverAnnounceTimer = null;
-      }, delayMs);
+      };
+
+      serverAnnounceTimer = setTimeout(triggerServerCall, delayMs);
+    }
+
+    /* =========================================================================
+       점수 카운터 중앙 스코어 재호출(CALL) 기능 — 오직 점수만 호출
+       ========================================================================= */
+    function recallScore(event) {
+      if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+      }
+      // 예약된 퍼스트/세컨드 서브 콜 및 진행 중인 음성을 모두 취소하고 오직 점수만 호출
+      cancelServerAnnouncement();
+      cancelSpeechQueue();
+
+      // 1. 매치가 종료된 상태일 때
+      if (state.matchOver) {
+        if (state.isDrawMatch) {
+          speak(`${state.gamesA} games all.`);
+        } else {
+          const leadSets = Math.max(state.setsA, state.setsB);
+          const trailSets = Math.min(state.setsA, state.setsB);
+          speak(`${leadSets} ${leadSets === 1 ? 'set' : 'sets'} to ${trailSets}.`);
+        }
+        return;
+      }
+
+      // 2. 타이브레이크 진행 중일 때
+      if (state.isTiebreak) {
+        if (state.ptsA === 0 && state.ptsB === 0) {
+          speak("Zero all.");
+        } else {
+          speakCall("");
+        }
+        return;
+      }
+
+      // 3. 일반 게임 포인트 진행 중일 때 (예: 15:0, 30:30, 듀스 등)
+      if (state.ptsA > 0 || state.ptsB > 0) {
+        speakCall("");
+        return;
+      }
+
+      // 4. 포인트가 0:0일 때 (게임 종료 직후 또는 세트/경기 시작 시점)
+      if (state.gamesA > 0 || state.gamesB > 0) {
+        const gameScoreText = getGameScoreForServer(state.currentServerTeam, state.gamesA, state.gamesB);
+        speak(`${gameScoreText}.`);
+      } else if (state.setsA > 0 || state.setsB > 0) {
+        const leadSets = Math.max(state.setsA, state.setsB);
+        const trailSets = Math.min(state.setsA, state.setsB);
+        const setScoreCall = (state.setsA === state.setsB)
+          ? `${leadSets} ${leadSets === 1 ? 'set' : 'sets'} all.`
+          : `${leadSets} ${leadSets === 1 ? 'set' : 'sets'} to ${trailSets}.`;
+        speak(setScoreCall);
+      } else {
+        speak("Love all.");
+      }
     }
 
     async function requestWakeLock() {
@@ -987,6 +1168,7 @@
           config = { ...config, ...JSON.parse(savedConfig) };
           if (!Number.isFinite(Number(config.gestureHoldDuration)) || Number(config.gestureHoldDuration) <= 0) config.gestureHoldDuration = 1.0;
           if (!Number.isFinite(Number(config.audioDelay)) || Number(config.audioDelay) < 0) config.audioDelay = 600;
+          if (!config.tieRule) config.tieRule = 'tiebreak_equal';
         } catch(e) {}
       }
       const savedState = localStorage.getItem('tennis_state');
@@ -995,6 +1177,7 @@
           state = { ...state, ...JSON.parse(savedState) };
           if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
           if (typeof state.matchOver !== 'boolean') state.matchOver = false;
+          if (typeof state.isDrawMatch !== 'boolean') state.isDrawMatch = false;
         } catch(e) {}
       }
     }
@@ -1008,6 +1191,7 @@
     }
 
     async function startFullscreenApp() {
+      playSilentWakeAudio();
       toggleFullscreen();
       await requestWakeLock();
       document.getElementById('fs-overlay').style.display = 'none';
@@ -1022,6 +1206,13 @@
       populateSettingsModal();
       await requestWakeLock();
       render();
+      if (state.matchOver) {
+        if (state.isDrawMatch) {
+          showDrawMatchResultPopup(state.gamesA, state.gamesB);
+        } else {
+          showMatchResultPopup(state.matchWinner || (state.setsA >= state.setsB ? 'A' : 'B'));
+        }
+      }
     };
 
     function setupEvents() {
@@ -1039,6 +1230,12 @@
 
       const newGameBtn = document.getElementById('btn-match-new-game');
       if (newGameBtn) newGameBtn.onclick = () => { resetMatch(); };
+
+      const continueSetBtn = document.getElementById('btn-match-continue-set');
+      if (continueSetBtn) continueSetBtn.onclick = () => { continueToNextSetAfterDraw(); };
+
+      const closePopupBtn = document.getElementById('btn-match-close-popup');
+      if (closePopupBtn) closePopupBtn.onclick = () => { hideMatchResultPopup(); };
     }
 
     function speakWithConfiguredDelay(text) { speak(text); }
@@ -1052,13 +1249,13 @@
 
     function setupSwipeEvents() {
       window.addEventListener('touchstart', (e) => {
-        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal')) return;
+        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal') || e.target.closest('.btn-recall-score')) return;
         touchStartX = e.changedTouches[0].screenX;
         touchStartY = e.changedTouches[0].screenY;
       }, { passive: true });
 
       window.addEventListener('touchend', (e) => {
-        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal')) return;
+        if (!config.swipeEnabled || e.target.closest('.modal') || e.target.closest('.confirm-modal') || e.target.closest('.match-result-modal') || e.target.closest('.btn-recall-score')) return;
         touchEndX = e.changedTouches[0].screenX;
         touchEndY = e.changedTouches[0].screenY;
         handleSwipeGesture();
@@ -1090,6 +1287,21 @@
       }
     }
 
+    function updateTieRuleLabels() {
+      const gamesVal = parseInt(document.getElementById('set-games').value, 10) || 6;
+      const minus1 = Math.max(1, gamesVal - 1);
+
+      const optTbEqual = document.getElementById('opt-tb-equal');
+      const optDrawMinus1 = document.getElementById('opt-draw-minus1');
+      const optTbMinus1 = document.getElementById('opt-tb-minus1');
+      const optDrawEqual = document.getElementById('opt-draw-equal');
+
+      if (optTbEqual) optTbEqual.textContent = `${gamesVal}:${gamesVal} 타이브레이크`;
+      if (optDrawMinus1) optDrawMinus1.textContent = `${minus1}:${minus1} 동점 종료`;
+      if (optTbMinus1) optTbMinus1.textContent = `${minus1}:${minus1} 타이브레이크`;
+      if (optDrawEqual) optDrawEqual.textContent = `${gamesVal}:${gamesVal} 동점 종료`;
+    }
+
     function populateSettingsModal() {
       document.getElementById('set-score-font').value = config.scoreFontSize || 'large';
       document.getElementById('set-camera-res').value = config.cameraRes || 'max';
@@ -1109,6 +1321,12 @@
       document.getElementById('set-first-serve').value = config.firstServeTeam;
       document.getElementById('set-sets').value = config.setsToWin;
       document.getElementById('set-games').value = config.gamesPerSet;
+
+      updateTieRuleLabels();
+      const tieRuleSelect = document.getElementById('set-tie-rule');
+      tieRuleSelect.value = config.tieRule || 'tiebreak_equal';
+      if (!tieRuleSelect.value) tieRuleSelect.value = 'tiebreak_equal';
+
       document.getElementById('set-deuce').value = config.deuceRule;
       document.getElementById('set-court').value = config.courtChange;
       document.getElementById('set-announce-server').value = config.announceServer || '3000';
@@ -1149,6 +1367,7 @@
       config.firstServeTeam = document.getElementById('set-first-serve').value;
       config.setsToWin = parseInt(document.getElementById('set-sets').value, 10);
       config.gamesPerSet = parseInt(document.getElementById('set-games').value, 10);
+      config.tieRule = document.getElementById('set-tie-rule').value || 'tiebreak_equal';
       config.deuceRule = document.getElementById('set-deuce').value;
       config.courtChange = document.getElementById('set-court').value;
       config.announceServer = document.getElementById('set-announce-server').value;
@@ -1163,7 +1382,6 @@
         right: document.getElementById('swipe-right').value
       };
 
-      // 경기가 아직 시작되지 않은 초기 상태라면 First Serve Team 변경을 즉시 반영
       if (state.ptsA === 0 && state.ptsB === 0 && state.gamesA === 0 && state.gamesB === 0 && state.setsA === 0 && state.setsB === 0 && historyStack.length === 0) {
         state.currentServerTeam = config.firstServeTeam;
         saveStateToStorage();
@@ -1398,7 +1616,6 @@
       const p1 = personStatusLeft;
       const p2 = personStatusRight;
 
-      // 쿨다운 잠금 중이면 잠금 게이지 우선 표시
       if (cameraGestureLockUntil > 0) {
         if (now < cameraGestureLockUntil) {
           updateCooldownGaugeDisplay(Math.max(0, (cameraGestureLockUntil - now) / 1000).toFixed(1));
@@ -1643,27 +1860,84 @@
 
     function undo() {
       cancelServerAnnouncement();
+      cancelSpeechQueue();
       if (historyStack.length === 0) return;
       state = historyStack.pop();
       hideMatchResultPopup();
       saveStateToStorage();
       render();
-      speakCall("Correction, ");
+      if (state.ptsA === 0 && state.ptsB === 0 && !state.isTiebreak && (state.gamesA > 0 || state.gamesB > 0)) {
+        speak(`Correction. ${getGameScoreForServer(state.currentServerTeam, state.gamesA, state.gamesB)}.`);
+      } else {
+        speakCall("Correction, ");
+      }
     }
 
     function showMatchResultPopup(team) {
       const modal = document.getElementById('match-result-modal');
+      const title = document.getElementById('match-result-title');
       const winner = document.getElementById('match-result-winner');
       const score = document.getElementById('match-result-score');
+      const continueBtn = document.getElementById('btn-match-continue-set');
       if (!modal || !winner || !score) return;
 
       const winnerName = getTeamDisplayName(team);
       const matchSetScores = Array.isArray(state.completedSetScores) ? state.completedSetScores.join(' / ') : '';
 
+      if (title) title.textContent = 'MATCH OVER';
       winner.textContent = winnerName || `TEAM ${team}`;
       score.innerHTML = `Winner: <strong>Team ${team}</strong><br/>Match score: ${state.setsA} sets to ${state.setsB}` +
         (matchSetScores ? `<br/>Sets: ${matchSetScores}` : '');
+      if (continueBtn) continueBtn.style.display = 'none';
       modal.style.display = 'flex';
+    }
+
+    function showDrawMatchResultPopup(gamesA, gamesB) {
+      const modal = document.getElementById('match-result-modal');
+      const title = document.getElementById('match-result-title');
+      const winner = document.getElementById('match-result-winner');
+      const score = document.getElementById('match-result-score');
+      const continueBtn = document.getElementById('btn-match-continue-set');
+      if (!modal || !winner || !score) return;
+
+      const matchSetScores = Array.isArray(state.completedSetScores) ? state.completedSetScores.join(' / ') : `${gamesA}-${gamesB}`;
+
+      if (title) title.textContent = 'MATCH TIED (동점 종료)';
+      winner.textContent = `${gamesA} : ${gamesB} DRAW`;
+      score.innerHTML = `Result: <strong>동점 무승부 종료 (${gamesA} - ${gamesB})</strong>` +
+        (matchSetScores ? `<br/>Set Scores: ${matchSetScores}` : '');
+
+      if (continueBtn) {
+        continueBtn.style.display = (config.setsToWin > 1) ? 'block' : 'none';
+      }
+      modal.style.display = 'flex';
+    }
+
+    function continueToNextSetAfterDraw() {
+      cancelServerAnnouncement();
+      cancelSpeechQueue();
+      saveState();
+
+      const totalGamesInSet = state.gamesA + state.gamesB;
+      state.gamesA = 0;
+      state.gamesB = 0;
+      state.ptsA = 0;
+      state.ptsB = 0;
+      state.isTiebreak = false;
+      state.tiebreakFirstServer = null;
+      state.matchOver = false;
+      state.isDrawMatch = false;
+      state.matchWinner = null;
+
+      switchServer();
+      if (config.courtChange === 'auto' && totalGamesInSet % 2 === 1) {
+        state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+      }
+
+      hideMatchResultPopup();
+      saveStateToStorage();
+      render();
+      speakSequence([`Next set.`, `Love all.`], 500, () => scheduleServerAnnouncement());
     }
 
     function hideMatchResultPopup() {
@@ -1681,7 +1955,7 @@
       state = {
         ptsA: 0, ptsB: 0, gamesA: 0, gamesB: 0, setsA: 0, setsB: 0,
         isTiebreak: false, tiebreakFirstServer: null, currentServerTeam: config.firstServeTeam,
-        courtLeftTeam: 'A', completedSetScores: [], matchOver: false
+        courtLeftTeam: 'A', completedSetScores: [], matchOver: false, matchWinner: null, isDrawMatch: false
       };
       historyStack = [];
       resetAllGestureState(true);
@@ -1702,8 +1976,7 @@
       }
       saveStateToStorage();
       render();
-      speakWithConfiguredDelay(`Service Team ${state.currentServerTeam}.`);
-      scheduleServerAnnouncement();
+      speakSequence([`Service Team ${state.currentServerTeam}.`], 0, () => scheduleServerAnnouncement());
     }
 
     function addPoint(team) {
@@ -1750,7 +2023,6 @@
       if (team === 'A') state.ptsA++; else state.ptsB++;
       const totalPts = state.ptsA + state.ptsB;
 
-      // 타이브레이크 종료 여부 먼저 판정 (종료 시 불필요한 6포인트 코트 체인지 중복 방지)
       const isTiebreakWon = (state.ptsA >= 7 || state.ptsB >= 7) && Math.abs(state.ptsA - state.ptsB) >= 2;
       if (isTiebreakWon) {
         winGame(state.ptsA > state.ptsB ? 'A' : 'B');
@@ -1777,11 +2049,11 @@
 
     function getGameScoreForServer(serverTeam, gamesA = state.gamesA, gamesB = state.gamesB) {
       if (gamesA === gamesB) {
-        return `${gamesA} all`;
+        return `${gamesA} games all`;
       }
       const s1 = serverTeam === 'A' ? gamesA : gamesB;
       const s2 = serverTeam === 'A' ? gamesB : gamesA;
-      return `${s1}, ... ${s2}`;
+      return `${s1}, ${s2}`;
     }
 
     function winGame(team) {
@@ -1804,31 +2076,88 @@
         winSet(team, true, { gamesA: finalGamesA, gamesB: finalGamesB });
         return;
       }
-      if (gWin >= config.gamesPerSet && (gWin - gLose) >= 2) {
-        winSet(team, false, { gamesA: finalGamesA, gamesB: finalGamesB });
-        return;
-      }
 
-      if (gWin === config.gamesPerSet && gLose === config.gamesPerSet) {
-        state.isTiebreak = true;
-        state.tiebreakFirstServer = state.currentServerTeam === 'A' ? 'B' : 'A';
-        state.currentServerTeam = state.tiebreakFirstServer;
-        if (isAutoCourtChange) {
-          state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+      const targetGames = config.gamesPerSet;
+      const tieRule = config.tieRule || 'tiebreak_equal';
+      const isMinus1Mode = (tieRule === 'draw_minus1' || tieRule === 'tiebreak_minus1');
+      const isDrawMode = (tieRule === 'draw_minus1' || tieRule === 'draw_equal');
+      const tieTriggerGames = isMinus1Mode ? Math.max(1, targetGames - 1) : targetGames;
+
+      // 1. 동점 도달 판정 (예: 6게임 선취제 5:5 동점 또는 설정 게임수 N:N 동점)
+      if (gWin === tieTriggerGames && gLose === tieTriggerGames) {
+        if (isDrawMode) {
+          finishSetByDraw(team, finalGamesA, finalGamesB);
+          return;
+        } else {
+          state.isTiebreak = true;
+          state.tiebreakFirstServer = state.currentServerTeam === 'A' ? 'B' : 'A';
+          state.currentServerTeam = state.tiebreakFirstServer;
+          if (isAutoCourtChange) {
+            state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
+          }
           saveStateToStorage();
           render();
+          speakSequence([`Game, ${winnerCall}.`, `${finalGamesA} games all.`, `Tiebreak.`], 550, () => scheduleServerAnnouncement());
+          return;
         }
-        speakSequence([`Game, ${winnerCall}.`, `${finalGamesA} all.`, `Tiebreak.`], 650, () => scheduleServerAnnouncement());
-        return;
       }
 
+      // 2. 세트 승리 판정
+      if (isMinus1Mode) {
+        if (gWin >= targetGames) {
+          winSet(team, false, { gamesA: finalGamesA, gamesB: finalGamesB });
+          return;
+        }
+      } else {
+        if (gWin >= targetGames && (gWin - gLose) >= 2) {
+          winSet(team, false, { gamesA: finalGamesA, gamesB: finalGamesB });
+          return;
+        }
+      }
+
+      // 3. 다음 게임 계속 진행
       switchServer();
       if (isAutoCourtChange) {
         state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
-        saveStateToStorage();
-        render();
       }
-      speakSequence([`Game, ${winnerCall}.`, `${getGameScoreForServer(state.currentServerTeam, finalGamesA, finalGamesB)}.`], 650, () => scheduleServerAnnouncement());
+      saveStateToStorage();
+      render();
+      speakSequence([`Game, ${winnerCall}.`, `${getGameScoreForServer(state.currentServerTeam, finalGamesA, finalGamesB)}.`], 550, () => scheduleServerAnnouncement());
+    }
+
+    function finishSetByDraw(lastPointWinnerTeam, finalGamesA, finalGamesB) {
+      cancelServerAnnouncement();
+      const winnerCall = getTeamDisplayName(lastPointWinnerTeam);
+
+      if (!Array.isArray(state.completedSetScores)) state.completedSetScores = [];
+      state.completedSetScores.push(`${finalGamesA}-${finalGamesB} (Draw)`);
+
+      state.gamesA = finalGamesA;
+      state.gamesB = finalGamesB;
+      state.ptsA = 0;
+      state.ptsB = 0;
+      state.isTiebreak = false;
+      state.tiebreakFirstServer = null;
+      state.matchOver = true;
+      state.isDrawMatch = true;
+      state.matchWinner = null;
+
+      saveStateToStorage();
+      render();
+
+      let popupShown = false;
+      const showPopup = () => {
+        if (popupShown || !state.matchOver) return;
+        popupShown = true;
+        showDrawMatchResultPopup(finalGamesA, finalGamesB);
+      };
+
+      speakSequence([
+        `Game, ${winnerCall}.`,
+        `${finalGamesA} games all.`,
+        `Match tied.`
+      ], 550, showPopup);
+      setTimeout(showPopup, Math.max(5500, Number(config.audioDelay || 0) + 5000));
     }
 
     function winSet(team, viaTiebreak = false, gameInfo = null) {
@@ -1841,6 +2170,8 @@
       if (team === 'A') state.setsA++; else state.setsB++;
       const matchWon = (team === 'A' ? state.setsA : state.setsB) >= config.setsToWin;
       state.matchOver = matchWon;
+      state.isDrawMatch = false;
+      state.matchWinner = matchWon ? team : null;
 
       if (!matchWon) {
         if (viaTiebreak && tiebreakFirstServer) {
@@ -1850,7 +2181,6 @@
         }
       }
 
-      // 승리 팀 기준으로 세트 게임 스코어 및 세트 스코어 안내
       const winnerGames = team === 'A' ? finalGamesA : finalGamesB;
       const loserGames = team === 'A' ? finalGamesB : finalGamesA;
       const gameScoreCall = `${winnerGames} games to ${loserGames}`;
@@ -1872,7 +2202,6 @@
       state.isTiebreak = false;
       state.tiebreakFirstServer = null;
 
-      // ITF Rule 10: 세트 총 게임 수가 홀수(예: 6-3, 6-1, 7-5, 7-6)일 때만 세트 종료 시 코트 체인지
       if (!matchWon && config.courtChange === 'auto' && (totalGamesInSet % 2 === 1 || viaTiebreak)) {
         state.courtLeftTeam = state.courtLeftTeam === 'A' ? 'B' : 'A';
       }
@@ -1883,15 +2212,15 @@
         const matchSetScores = state.completedSetScores.length ? state.completedSetScores.join(', ') : `${winnerGames}-${loserGames}`;
         let matchPopupShown = false;
         const finishMatchPopup = () => {
-          if (matchPopupShown) return;
+          if (matchPopupShown || !state.matchOver) return;
           matchPopupShown = true;
           showMatchResultPopup(team);
         };
 
-        speakSequence([`Game, set and match, ${winnerCall}.`, `${matchSetScores}.`], 650, finishMatchPopup);
-        setTimeout(finishMatchPopup, Math.max(7000, Number(config.audioDelay || 0) + 6500));
+        speakSequence([`Game, set and match, ${winnerCall}.`, `${matchSetScores}.`], 550, finishMatchPopup);
+        setTimeout(finishMatchPopup, Math.max(6500, Number(config.audioDelay || 0) + 6000));
       } else {
-        speakSequence([`Game, ${winnerCall}.`, `${gameScoreCall}.`, `Set, ${winnerCall}.`, `${setScoreCall}.`], 650, () => scheduleServerAnnouncement());
+        speakSequence([`Game, ${winnerCall}.`, `${gameScoreCall}.`, `Set, ${winnerCall}.`, `${setScoreCall}.`], 550, () => scheduleServerAnnouncement());
       }
     }
 
@@ -1907,70 +2236,117 @@
       saveStateToStorage();
       render();
       if (announce) {
-        speak("Change ends.");
-        scheduleServerAnnouncement(2500);
+        if (state.ptsA === 0 && state.ptsB === 0 && !state.isTiebreak) {
+          speakSequence(["Change ends."], 0, () => scheduleServerAnnouncement(1500));
+        } else {
+          speak("Change ends.");
+        }
       }
     }
 
     function getSpokenText(text) {
-      return text.replace(/ 15 /g, " Fifteen ").replace(/ 30 /g, " Thirty ").replace(/ 40 /g, " Forty ").replace(/ 0 /g, " Love ").replace(/,\s*,+/g, ".").replace(/\s+/g, " ").trim();
+      return text.replace(/,\s*,+/g, ".").replace(/\s+/g, " ").trim();
     }
 
-    function speak(text) { cancelSpeechQueue(); enqueueSpeech(text, speechSequenceToken); }
-    function speakSequence(texts, gapMs = 650, onComplete = null) {
+    function speak(text) {
+      cancelSpeechQueue();
+      enqueueSpeech(text, speechSequenceToken);
+    }
+
+    function speakSequence(texts, gapMs = 550, onComplete = null) {
       cancelSpeechQueue();
       const token = speechSequenceToken;
-      speechQueue = texts.filter(Boolean).map(text => ({ text, gapMs, token }));
+      speechQueue = texts.filter(Boolean).map((text, idx) => ({
+        text,
+        gapMs,
+        token,
+        isFirst: idx === 0
+      }));
       processSpeechQueue(token, onComplete);
     }
+
     function enqueueSpeech(text, token = speechSequenceToken) {
-      speechQueue.push({ text, gapMs: 0, token });
+      speechQueue.push({ text, gapMs: 0, token, isFirst: true });
       processSpeechQueue(token);
     }
 
     function processSpeechQueue(token, onComplete = null) {
       if (speechBusy || !speechQueue.length || token !== speechSequenceToken) {
-        if (!speechBusy && !speechQueue.length && token === speechSequenceToken && onComplete) onComplete();
+        if (!speechBusy && !speechQueue.length && token === speechSequenceToken) {
+          activeUtterance = null;
+          setRecallButtonSpeaking(false);
+          if (onComplete) onComplete();
+        }
         return;
       }
+
       const item = speechQueue.shift();
       speechBusy = true;
+      setRecallButtonSpeaking(true);
+
+      // 첫 문장 발화 대기 시작 시점에 무음 오디오를 먼저 재생하여 블루투스 스피커 절전 모드를 깨움
+      if (item.isFirst) {
+        playSilentWakeAudio();
+      }
 
       const startUtterance = () => {
-        if (token !== speechSequenceToken) { speechBusy = false; return; }
+        if (token !== speechSequenceToken) {
+          speechBusy = false;
+          activeUtterance = null;
+          setRecallButtonSpeaking(false);
+          return;
+        }
         try {
-          playSilentWakeAudio();
           const spokenText = getSpokenText(item.text);
           const utterance = new SpeechSynthesisUtterance(spokenText);
+          activeUtterance = utterance; // 전역 참조 유지로 GC 방지
+
           const selectedLang = config.voiceLang || 'en-GB';
           utterance.lang = selectedLang;
           utterance.rate = 0.92;
           utterance.pitch = 1.0;
 
-          const voices = window.speechSynthesis.getVoices();
+          const voices = (cachedVoices && cachedVoices.length > 0) ? cachedVoices : window.speechSynthesis.getVoices();
           if (voices && voices.length > 0) {
             const matchedVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase() === selectedLang.toLowerCase()) ||
                                  voices.find(v => v.lang.toLowerCase().startsWith(selectedLang.substring(0, 2).toLowerCase()));
             if (matchedVoice) utterance.voice = matchedVoice;
           }
 
-          utterance.onend = () => {
-            if (token !== speechSequenceToken) { speechBusy = false; return; }
-            speechTimer = setTimeout(() => { speechTimer = null; speechBusy = false; processSpeechQueue(token, onComplete); }, Math.max(0, item.gapMs || 0));
+          let handled = false;
+          const handleFinish = () => {
+            if (handled) return;
+            handled = true;
+            if (token !== speechSequenceToken) {
+              speechBusy = false;
+              activeUtterance = null;
+              setRecallButtonSpeaking(false);
+              return;
+            }
+            const nextGap = speechQueue.length > 0 ? Math.max(0, item.gapMs || 0) : 0;
+            speechTimer = setTimeout(() => {
+              speechTimer = null;
+              speechBusy = false;
+              processSpeechQueue(token, onComplete);
+            }, nextGap);
           };
-          utterance.onerror = () => {
-            if (token !== speechSequenceToken) { speechBusy = false; return; }
-            speechTimer = setTimeout(() => { speechTimer = null; speechBusy = false; processSpeechQueue(token, onComplete); }, Math.max(0, item.gapMs || 0));
-          };
+
+          utterance.onend = handleFinish;
+          utterance.onerror = handleFinish;
 
           window.speechSynthesis.speak(utterance);
         } catch (e) {
           speechBusy = false;
+          activeUtterance = null;
+          setRecallButtonSpeaking(false);
           processSpeechQueue(token, onComplete);
         }
       };
 
-      const delay = config.audioDelay !== undefined ? Math.max(0, Number(config.audioDelay) || 0) : 200;
+      // 첫 문장에만 스피커 웨이크업 딜레이(audioDelay)를 적용하고 후속 문장은 즉시 이어서 재생
+      const delay = item.isFirst
+        ? (config.audioDelay !== undefined ? Math.max(50, Number(config.audioDelay) || 0) : 200)
+        : 40;
       speechTimer = setTimeout(() => { speechTimer = null; startUtterance(); }, delay);
     }
 
@@ -1980,7 +2356,6 @@
         if (state.ptsA === state.ptsB) {
           callText = `${state.ptsA} all.`;
         } else {
-          // ITF 심판 콜 규칙: 타이브레이크에서는 리드하는 팀의 점수를 먼저 부르고 리드 팀명을 호명
           const leaderTeam = state.ptsA > state.ptsB ? 'A' : 'B';
           const leadPts = Math.max(state.ptsA, state.ptsB);
           const trailPts = Math.min(state.ptsA, state.ptsB);
@@ -1990,9 +2365,13 @@
         const pA = state.ptsA;
         const pB = state.ptsB;
         if (pA >= 3 && pB >= 3) {
-          if (pA === pB) callText = "Deuce.";
-          else if (pA > pB) callText = `Advantage, ${getTeamDisplayName('A')}.`;
-          else callText = `Advantage, ${getTeamDisplayName('B')}.`;
+          if (pA === pB) {
+            callText = config.deuceRule === 'no-ad' ? "Deuce. Deciding point." : "Deuce.";
+          } else if (pA > pB) {
+            callText = `Advantage, ${getTeamDisplayName('A')}.`;
+          } else {
+            callText = `Advantage, ${getTeamDisplayName('B')}.`;
+          }
         } else {
           if (pA === pB) {
             callText = pointTerms[pA] === "Love" ? "Love all." : `${pointTerms[pA]} all.`;
@@ -2022,6 +2401,9 @@
       const swipeBtn = document.getElementById('btn-swipe-toggle');
       if (swipeBtn) swipeBtn.classList.toggle('active-toggle', !!config.swipeEnabled);
 
+      const tbBadge = document.getElementById('tiebreak-badge');
+      if (tbBadge) tbBadge.classList.toggle('visible', !!state.isTiebreak);
+
       document.getElementById('disp-players-a').innerText = config.type === 'doubles' ? `${config.playersA[0]} / ${config.playersA[1]}` : config.playersA[0];
       document.getElementById('disp-players-b').innerText = config.type === 'doubles' ? `${config.playersB[0]} / ${config.playersB[1]}` : config.playersB[0];
 
@@ -2033,7 +2415,6 @@
       document.getElementById('points-a').innerText = formatScore(state.ptsA, state.ptsB);
       document.getElementById('points-b').innerText = formatScore(state.ptsB, state.ptsA);
 
-      // 폰트 크기 동적 적용
       const fontSizes = { small: 'min(24vw, 26vh)', medium: 'min(32vw, 34vh)', large: 'min(38vw, 40vh)', xlarge: 'min(44vw, 46vh)' };
       const selectedFont = fontSizes[config.scoreFontSize] || fontSizes['large'];
       document.getElementById('points-a').style.fontSize = selectedFont;
@@ -2084,7 +2465,6 @@
       const isB1_Server = (serverTeam === 'B' && activeServerIdx === 0);
       const isB2_Server = (serverTeam === 'B' && isDoubles && activeServerIdx === 1);
 
-      // 단식일 때는 P1이 항상 리시버가 되며, 복식일 때는 듀스/애드 코트에 따라 P1/P2가 리시버를 맡음
       const isA1_Receiver = (serverTeam === 'B' && (!isDoubles || isDeuceServe));
       const isA2_Receiver = (serverTeam === 'B' && isDoubles && !isDeuceServe);
       const isB1_Receiver = (serverTeam === 'A' && (!isDoubles || isDeuceServe));
@@ -2134,7 +2514,6 @@
               setPos(p1, 14, 68);
               setPos(p2, 14, 32);
             } else {
-              // 단식 리시버는 듀스/애드 서브에 따라 위치 이동
               setPos(p1, 14, isDeuceServe ? 68 : 32);
             }
           }
@@ -2152,7 +2531,6 @@
               setPos(p1, 86, 32);
               setPos(p2, 86, 68);
             } else {
-              // 단식 리시버는 듀스/애드 서브에 따라 위치 이동
               setPos(p1, 86, isDeuceServe ? 32 : 68);
             }
           }
