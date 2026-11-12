@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>실시간 바코드 스캐너</title>
+    <!-- 카메라 바코드 스캔 라이브러리 (버전 고정) -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <!-- WebRTC 실시간 통신 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a;
+            color: #f8fafc;
+            overflow: hidden;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            gap: 6px;
+            overflow-y: auto;
+        }
+
+        /* 상태 표시바 */
+        .status-bar {
+            background: #1e293b;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #94a3b8;
+            flex-shrink: 0;
+        }
+
+        .badge {
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 0.65rem;
+            font-weight: bold;
+        }
+
+        .bg-red { background: #ef4444; color: white; }
+        .bg-green { background: #10b981; color: white; }
+
+        /* 입력창 */
+        .input-box {
+            display: flex;
+            gap: 4px;
+            background: #1e293b;
+            padding: 6px;
+            border-radius: 6px;
+        }
+
+        .input-box input {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: white;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        /* ===== 카메라 영역 ===== */
+        #scanner-section {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .scanner-wrap {
+            --strip: 50px;
+            position: relative;
+            width: 100%;
+            min-height: 150px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #reader {
+            width: 100% !important;
+            border: none !important;
+            background: #000;
+        }
+
+        #reader video {
+            width: 100% !important;
+            display: block;
+        }
+
+        /* 라이브러리 기본 음영 박스는 숨기고 직접 만든 오버레이 사용 */
+        #qr-shaded-region { display: none !important; }
+        #reader img[alt="Info icon"] { display: none !important; }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+        }
+
+        /* 인식 영역 (이 띠 안쪽만 디코딩) */
+        .strip {
+            position: absolute;
+            left: 4%;
+            right: 4%;
+            top: 50%;
+            height: var(--strip);
+            transform: translateY(-50%);
+            border: 1px dashed rgba(255, 255, 255, 0.7);
+            border-radius: 4px;
+            box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
+        }
+
+        /* 가운데 빨간 선 */
+        .center-line {
+            position: absolute;
+            left: 2%;
+            right: 2%;
+            top: 50%;
+            height: 2px;
+            margin-top: -1px;
+            background: #ef4444;
+            box-shadow: 0 0 6px #ef4444;
+            transition: background 0.15s, box-shadow 0.15s;
+        }
+
+        .scanner-wrap.ok .center-line {
+            background: #22c55e;
+            box-shadow: 0 0 12px #22c55e;
+            height: 4px;
+            margin-top: -2px;
+        }
+
+        .scanner-wrap.err .center-line {
+            background: #f59e0b;
+            box-shadow: 0 0 10px #f59e0b;
+        }
+
+        .live {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            bottom: 6px;
+            text-align: center;
+            font-family: monospace;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #e2e8f0;
+            background: rgba(15, 23, 42, 0.75);
+            border-radius: 4px;
+            padding: 3px 6px;
+        }
+
+        .live.hit { color: #86efac; }
+        .live.bad { color: #fcd34d; }
+
+        /* 모드 선택줄 */
+        .mode-row {
+            display: flex;
+            gap: 4px;
+            align-items: stretch;
+        }
+
+        .seg {
+            display: flex;
+            flex: 1;
+            background: #1e293b;
+            border-radius: 6px;
+            padding: 2px;
+            gap: 2px;
+        }
+
+        .seg button {
+            flex: 1;
+            background: transparent;
+            color: #94a3b8;
+            padding: 8px 6px;
+            font-size: 0.8rem;
+        }
+
+        .seg button.on {
+            background: #0284c7;
+            color: white;
+        }
+
+        .btn-scan {
+            width: 100%;
+            padding: 14px 8px;
+            font-size: 1rem;
+            background: #dc2626;
+            color: white;
+            border-radius: 8px;
+            display: none;
+        }
+
+        .btn-scan.armed {
+            background: #f59e0b;
+        }
+
+        .btn-scan:active { transform: scale(0.98); }
+
+        /* 설정 패널 */
+        .settings {
+            display: none;
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 0.78rem;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .settings label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            color: #cbd5e1;
+        }
+
+        .settings select, .settings input[type=range] {
+            background: #0f172a;
+            color: white;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-size: 0.78rem;
+        }
+
+        .settings input[type=range] { flex: 1; padding: 0; }
+
+        .settings details {
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .settings summary {
+            cursor: pointer;
+            color: #38bdf8;
+            font-weight: bold;
+        }
+
+        .settings ul.tips {
+            list-style: disc;
+            padding-left: 18px;
+            margin-top: 4px;
+            overflow: visible;
+            flex: none;
+        }
+
+        .settings ul.tips li {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0 0 3px 0;
+            display: list-item;
+            font-family: inherit;
+            font-size: 0.74rem;
+            color: #94a3b8;
+        }
+
+        .settings ul.tips li:first-child {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            font-weight: normal;
+        }
+
+        /* 버튼 */
+        .btn-group {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        button {
+            padding: 6px 8px;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .btn-blue { background: #0284c7; color: white; }
+        .btn-gray { background: #334155; color: white; padding: 8px 12px; }
+        .btn-gray.on { background: #f59e0b; }
+        .btn-sky { background: #0ea5e9; color: white; flex: 1; }
+        .btn-indigo { background: #6366f1; color: white; flex: 1; }
+        .btn-amber { background: #f59e0b; color: white; flex: 1; }
+        .btn-red { background: #ef4444; color: white; flex: 1; }
+        .btn-yellow { background: #fee500; color: #191919; flex: 1; }
+        .btn-emerald { background: #10b981; color: white; flex: 1; }
+
+        /* 내역 리스트 */
+        .list-box {
+            flex: 1;
+            min-height: 150px;
+            background: #1e293b;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .list-header {
+            padding: 6px 10px;
+            background: #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+
+        ul#barcode-list {
+            list-style: none;
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px;
+        }
+
+        ul#barcode-list li {
+            padding: 6px 8px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            font-family: monospace;
+            font-size: 0.8rem;
+        }
+
+        ul#barcode-list li:first-child {
+            background: #1e3a8a;
+            border-color: #3b82f6;
+            color: #93c5fd;
+            font-weight: bold;
+        }
+
+        ul#barcode-list li.is-duplicate {
+            background: #450a0a !important;
+            border-color: #ef4444 !important;
+            color: #fca5a5 !important;
+        }
+
+        ul#barcode-list li.empty-msg {
+            text-align: center;
+            color: #64748b;
+            padding: 20px 0;
+            font-size: 0.8rem;
+            border: none;
+            background: transparent;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 상단 상태 바 -->
+    <div class="status-bar">
+        <span id="mode-badge" style="font-weight: bold; color: #38bdf8;">모드 감지 중...</span>
+        <span id="pc-id-area" style="display: none;">PC ID: <strong id="my-id" style="color:#f59e0b; font-size: 0.85rem;">----</strong></span>
+        <span id="conn-status" class="badge bg-red">대기</span>
+    </div>
+
+    <!-- 카메라 스캔 영역 (모바일 전용) -->
+    <div id="scanner-section">
+        <div class="scanner-wrap" id="scanner-wrap">
+            <div id="reader"></div>
+            <div class="overlay">
+                <div class="strip" id="strip"></div>
+                <div class="center-line"></div>
+                <div class="live" id="live">카메라 준비 중...</div>
+            </div>
+        </div>
+
+        <!-- 자동/수동 모드 -->
+        <div class="mode-row">
+            <div class="seg">
+                <button id="seg-auto" class="on" onclick="setMode('auto')">⚡ 자동 인식</button>
+                <button id="seg-manual" onclick="setMode('manual')">👆 수동 인식</button>
+            </div>
+            <button id="btn-torch" class="btn-gray" style="display:none;" onclick="toggleTorch()">🔦</button>
+            <button id="btn-settings" class="btn-gray" onclick="toggleSettings()">⚙️</button>
+        </div>
+
+        <!-- 수동 모드 스캔 버튼 -->
+        <button id="btn-scan" class="btn-scan" onclick="manualScan()">🎯 빨간 선에 맞추고 눌러서 스캔</button>
+
+        <!-- 설정 / 인식률 향상 -->
+        <div id="settings" class="settings">
+            <label>인식 영역 두께
+                <select id="set-strip" onchange="onSettingChanged(true)">
+                    <option value="50">얇게 (50px · 정밀)</option>
+                    <option value="70">보통 (70px)</option>
+                    <option value="100">두껍게 (100px · 쉬움)</option>
+                </select>
+            </label>
+            <label>바코드 종류
+                <select id="set-fmt" onchange="onSettingChanged(true)">
+                    <option value="oned">1D 바코드 전체</option>
+                    <option value="retail">상품 (EAN/UPC)</option>
+                    <option value="logistics">물류 (CODE128/39/ITF 등)</option>
+                    <option value="all">1D + QR/DataMatrix</option>
+                </select>
+            </label>
+            <label>자동 확인 횟수
+                <select id="set-confirm" onchange="onSettingChanged(false)">
+                    <option value="1">1회 (빠름)</option>
+                    <option value="2">2회 (권장)</option>
+                    <option value="3">3회 (가장 정확)</option>
+                </select>
+            </label>
+            <label>
+                <span>체크디지트 검증 (EAN/UPC 오인식 차단)</span>
+                <input type="checkbox" id="set-check" onchange="onSettingChanged(false)">
+            </label>
+            <label id="zoom-row" style="display:none;">줌
+                <input type="range" id="set-zoom" min="1" max="4" step="0.1" value="1" oninput="onZoomChange(this.value)">
+                <span id="zoom-val" style="width:36px; text-align:right;">1.0x</span>
+            </label>
+            <details>
+                <summary>💡 인식률 높이는 방법</summary>
+                <ul class="tips">
+                    <li>바코드를 빨간 선과 <b>평행(가로)</b>이 되게, 선이 바코드 세로 중앙을 가로지르게 맞춰주세요.</li>
+                    <li>화면에서 바코드 폭이 <b>영역의 50~80%</b> 정도 되도록 거리를 조절하세요. 너무 가까우면 초점이 흐려집니다.</li>
+                    <li>글자가 작거나 멀면 <b>줌</b>을 올리고, 어두우면 🔦 <b>플래시</b>를 켜세요.</li>
+                    <li>반사가 심한 비닐 포장은 카메라를 살짝 비스듬히(10~20°) 기울이세요.</li>
+                    <li>자주 쓰는 바코드 종류만 선택하면 속도와 정확도가 올라갑니다.</li>
+                    <li>자동 확인 횟수를 2~3회로 하면 비슷한 바코드를 잘못 읽는 일이 크게 줄어듭니다.</li>
+                    <li>가까운 바코드가 자꾸 섞이면 <b>수동 모드</b>로 화면의 인식값을 확인한 뒤 버튼을 누르세요.</li>
+                    <li>화면 하단의 인식값이 실제 바코드 숫자와 같은지 확인하세요.</li>
+                </ul>
+            </details>
+        </div>
+
+        <!-- 수동 입력창 -->
+        <div class="input-box">
+            <input type="text" id="manual-input" placeholder="바코드 직접 입력" onkeydown="if(event.key==='Enter') addManualBar()">
+            <button class="btn-blue" onclick="addManualBar()">추가</button>
+        </div>
+    </div>
+
+    <!-- 버튼 메뉴 -->
+    <div class="btn-group">
+        <button id="btn-connect" class="btn-sky" onclick="promptConnect()" style="display:none;">🔗 PC 연결</button>
+        <button id="btn-restart" class="btn-indigo" onclick="startScanner()" style="display:none;">📷 카메라 재시작</button>
+        <button class="btn-amber" onclick="removeLast()">↩️ 지우기</button>
+        <button class="btn-red" onclick="clearAll()">🗑️ 초기화</button>
+    </div>
+    <div class="btn-group">
+        <button class="btn-yellow" onclick="copyOrShare()">📋 복사</button>
+        <button class="btn-emerald" onclick="downloadTXT()">💾 txt 저장</button>
+    </div>
+
+    <!-- 스캔 리스트 -->
+    <div class="list-box">
+        <div class="list-header">
+            <span>스캔 내역 (최신순)</span>
+            <span id="scan-count" style="background:#0284c7; padding:1px 6px; border-radius:10px;">0건</span>
+        </div>
+        <ul id="barcode-list">
+            <li class="empty-msg">내역이 없습니다.</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    let isMobile = false;
+    let peer = null;
+    let conn = null;
+    let barcodeList = [];
+
+    // 스캐너 상태
+    let scanner = null;
+    let starting = false;
+    let torchFeature = null;
+    let zoomFeature = null;
+    let torchOn = false;
+    let wakeLock = null;
+    let audioCtx = null;
+
+    // 인식 상태
+    let candidate = { code: null, count: 0, last: 0 };
+    let heldCode = { code: null, lastSeen: 0 };   // 직전 확정 바코드 (카메라에서 벗어날 때까지 재입력 방지)
+    let lastDetected = null;                       // 수동 모드용 최근 인식값 {code, time}
+    let armed = false;
+    let armTimer = null;
+    let liveResetTimer = null;
+
+    const DEFAULTS = { mode: 'auto', strip: 50, fmt: 'oned', confirm: 2, check: true, zoom: 1 };
+    let settings = Object.assign({}, DEFAULTS);
+
+    /* ================= 초기화 ================= */
+    window.onload = function () {
+        try {
+            const saved = localStorage.getItem('barcodes');
+            if (saved) barcodeList = JSON.parse(saved);
+        } catch (e) { barcodeList = []; }
+        try {
+            const s = localStorage.getItem('scanSettings');
+            if (s) settings = Object.assign({}, DEFAULTS, JSON.parse(s));
+        } catch (e) {}
+        renderList();
+
+        isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+        if (isMobile) {
+            document.getElementById('mode-badge').innerText = "📱 모바일 스캔 모드";
+            document.getElementById('scanner-section').style.display = 'flex';
+            document.getElementById('btn-connect').style.display = 'block';
+            document.getElementById('btn-restart').style.display = 'block';
+
+            applySettingsToUI();
+            setMode(settings.mode, true);
+            initPeerMobile();
+            startScanner();
+            requestWakeLock();
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') requestWakeLock();
+            });
+        } else {
+            document.getElementById('mode-badge').innerText = "💻 PC 수신 모드";
+            document.getElementById('pc-id-area').style.display = 'inline';
+            initPeerPC();
+        }
+    };
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+        } catch (e) {}
+    }
+
+    /* ================= 설정 ================= */
+    function applySettingsToUI() {
+        document.getElementById('set-strip').value = String(settings.strip);
+        document.getElementById('set-fmt').value = settings.fmt;
+        document.getElementById('set-confirm').value = String(settings.confirm);
+        document.getElementById('set-check').checked = !!settings.check;
+        document.getElementById('scanner-wrap').style.setProperty('--strip', settings.strip + 'px');
+    }
+
+    function onSettingChanged(needRestart) {
+        settings.strip = parseInt(document.getElementById('set-strip').value, 10);
+        settings.fmt = document.getElementById('set-fmt').value;
+        settings.confirm = parseInt(document.getElementById('set-confirm').value, 10);
+        settings.check = document.getElementById('set-check').checked;
+        saveSettings();
+        document.getElementById('scanner-wrap').style.setProperty('--strip', settings.strip + 'px');
+        if (needRestart) startScanner();
+    }
+
+    function saveSettings() {
+        try { localStorage.setItem('scanSettings', JSON.stringify(settings)); } catch (e) {}
+    }
+
+    function toggleSettings() {
+        const el = document.getElementById('settings');
+        el.style.display = (el.style.display === 'flex') ? 'none' : 'flex';
+    }
+
+    function setMode(mode, silent) {
+        settings.mode = mode;
+        document.getElementById('seg-auto').classList.toggle('on', mode === 'auto');
+        document.getElementById('seg-manual').classList.toggle('on', mode === 'manual');
+        document.getElementById('btn-scan').style.display = (mode === 'manual') ? 'block' : 'none';
+        disarm();
+        candidate = { code: null, count: 0, last: 0 };
+        if (!silent) saveSettings();
+        setLive(mode === 'manual' ? '수동 모드: 선에 맞추고 스캔 버튼' : '자동 모드: 선에 맞춰주세요');
+    }
+
+    /* ================= PeerJS ================= */
+    function initPeerPC() {
+        const numId = Math.floor(1000 + Math.random() * 9000).toString();
+        peer = new Peer(numId);
+
+        peer.on('open', function (id) {
+            document.getElementById('my-id').innerText = id;
+        });
+
+        peer.on('connection', function (c) {
+            conn = c;
+            setupConnection();
+        });
+
+        peer.on('error', function (err) {
+            if (err.type === 'unavailable-id') {
+                initPeerPC();
+            } else {
+                alert("연결 오류: " + err.type);
+            }
+        });
+    }
+
+    function initPeerMobile() {
+        peer = new Peer();
+        peer.on('error', function (err) {
+            alert("연결 오류: " + err.type);
+        });
+    }
+
+    function promptConnect() {
+        const targetId = prompt("PC 화면 상단에 표시된 4자리 숫자 ID를 입력하세요:");
+        if (targetId) {
+            const trimmed = targetId.trim();
+            if (trimmed.length !== 4 || isNaN(trimmed)) {
+                return alert("4자리 숫자를 정확히 입력해 주세요.");
+            }
+            conn = peer.connect(trimmed);
+            setupConnection();
+        }
+    }
+
+    function setupConnection() {
+        conn.on('open', function () {
+            const status = document.getElementById('conn-status');
+            status.innerText = "연결됨";
+            status.className = "badge bg-green";
+
+            if (isMobile) {
+                conn.send({ type: 'SYNC', list: barcodeList });
+            }
+        });
+
+        conn.on('data', function (data) {
+            if (data.type === 'ADD') {
+                addBarcodeInternal(data.code);
+            } else if (data.type === 'SYNC') {
+                barcodeList = data.list;
+                saveData();
+            } else if (data.type === 'REMOVE_LAST') {
+                barcodeList.pop();
+                saveData();
+            } else if (data.type === 'CLEAR') {
+                barcodeList = [];
+                localStorage.removeItem('barcodes');
+                renderList();
+            }
+        });
+
+        conn.on('close', function () {
+            const status = document.getElementById('conn-status');
+            status.innerText = "끊김";
+            status.className = "badge bg-red";
+        });
+    }
+
+    /* ================= 데이터 처리 ================= */
+    function addBarcodeInternal(code) {
+        const trimmed = String(code).trim();
+        if (!trimmed) return false;
+
+        if (barcodeList.length > 0 && barcodeList[barcodeList.length - 1] === trimmed) {
+            playErrorBeep();
+            return false;
+        }
+
+        barcodeList.push(trimmed);
+        playBeep();
+        saveData();
+        return true;
+    }
+
+    function addBarcode(code) {
+        const isAdded = addBarcodeInternal(code);
+        if (isAdded && conn && conn.open) {
+            conn.send({ type: 'ADD', code: String(code).trim() });
+        }
+        return isAdded;
+    }
+
+    function removeLast() {
+        if (barcodeList.length === 0) return alert("지울 내역이 없습니다.");
+        barcodeList.pop();
+        saveData();
+        if (conn && conn.open) conn.send({ type: 'REMOVE_LAST' });
+    }
+
+    function clearAll() {
+        if (barcodeList.length === 0) return;
+        if (confirm("전체 내역을 삭제하시겠습니까?")) {
+            barcodeList = [];
+            localStorage.removeItem('barcodes');
+            renderList();
+            heldCode = { code: null, lastSeen: 0 };
+            if (conn && conn.open) conn.send({ type: 'CLEAR' });
+        }
+    }
+
+    function addManualBar() {
+        const input = document.getElementById('manual-input');
+        if (input.value) {
+            addBarcode(input.value);
+            input.value = '';
+            input.focus();
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem('barcodes', JSON.stringify(barcodeList));
+        renderList();
+    }
+
+    function renderList() {
+        const listEl = document.getElementById('barcode-list');
+        const countEl = document.getElementById('scan-count');
+
+        countEl.innerText = `${barcodeList.length}건`;
+        listEl.innerHTML = '';
+
+        if (barcodeList.length === 0) {
+            const empty = document.createElement('li');
+            empty.className = 'empty-msg';
+            empty.textContent = '내역이 없습니다.';
+            listEl.appendChild(empty);
+            return;
+        }
+
+        const counts = {};
+        barcodeList.forEach(code => {
+            counts[code] = (counts[code] || 0) + 1;
+        });
+
+        for (let i = barcodeList.length - 1; i >= 0; i--) {
+            const code = barcodeList[i];
+            const li = document.createElement('li');
+
+            if (counts[code] > 1) li.classList.add('is-duplicate');
+
+            const s1 = document.createElement('span');
+            s1.textContent = code;
+            const s2 = document.createElement('small');
+            s2.style.opacity = '0.7';
+            s2.textContent = `#${i + 1}`;
+            li.appendChild(s1);
+            li.appendChild(s2);
+            listEl.appendChild(li);
+        }
+    }
+
+    /* ================= 카메라 / 스캐너 ================= */
+    function getFormats() {
+        const F = Html5QrcodeSupportedFormats;
+        const retail = [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E];
+        const logistics = [F.CODE_128, F.CODE_39, F.CODE_93, F.ITF, F.CODABAR];
+        const oned = retail.concat(logistics);
+        const all = oned.concat([F.QR_CODE, F.DATA_MATRIX]);
+        return { retail, logistics, oned, all }[settings.fmt] || oned;
+    }
+
+    async function stopScanner() {
+        torchOn = false;
+        torchFeature = null;
+        zoomFeature = null;
+        if (scanner) {
+            try { if (scanner.isScanning) await scanner.stop(); } catch (e) {}
+            try { scanner.clear(); } catch (e) {}
+            scanner = null;
+        }
+        const readerEl = document.getElementById('reader');
+        if (readerEl) readerEl.innerHTML = '';
+        document.getElementById('btn-torch').style.display = 'none';
+        document.getElementById('btn-torch').classList.remove('on');
+        document.getElementById('zoom-row').style.display = 'none';
+    }
+
+    async function startScanner() {
+        if (!isMobile || starting) return;
+        starting = true;
+        try {
+            await stopScanner();
+            setLive('카메라 시작 중...');
+
+            const strip = settings.strip;
+            scanner = new Html5Qrcode("reader", {
+                formatsToSupport: getFormats(),
+                useBarCodeDetectorIfSupported: true,
+                experimentalFeatures: { useBarCodeDetectorIfSupported: true },
+                verbose: false
+            });
+
+            // 가운데 가로 띠만 디코딩 → 빨간 선에 걸린 바코드만 인식
+            const baseConfig = {
+                fps: 15,
+                qrbox: (vw, vh) => ({
+                    width: Math.floor(vw * 0.92),
+                    height: Math.min(strip, Math.floor(vh))
+                }),
+                disableFlip: false
+            };
+
+            // 고해상도 + 연속 자동초점으로 인식률 향상
+            const hiRes = Object.assign({}, baseConfig, {
+                videoConstraints: {
+                    facingMode: { ideal: "environment" },
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    advanced: [{ focusMode: "continuous" }]
+                }
+            });
+
+            try {
+                await scanner.start({ facingMode: "environment" }, hiRes, onDecode, () => {});
+            } catch (e1) {
+                console.log("고해상도 시작 실패, 기본 설정으로 재시도:", e1);
+                try { scanner.clear(); } catch (e) {}
+                scanner = new Html5Qrcode("reader", {
+                    formatsToSupport: getFormats(),
+                    verbose: false
+                });
+                await scanner.start({ facingMode: "environment" }, baseConfig, onDecode, () => {});
+            }
+
+            document.getElementById('scanner-wrap').style.setProperty('--strip', strip + 'px');
+            initCameraCapabilities();
+            setLive(settings.mode === 'manual' ? '수동 모드: 선에 맞추고 스캔 버튼' : '자동 모드: 선에 맞춰주세요');
+        } catch (err) {
+            console.error(err);
+            setLive('카메라 오류: 권한/HTTPS 확인', 'bad');
+        } finally {
+            starting = false;
+        }
+    }
+
+    function initCameraCapabilities() {
+        try {
+            const caps = scanner.getRunningTrackCameraCapabilities();
+
+            torchFeature = caps.torchFeature();
+            if (torchFeature && torchFeature.isSupported()) {
+                document.getElementById('btn-torch').style.display = 'block';
+            } else {
+                torchFeature = null;
+            }
+
+            zoomFeature = caps.zoomFeature();
+            if (zoomFeature && zoomFeature.isSupported()) {
+                const slider = document.getElementById('set-zoom');
+                slider.min = zoomFeature.min();
+                slider.max = zoomFeature.max();
+                slider.step = zoomFeature.step() || 0.1;
+                let z = Math.min(Math.max(settings.zoom || 1, zoomFeature.min()), zoomFeature.max());
+                slider.value = z;
+                zoomFeature.apply(z);
+                document.getElementById('zoom-val').innerText = Number(z).toFixed(1) + 'x';
+                document.getElementById('zoom-row').style.display = 'flex';
+            } else {
+                zoomFeature = null;
+            }
+        } catch (e) {
+            console.log("카메라 기능 확인 실패:", e);
+        }
+    }
+
+    function toggleTorch() {
+        if (!torchFeature) return;
+        torchOn = !torchOn;
+        torchFeature.apply(torchOn).catch(() => { torchOn = false; });
+        document.getElementById('btn-torch').classList.toggle('on', torchOn);
+    }
+
+    function onZoomChange(v) {
+        const z = parseFloat(v);
+        document.getElementById('zoom-val').innerText = z.toFixed(1) + 'x';
+        settings.zoom = z;
+        saveSettings();
+        if (zoomFeature) zoomFeature.apply(z).catch(() => {});
+    }
+
+    /* ================= 인식 처리 ================= */
+    // EAN-13 / EAN-8 / UPC-A 체크디지트 검증
+    function checkDigitOk(code, fmt) {
+        if (!settings.check) return true;
+        if (!/^\d+$/.test(code)) return true;
+        const f = (fmt || '').toUpperCase();
+        const target = (f === 'EAN_13' || f === 'EAN_8' || f === 'UPC_A');
+        if (!target) return true;
+
+        const digits = code.split('').map(Number);
+        const check = digits.pop();
+        let sum = 0;
+        for (let i = digits.length - 1, w = 3; i >= 0; i--, w = (w === 3 ? 1 : 3)) {
+            sum += digits[i] * w;
+        }
+        return ((10 - (sum % 10)) % 10) === check;
+    }
+
+    function onDecode(text, result) {
+        const code = String(text || '').trim();
+        if (!code) return;
+
+        let fmt = '';
+        try { fmt = result.result.format.formatName || ''; } catch (e) {}
+
+        if (!checkDigitOk(code, fmt)) {
+            setLive('⚠ 체크디지트 오류 (오인식): ' + code, 'bad');
+            candidate = { code: null, count: 0, last: 0 };
+            return;
+        }
+
+        const now = Date.now();
+        lastDetected = { code: code, time: now };
+        setLive(code, 'hit');
+
+        // ===== 수동 모드: 화면에 인식값만 표시, 버튼 눌렀을 때 확정 =====
+        if (settings.mode === 'manual') {
+            if (armed) {
+                commitCode(code);
+                disarm();
+                lastDetected = null;
+            }
+            return;
+        }
+
+        // ===== 자동 모드 =====
+        // 직전에 확정한 바코드가 계속 카메라에 보이는 동안은 무시 (카메라에서 벗어나야 재입력 가능)
+        if (heldCode.code === code && now - heldCode.lastSeen < 800) {
+            heldCode.lastSeen = now;
+            return;
+        }
+
+        // 같은 값이 연속으로 N번 읽힐 때만 확정 (오인식 방지)
+        if (candidate.code === code && now - candidate.last < 700) {
+            candidate.count++;
+        } else {
+            candidate = { code: code, count: 1, last: now };
+        }
+        candidate.last = now;
+
+        if (candidate.count >= settings.confirm) {
+            commitCode(code);
+            candidate = { code: null, count: 0, last: 0 };
+        }
+    }
+
+    function commitCode(code) {
+        const ok = addBarcode(code);
+        heldCode = { code: code, lastSeen: Date.now() };
+        flashLine(ok ? 'ok' : 'err');
+        if (ok) {
+            if (navigator.vibrate) navigator.vibrate(60);
+            setLive('✔ 등록: ' + code, 'hit');
+        } else {
+            setLive('직전과 동일한 바코드 (중복)', 'bad');
+        }
+    }
+
+    function manualScan() {
+        // 오디오 컨텍스트 활성화 (사용자 제스처)
+        getAudio();
+        const now = Date.now();
+
+        // 최근 1초 이내 선에서 읽힌 값이 있으면 바로 확정
+        if (lastDetected && now - lastDetected.time < 1000) {
+            commitCode(lastDetected.code);
+            lastDetected = null;
+            return;
+        }
+
+        // 없으면 3초간 인식 대기
+        if (armed) return;
+        armed = true;
+        const btn = document.getElementById('btn-scan');
+        btn.classList.add('armed');
+        btn.innerText = '⏳ 인식 중... (선에 맞춰주세요)';
+        setLive('인식 대기 중...');
+        armTimer = setTimeout(() => {
+            disarm();
+            flashLine('err');
+            setLive('인식 실패 - 다시 시도해 주세요', 'bad');
+        }, 3000);
+    }
+
+    function disarm() {
+        armed = false;
+        if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+        const btn = document.getElementById('btn-scan');
+        if (btn) {
+            btn.classList.remove('armed');
+            btn.innerText = '🎯 빨간 선에 맞추고 눌러서 스캔';
+        }
+    }
+
+    function flashLine(type) {
+        const wrap = document.getElementById('scanner-wrap');
+        wrap.classList.remove('ok', 'err');
+        void wrap.offsetWidth;
+        wrap.classList.add(type);
+        setTimeout(() => wrap.classList.remove(type), 350);
+    }
+
+    function setLive(text, cls) {
+        const el = document.getElementById('live');
+        el.textContent = text;
+        el.className = 'live' + (cls ? ' ' + cls : '');
+        if (liveResetTimer) clearTimeout(liveResetTimer);
+        if (cls === 'hit' || cls === 'bad') {
+            liveResetTimer = setTimeout(() => {
+                if (scanner) {
+                    el.textContent = settings.mode === 'manual' ? '수동 모드: 선에 맞추고 스캔 버튼' : '자동 모드: 선에 맞춰주세요';
+                    el.className = 'live';
+                }
+            }, 1500);
+        }
+    }
+
+    /* ================= 사운드 ================= */
+    function getAudio() {
+        try {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        } catch (e) {}
+        return audioCtx;
+    }
+
+    function playBeep() {
+        try {
+            const ctx = getAudio();
+            if (!ctx) return;
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.type = "sine";
+            osc.frequency.value = 1000;
+            gain.gain.value = 0.1;
+            osc.start();
+            osc.stop(ctx.currentTime + 0.1);
+        } catch (e) {}
+    }
+
+    function playErrorBeep() {
+        try {
+            const ctx = getAudio();
+            if (!ctx) return;
+            [0, 0.12].forEach(offset => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = "sawtooth";
+                osc.frequency.value = 400;
+                gain.gain.value = 0.15;
+                osc.start(ctx.currentTime + offset);
+                osc.stop(ctx.currentTime + offset + 0.08);
+            });
+        } catch (e) {}
+    }
+
+    /* ================= 복사 / 저장 ================= */
+    async function copyOrShare() {
+        if (barcodeList.length === 0) return alert("복사할 내역이 없습니다.");
+        const text = barcodeList.join('\n');
+
+        if (isMobile && navigator.share) {
+            try {
+                await navigator.share({ title: '바코드 내역', text: text });
+                return;
+            } catch (err) {}
+        }
+
+        try {
+            await navigator.clipboard.writeText(text);
+            alert("클립보드에 복사되었습니다.");
+        } catch (err) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            alert("클립보드에 복사되었습니다.");
+        }
+    }
+
+    function downloadTXT() {
+        if (barcodeList.length === 0) return alert("저장할 데이터가 없습니다.");
+        const text = barcodeList.join('\r\n');
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+
+        const now = new Date();
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+
+        a.href = url;
+        a.download = `scan_${yy}${mm}${dd}_${hh}${min}${ss}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+</script>
+
+</body>
+</html>
