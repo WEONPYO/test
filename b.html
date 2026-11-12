@@ -31,9 +31,9 @@
             height: 100dvh;
             display: flex;
             flex-direction: column;
-            padding: 8px;
-            gap: 6px;
-            overflow-y: auto;
+            padding: 6px;
+            gap: 4px;
+            overflow: hidden;
         }
 
         /* 상태 표시바 */
@@ -64,14 +64,14 @@
             display: flex;
             gap: 4px;
             background: #1e293b;
-            padding: 6px;
+            padding: 4px;
             border-radius: 6px;
         }
 
         .input-box input {
             flex: 1;
             min-width: 0;
-            padding: 6px 8px;
+            padding: 5px 8px;
             border-radius: 4px;
             border: 1px solid #334155;
             background: #0f172a;
@@ -84,28 +84,43 @@
         #scanner-section {
             display: none;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
             flex-shrink: 0;
         }
 
+        /* 카메라 영역: 화면 높이의 약 24% (영상 중앙부만 보이도록 잘라서 표시) */
         .scanner-wrap {
             --strip: 50px;
             position: relative;
             width: 100%;
-            min-height: 150px;
+            height: 24vh;
+            height: 24dvh;
+            min-height: 100px;
+            max-height: 220px;
             background: #000;
             border-radius: 8px;
             overflow: hidden;
         }
 
         #reader {
+            position: absolute !important;
+            inset: 0;
             width: 100% !important;
+            height: 100% !important;
             border: none !important;
             background: #000;
+            overflow: hidden;
         }
 
+        /* 영상은 가로 100%로 두고 세로 중앙 기준으로 배치 → 빨간 선/인식 띠가 항상 영상 중앙과 일치 */
         #reader video {
+            position: absolute !important;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 100% !important;
+            height: auto !important;
+            max-width: none !important;
             display: block;
         }
 
@@ -195,8 +210,8 @@
             flex: 1;
             background: transparent;
             color: #94a3b8;
-            padding: 8px 6px;
-            font-size: 0.8rem;
+            padding: 6px 4px;
+            font-size: 0.75rem;
         }
 
         .seg button.on {
@@ -206,8 +221,8 @@
 
         .btn-scan {
             width: 100%;
-            padding: 14px 8px;
-            font-size: 1rem;
+            padding: 11px 8px;
+            font-size: 0.95rem;
             background: #dc2626;
             color: white;
             border-radius: 8px;
@@ -221,14 +236,26 @@
         .btn-scan:active { transform: scale(0.98); }
 
         /* 설정 패널 */
+        /* 설정 패널: 화면 하단 시트로 띄워 메인 레이아웃을 밀지 않음 */
         .settings {
             display: none;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-width: 600px;
+            margin: 0 auto;
+            max-height: 55vh;
+            overflow-y: auto;
+            z-index: 50;
             background: #1e293b;
-            border-radius: 8px;
-            padding: 8px 10px;
+            border-top: 2px solid #0284c7;
+            border-radius: 12px 12px 0 0;
+            padding: 10px 12px 14px;
             font-size: 0.78rem;
             flex-direction: column;
             gap: 8px;
+            box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.6);
         }
 
         .settings label {
@@ -290,9 +317,15 @@
         /* 버튼 */
         .btn-group {
             display: flex;
-            gap: 4px;
-            flex-wrap: wrap;
+            gap: 3px;
+            flex-wrap: nowrap;
             flex-shrink: 0;
+        }
+
+        .btn-group button {
+            padding: 8px 2px;
+            font-size: 0.68rem;
+            min-width: 0;
         }
 
         button {
@@ -306,7 +339,7 @@
         }
 
         .btn-blue { background: #0284c7; color: white; }
-        .btn-gray { background: #334155; color: white; padding: 8px 12px; }
+        .btn-gray { background: #334155; color: white; padding: 6px 12px; }
         .btn-gray.on { background: #f59e0b; }
         .btn-sky { background: #0ea5e9; color: white; flex: 1; }
         .btn-indigo { background: #6366f1; color: white; flex: 1; }
@@ -318,7 +351,7 @@
         /* 내역 리스트 */
         .list-box {
             flex: 1;
-            min-height: 150px;
+            min-height: 0;
             background: #1e293b;
             border-radius: 8px;
             display: flex;
@@ -469,14 +502,12 @@
 
     <!-- 버튼 메뉴 -->
     <div class="btn-group">
-        <button id="btn-connect" class="btn-sky" onclick="promptConnect()" style="display:none;">🔗 PC 연결</button>
-        <button id="btn-restart" class="btn-indigo" onclick="startScanner()" style="display:none;">📷 카메라 재시작</button>
-        <button class="btn-amber" onclick="removeLast()">↩️ 지우기</button>
-        <button class="btn-red" onclick="clearAll()">🗑️ 초기화</button>
-    </div>
-    <div class="btn-group">
-        <button class="btn-yellow" onclick="copyOrShare()">📋 복사</button>
-        <button class="btn-emerald" onclick="downloadTXT()">💾 txt 저장</button>
+        <button id="btn-connect" class="btn-sky" onclick="promptConnect()" style="display:none;">🔗PC연결</button>
+        <button id="btn-restart" class="btn-indigo" onclick="startScanner()" style="display:none;">📷재시작</button>
+        <button class="btn-amber" onclick="removeLast()">↩️지우기</button>
+        <button class="btn-red" onclick="clearAll()">🗑️초기화</button>
+        <button class="btn-yellow" onclick="copyOrShare()">📋복사</button>
+        <button class="btn-emerald" onclick="downloadTXT()">💾저장</button>
     </div>
 
     <!-- 스캔 리스트 -->
